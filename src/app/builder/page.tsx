@@ -16,6 +16,7 @@ import {
 import Image from 'next/image';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
+import { useTranslation } from 'react-i18next';
 
 import ThreeCanvas from '@/components/ThreeCanvas';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +35,7 @@ type Wall = {
 };
 
 export default function RoomBuilderPage() {
+  const { t } = useTranslation();
   const [walls, setWalls] = useState<Wall[]>([
     {
       id: 'wall-test1',
@@ -113,7 +115,7 @@ export default function RoomBuilderPage() {
 
   const saveRoom = () => {
     // Mock save
-    alert('Room saved!');
+    alert(t('alerts.roomSaved'));
   };
 
   const handleAddPlaceholderWall = () => {
@@ -131,7 +133,7 @@ export default function RoomBuilderPage() {
             <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden bg-white/90">
               <Image
                 src="/images/roomi-logo-light.jpeg"
-                alt="ROOMI Space Logo"
+                alt={t('alt.logo')}
                 width={40}
                 height={40}
                 className="w-full h-full object-contain"
@@ -148,7 +150,7 @@ export default function RoomBuilderPage() {
             value={roomName}
             onChange={(e) => setRoomName(e.target.value)}
             className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            placeholder="Room name..."
+            placeholder={t('room.placeholder')}
           />
         </div>
 

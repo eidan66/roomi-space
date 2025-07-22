@@ -122,3 +122,74 @@
     @apply bg-background text-foreground;
   }
 }
+
+
+
+/* RTL/LTR Support */
+[dir="rtl"] {
+  text-align: right;
+}
+
+[dir="ltr"] {
+  text-align: left;
+}
+
+/* RTL Flexbox utilities */
+[dir="rtl"] .flex-row {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .flex-row-reverse {
+  flex-direction: row;
+}
+
+/* RTL spacing utilities */
+[dir="rtl"] .ml-auto {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+[dir="rtl"] .mr-auto {
+  margin-right: auto;
+  margin-left: 0;
+}
+
+[dir="rtl"] .pl-4 {
+  padding-left: 0;
+  padding-right: 1rem;
+}
+
+[dir="rtl"] .pr-4 {
+  padding-right: 0;
+  padding-left: 1rem;
+}
+
+/* RTL border utilities */
+[dir="rtl"] .border-l {
+  border-left: none;
+  border-right: 1px solid;
+}
+
+[dir="rtl"] .border-r {
+  border-right: none;
+  border-left: 1px solid;
+}
+
+/* RTL text utilities */
+[dir="rtl"] .text-left {
+  text-align: right;
+}
+
+[dir="rtl"] .text-right {
+  text-align: left;
+}
+
+/* RTL transform utilities for icons and arrows */
+[dir="rtl"] .rtl-flip {
+  transform: scaleX(-1);
+}
+
+/* Hebrew font support */
+[dir="rtl"] body {
+  font-family: 'Inter', 'Arial Hebrew', 'David', 'Tahoma', sans-serif;
+}

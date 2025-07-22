@@ -4,6 +4,7 @@ import React from 'react';
 
 import { Globe, LogOut, Moon, Palette, Sun, User } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +15,7 @@ import { useAppDispatch, useAppSelector } from '@/hooks/redux';
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const { language } = useAppSelector((state: RootState) => state.settings);
 
@@ -23,7 +25,7 @@ export default function SettingsPage() {
 
   const handleLogout = () => {
     // Mock logout
-    alert('Logged out!');
+    alert(t('alerts.loggedOut'));
   };
 
   return (

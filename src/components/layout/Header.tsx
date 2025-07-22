@@ -7,8 +7,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
+import { useTranslation } from 'react-i18next';
 
-import { Badge } from '@/components/ui/badge';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -16,29 +17,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { RootState, toggleLanguage } from '@/features/store';
-import { useAppDispatch, useAppSelector } from '@/hooks/redux';
-
-const navigationItems = [
-  { title: 'Home', href: '/', icon: Home },
-  { title: 'Academy', href: '/academy', icon: GraduationCap },
-  { title: 'Builder', href: '/builder', icon: Building },
-];
 
 export default function Header() {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
-  const dispatch = useAppDispatch();
-  const { language } = useAppSelector((state: RootState) => state.settings);
+  const { t } = useTranslation();
   const [mounted, setMounted] = useState(false);
+
+  // Navigation items with translation keys
+  const navigationItems = [
+    { title: t('navigation.home'), href: '/', icon: Home },
+    { title: t('navigation.academy'), href: '/academy', icon: GraduationCap },
+    { title: t('navigation.builder'), href: '/builder', icon: Building },
+  ];
 
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  const handleToggleLanguage = () => {
-    dispatch(toggleLanguage());
-  };
 
   if (!mounted) {
     // Render a placeholder or null on the server to avoid hydration mismatch
@@ -57,7 +52,7 @@ export default function Header() {
             <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg overflow-hidden">
               <Image
                 src="/images/roomi-logo-light.jpeg"
-                alt="ROOMI Space Logo"
+                alt={t('alt.logo')}
                 width={100}
                 height={100}
                 className="w-full h-full object-contain"
@@ -69,9 +64,9 @@ export default function Header() {
           </Link>
 
           <div className="hidden md:flex items-center space-x-1">
-            {navigationItems.map((item) => (
+            {navigationItems.map((item, index) => (
               <Link
-                key={item.title}
+                key={`nav-${index}`}
                 href={item.href}
                 className={`px-4 py-2 rounded-lg transition-all duration-200 flex items-center space-x-2 ${
                   pathname === item.href
@@ -86,22 +81,14 @@ export default function Header() {
           </div>
 
           <div className="flex items-center space-x-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleToggleLanguage}
-              className="rounded-full"
-            >
-              <Badge variant="outline" className="text-xs">
-                {language === 'en' ? '🇺🇸 EN' : '🇮🇱 HE'}
-              </Badge>
-            </Button>
+            <LanguageSwitcher />
 
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
               className="rounded-full"
+              aria-label={t('aria.themeToggle')}
             >
               {mounted &&
                 (theme === 'dark' ? (
@@ -114,7 +101,12 @@ export default function Header() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-full"
+                  aria-label={t('aria.userMenu')}
+                >
                   <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center">
                     <User className="w-4 h-4 text-white" />
                   </div>
@@ -124,13 +116,13 @@ export default function Header() {
                 <DropdownMenuItem asChild>
                   <Link href="/profile" className="flex items-center space-x-2">
                     <User className="w-4 h-4" />
-                    <span>Profile</span>
+                    <span>{t('user.profile')}</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/settings" className="flex items-center space-x-2">
                     <Settings className="w-4 h-4" />
-                    <span>Settings</span>
+                    <span>{t('user.settings')}</span>
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
