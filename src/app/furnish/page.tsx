@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { useTheme } from 'next-themes';
+import { useTranslation } from 'react-i18next';
 
 import ThreeCanvas from '@/components/ThreeCanvas';
 import { Badge } from '@/components/ui/badge';
@@ -51,6 +52,7 @@ type StoreItem = {
 };
 
 export default function RoomFurnishPage() {
+  const { t } = useTranslation();
   const [objects, setObjects] = useState<RoomObject[]>([
     {
       id: 'obj-test1',
@@ -236,7 +238,7 @@ export default function RoomFurnishPage() {
   };
 
   const takeScreenshot = () => {
-    alert('Screenshot feature coming soon! (Requires canvas reference from ThreeCanvas)');
+    alert(t('alerts.screenshotComingSoon'));
   };
 
   return (
@@ -248,7 +250,7 @@ export default function RoomFurnishPage() {
               <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden bg-white/90">
                 <Image
                   src="/images/roomi-logo-light.jpeg"
-                  alt="ROOMI Space Logo"
+                  alt={t('alt.logo')}
                   width={40}
                   height={40}
                   className="w-full h-full object-contain"

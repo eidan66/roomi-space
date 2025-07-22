@@ -3,36 +3,51 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 import HttpApi from 'i18next-http-backend';
 import { initReactI18next } from 'react-i18next';
 
-const resources = {
-  en: {
-    translation: {
-      welcome: 'Welcome to Roomi-Space!',
-      // ...other translations
-    },
-  },
-  he: {
-    translation: {
-      welcome: 'ברוכים הבאים לסטודיו חדר החלומות!',
-      // ...other translations
-    },
-  },
-};
+// Only initialize if we're on the client side
+if (typeof window !== 'undefined') {
+  i18n
+    .use(HttpApi)
+    .use(LanguageDetector)
+    .use(initReactI18next)
+    .init({
+      lng: 'he', // Set Hebrew as the default language
+      fallbackLng: 'he',
+      supportedLngs: ['en', 'he'],
+      debug: process.env.NODE_ENV === 'development',
 
-i18n
-  .use(HttpApi)
-  .use(LanguageDetector)
-  .use(initReactI18next)
-  .init({
-    resources,
+      interpolation: {
+        escapeValue: false,
+      },
+
+      backend: {
+        loadPath: '/locales/{{lng}}/{{ns}}.json',
+      },
+
+      ns: ['common'],
+      defaultNS: 'common',
+
+      detection: {
+        order: ['querystring', 'cookie', 'localStorage', 'htmlTag', 'navigator'],
+        caches: ['localStorage', 'cookie'],
+      },
+
+      react: {
+        useSuspense: false, // Disable suspense to prevent hydration issues
+      },
+    });
+} else {
+  // Server-side: minimal initialization
+  i18n.use(initReactI18next).init({
+    lng: 'he',
     fallbackLng: 'he',
-    supportedLngs: ['en', 'he'],
-    interpolation: {
-      escapeValue: false,
+    resources: {
+      he: { common: {} },
+      en: { common: {} },
     },
-    detection: {
-      order: ['querystring', 'cookie', 'localStorage', 'navigator', 'htmlTag'],
-      caches: ['localStorage', 'cookie'],
+    react: {
+      useSuspense: false,
     },
   });
+}
 
 export default i18n;

@@ -1,4 +1,5 @@
 import './globals.css';
+import LanguageEffect from '@/components/LanguageEffect';
 import Footer from '@/components/layout/Footer';
 import Header from '@/components/layout/Header';
 import Providers from '@/components/Providers';
@@ -13,7 +14,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html suppressHydrationWarning>
       <head>
         <link
           rel="icon"
@@ -28,6 +29,7 @@ export default function RootLayout({
       </head>
       <body className={`${inter.variable} ${varelaRound.variable} font-sans`}>
         <Providers>
+          <LanguageEffect />
           <div className="flex flex-col min-h-screen">
             <Header />
             <main className="flex-grow">{children}</main>
