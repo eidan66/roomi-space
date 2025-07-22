@@ -5,13 +5,12 @@ import React, { useState } from 'react';
 import {
   Award,
   Building,
-  Calendar,
   Camera,
   Download,
-  Edit,
   Share2,
   Star,
   Trophy,
+  User,
 } from 'lucide-react';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -29,6 +28,7 @@ export default function ProfilePage() {
     totalRooms: 8,
     totalShares: 12,
     achievements: 6,
+    coins: 1200,
   });
 
   const achievements = [
@@ -129,14 +129,14 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted to-accent/20">
       <div className="container mx-auto px-4 py-8">
-        <Card className="mb-8 border-0 shadow-lg bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm">
+        <Card className="mb-8 border-0 shadow-lg bg-card/90 backdrop-blur-sm">
           <CardContent className="p-8">
             <div className="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-8">
               <div className="relative">
-                <Avatar className="w-24 h-24 border-4 border-white shadow-lg">
-                  <AvatarFallback className="bg-gradient-to-br from-blue-400 to-purple-500 text-white text-2xl font-bold">
+                <Avatar className="w-24 h-24 border-4 border-card shadow-lg">
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-primary-foreground text-2xl font-bold">
                     {user.name
                       .split(' ')
                       .map((n) => n[0])
@@ -148,30 +148,28 @@ export default function ProfilePage() {
                 </Button>
               </div>
 
-              <div className="flex-1 text-center md:text-left">
-                <div className="flex flex-col md:flex-row md:items-center md:space-x-4 mb-4">
-                  <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                    {user.name}
-                  </h1>
-                  <Badge className="bg-gradient-to-r from-blue-500 to-purple-600 text-white w-fit mx-auto md:mx-0">
-                    Level {user.level}
+              <div className="flex-1 text-center md:text-left space-y-4">
+                <div>
+                  <h1 className="text-3xl font-bold text-foreground">{user.name}</h1>
+                  <p className="text-lg text-muted-foreground">{user.email}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Member since {user.joinDate}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap justify-center md:justify-start gap-2">
+                  <Badge className="bg-primary text-primary-foreground">
+                    {user.level}
                   </Badge>
+                  <Badge variant="outline">{user.totalRooms} Rooms Created</Badge>
+                  <Badge variant="outline">{user.coins} Coins</Badge>
                 </div>
 
-                <p className="text-gray-600 dark:text-gray-300 mb-4">{user.email}</p>
-
-                <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start space-y-2 sm:space-y-0 sm:space-x-6 text-sm text-gray-500 dark:text-gray-400">
-                  <span className="flex items-center">
-                    <Calendar className="w-4 h-4 mr-1" />
-                    Joined {user.joinDate}
-                  </span>
-                </div>
+                <Button className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90">
+                  <User className="w-4 h-4 mr-2" />
+                  Edit Profile
+                </Button>
               </div>
-
-              <Button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700">
-                <Edit className="w-4 h-4 mr-2" />
-                Edit Profile
-              </Button>
             </div>
           </CardContent>
         </Card>

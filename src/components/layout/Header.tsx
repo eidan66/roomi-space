@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 
 import { Building, GraduationCap, Home, Moon, Settings, Sun, User } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
@@ -47,19 +48,23 @@ export default function Header() {
   return (
     <nav
       className={`sticky top-0 z-50 backdrop-blur-xl border-b transition-colors duration-300 ${
-        theme === 'dark'
-          ? 'bg-gray-900/90 border-gray-700'
-          : 'bg-white/90 border-gray-200'
+        theme === 'dark' ? 'bg-card/90 border-border' : 'bg-card/90 border-border'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <Link href="/" className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl flex items-center justify-center shadow-lg">
-              <Building className="w-6 h-6 text-white" />
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg overflow-hidden">
+              <Image
+                src="/images/roomi-logo-light.jpeg"
+                alt="ROOMI Space Logo"
+                width={100}
+                height={100}
+                className="w-full h-full object-contain"
+              />
             </div>
-            <span className="font-bold text-xl bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
-              Dream-Room Studio
+            <span className="font-bold text-xl bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              Roomi-Space
             </span>
           </Link>
 
@@ -70,16 +75,8 @@ export default function Header() {
                 href={item.href}
                 className={`px-4 py-2 rounded-lg transition-all duration-200 flex items-center space-x-2 ${
                   pathname === item.href
-                    ? `${
-                        theme === 'dark'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-blue-100 text-blue-700'
-                      } glow-effect`
-                    : `${
-                        theme === 'dark'
-                          ? 'text-gray-300 hover:bg-gray-800'
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`
+                    ? 'bg-primary text-primary-foreground glow-effect'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 }`}
               >
                 <item.icon className="w-4 h-4" />

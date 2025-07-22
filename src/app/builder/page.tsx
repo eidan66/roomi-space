@@ -13,6 +13,7 @@ import {
   Square,
   Undo,
 } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 
@@ -123,20 +124,22 @@ export default function RoomBuilderPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col md:flex-row bg-gray-50 dark:bg-gray-900">
-      <div className="w-full md:w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto p-6 space-y-6">
+    <div className="h-screen flex flex-col md:flex-row bg-background">
+      <div className="w-full md:w-80 bg-card border-r border-border overflow-y-auto p-6 space-y-6">
         <div className="space-y-4">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl flex items-center justify-center">
-              <Building className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden bg-white/90">
+              <Image
+                src="/images/roomi-logo-light.jpeg"
+                alt="ROOMI Space Logo"
+                width={40}
+                height={40}
+                className="w-full h-full object-contain"
+              />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                Room Builder
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Draw your dream room
-              </p>
+              <h1 className="text-xl font-bold text-foreground">Room Builder</h1>
+              <p className="text-sm text-muted-foreground">Draw your dream room</p>
             </div>
           </div>
 
@@ -144,7 +147,7 @@ export default function RoomBuilderPage() {
             type="text"
             value={roomName}
             onChange={(e) => setRoomName(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             placeholder="Room name..."
           />
         </div>
@@ -273,26 +276,22 @@ export default function RoomBuilderPage() {
         <Card className="border-0 shadow-sm">
           <CardContent className="pt-6">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600 dark:text-gray-300">
-                Walls Built
-              </span>
+              <span className="text-sm text-muted-foreground">Walls Built</span>
               <Badge variant="secondary">{walls.length}</Badge>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="flex-1 relative bg-gray-200 dark:bg-gray-700">
+      <div className="flex-1 relative bg-muted">
         <ThreeCanvas
           walls={walls}
           gridEnabled={gridEnabled}
           isDarkMode={theme === 'dark'}
         />
-        <div className="absolute top-4 left-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl p-4 shadow-lg text-xs md:text-sm max-w-xs">
-          <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
-            3D View Controls:
-          </h3>
-          <div className="space-y-1 text-gray-600 dark:text-gray-300">
+        <div className="absolute top-4 left-4 bg-card/90 backdrop-blur-sm rounded-xl p-4 shadow-lg text-xs md:text-sm max-w-xs">
+          <h3 className="font-semibold mb-2 text-foreground">3D View Controls:</h3>
+          <div className="space-y-1 text-muted-foreground">
             <p>• Orbit: Left-Click & Drag</p>
             <p>• Zoom: Scroll Wheel</p>
             <p>• Pan: Right-Click & Drag / Ctrl + Left-Click & Drag</p>

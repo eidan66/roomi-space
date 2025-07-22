@@ -6,7 +6,7 @@ import { initReactI18next } from 'react-i18next';
 const resources = {
   en: {
     translation: {
-      welcome: 'Welcome to Dream‑Room Studio!',
+      welcome: 'Welcome to Roomi-Space!',
       // ...other translations
     },
   },

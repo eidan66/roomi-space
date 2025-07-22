@@ -50,9 +50,9 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
     const currentMount = mountRef.current;
 
-    // Scene setup
+    // Scene setup - using custom theme colors
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(isDarkMode ? 0x1a202c : 0xf0f2f5);
+    scene.background = new THREE.Color(isDarkMode ? '#022358' : '#E9EFF5'); // pennBlue : aliceBlue
 
     // Camera setup
     const camera = new THREE.PerspectiveCamera(
@@ -84,8 +84,15 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     directionalLight.castShadow = true;
     scene.add(directionalLight);
 
-    // Grid Helper
-    const gridHelper = gridEnabled ? new THREE.GridHelper(20, 20) : null;
+    // Grid Helper with theme colors
+    const gridHelper = gridEnabled
+      ? new THREE.GridHelper(
+          20,
+          20,
+          isDarkMode ? '#4C617D' : '#627690', // paynesGray : slateGray
+          isDarkMode ? '#657fa0' : '#bfc8d3', // border colors
+        )
+      : null;
     if (gridHelper) {
       scene.add(gridHelper);
     }
