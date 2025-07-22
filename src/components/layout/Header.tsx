@@ -3,10 +3,10 @@
 import React, { useEffect, useState } from 'react';
 
 import { Building, GraduationCap, Home, Moon, Settings, Sun, User } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import Image from 'next/image';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -64,7 +64,7 @@ export default function Header() {
               />
             </div>
             <span className="font-bold text-xl bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            Roomi-Space
+              Roomi-Space
             </span>
           </Link>
 

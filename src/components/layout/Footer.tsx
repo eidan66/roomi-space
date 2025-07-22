@@ -2,8 +2,8 @@
 
 import React from 'react';
 
-import Link from 'next/link';
 import Image from 'next/image';
+import Link from 'next/link';
 
 const navigationItems = [
   { title: 'Home', href: '/' },

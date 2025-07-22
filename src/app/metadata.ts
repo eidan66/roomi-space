@@ -11,8 +11,6 @@ export const metadata: Metadata = {
       { url: '/icon-512x512.png', sizes: '512x512', type: 'image/png' },
     ],
     shortcut: '/images/roomi-logo-light.jpeg',
-    apple: [
-      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
-    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
   },
 };

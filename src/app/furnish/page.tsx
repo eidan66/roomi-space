@@ -6,14 +6,13 @@ import {
   Camera,
   Lightbulb,
   Move3d,
-  Palette,
   RotateCw,
   Sofa,
   Trash2,
   TreePine,
 } from 'lucide-react';
-import { useTheme } from 'next-themes';
 import Image from 'next/image';
+import { useTheme } from 'next-themes';
 
 import ThreeCanvas from '@/components/ThreeCanvas';
 import { Badge } from '@/components/ui/badge';
@@ -256,12 +255,8 @@ export default function RoomFurnishPage() {
                 />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-foreground">
-                  Furnish Room
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  Decorate your space
-                </p>
+                <h1 className="text-xl font-bold text-foreground">Furnish Room</h1>
+                <p className="text-sm text-muted-foreground">Decorate your space</p>
               </div>
             </div>
           </div>

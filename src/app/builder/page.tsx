@@ -13,9 +13,9 @@ import {
   Square,
   Undo,
 } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
-import Image from 'next/image';
 
 import ThreeCanvas from '@/components/ThreeCanvas';
 import { Badge } from '@/components/ui/badge';
