@@ -14,6 +14,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/images/roomi-logo-light.jpeg" type="image/jpeg" sizes="32x32" />
+        <link rel="icon" href="/icon-192x192.png" type="image/png" sizes="192x192" />
+        <link rel="icon" href="/icon-512x512.png" type="image/png" sizes="512x512" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+        <link rel="shortcut icon" href="/images/roomi-logo-light.jpeg" />
+      </head>
       <body className={`${inter.variable} ${varelaRound.variable} font-sans`}>
         <Providers>
           <div className="flex flex-col min-h-screen">

@@ -13,6 +13,7 @@ import {
   TreePine,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import Image from 'next/image';
 
 import ThreeCanvas from '@/components/ThreeCanvas';
 import { Badge } from '@/components/ui/badge';
@@ -240,19 +241,25 @@ export default function RoomFurnishPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col md:flex-row bg-gray-50 dark:bg-gray-900">
-      <div className="w-full md:w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto p-6 space-y-6">
+    <div className="h-screen flex flex-col md:flex-row bg-background">
+      <div className="w-full md:w-80 bg-card border-r border-border overflow-y-auto p-6 space-y-6">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center">
-                <Palette className="w-6 h-6 text-white" />
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden bg-white/90">
+                <Image
+                  src="/images/roomi-logo-light.jpeg"
+                  alt="ROOMI Space Logo"
+                  width={40}
+                  height={40}
+                  className="w-full h-full object-contain"
+                />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                <h1 className="text-xl font-bold text-foreground">
                   Furnish Room
                 </h1>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
+                <p className="text-sm text-muted-foreground">
                   Decorate your space
                 </p>
               </div>
@@ -382,7 +389,7 @@ export default function RoomFurnishPage() {
         </Card>
       </div>
 
-      <div className="flex-1 relative bg-gray-200 dark:bg-gray-700">
+      <div className="flex-1 relative bg-muted">
         <ThreeCanvas
           walls={walls}
           objects={objects}
@@ -393,11 +400,9 @@ export default function RoomFurnishPage() {
           onObjectMove={handleObjectMove}
         />
 
-        <div className="absolute top-4 left-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl p-4 shadow-lg text-xs md:text-sm max-w-xs">
-          <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
-            Interactive Controls:
-          </h3>
-          <div className="space-y-1 text-gray-600 dark:text-gray-300">
+        <div className="absolute top-4 left-4 bg-card/90 backdrop-blur-sm rounded-xl p-4 shadow-lg text-xs md:text-sm max-w-xs">
+          <h3 className="font-semibold mb-2 text-foreground">Interactive Controls:</h3>
+          <div className="space-y-1 text-muted-foreground">
             <p>
               • <strong>Click</strong> objects to select them
             </p>

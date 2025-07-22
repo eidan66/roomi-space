@@ -17,6 +17,8 @@ import {
   Video,
 } from 'lucide-react';
 
+import Image from 'next/image';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -154,18 +156,24 @@ export default function AcademyPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted to-accent/20">
       <div className="container mx-auto px-4 py-8">
         <div className="text-center mb-12">
           <div className="flex items-center justify-center space-x-3 mb-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-500 rounded-2xl flex items-center justify-center shadow-lg">
-              <GraduationCap className="w-7 h-7 text-white" />
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg overflow-hidden bg-white/90">
+              <Image
+                src="/images/roomi-logo-light.jpeg"
+                alt="ROOMI Space Logo"
+                width={48}
+                height={48}
+                className="w-full h-full object-contain"
+              />
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
-              Dream Academy
+            <h1 className="text-3xl md:text-4xl font-bold text-foreground">
+              ROOMI Academy
             </h1>
           </div>
-          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Master the art of 3D room building with our interactive tutorials and guides
           </p>
         </div>
@@ -249,16 +257,16 @@ export default function AcademyPage() {
             return (
               <Card
                 key={tutorial.id}
-                className="group hover:shadow-xl transition-all duration-300 border-0 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm"
+                className="group hover:shadow-xl transition-all duration-300 border-0 bg-card/90 backdrop-blur-sm"
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
-                        <TypeIcon className="w-6 h-6 text-white" />
+                      <div className="w-12 h-12 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
+                        <TypeIcon className="w-6 h-6 text-primary-foreground" />
                       </div>
                       <div className="flex-1">
-                        <CardTitle className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                        <CardTitle className="text-lg font-bold text-foreground group-hover:text-primary transition-colors">
                           {tutorial.title}
                         </CardTitle>
                         <div className="flex items-center space-x-2 mt-1">
@@ -309,25 +317,25 @@ export default function AcademyPage() {
         </div>
 
         <section className="mt-16">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">
+          <h2 className="text-2xl font-bold text-foreground mb-6 text-center">
             Recommended Learning Path
           </h2>
-          <Card className="border-0 shadow-lg bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm">
+          <Card className="border-0 shadow-lg bg-card/90 backdrop-blur-sm">
             <CardContent className="p-8">
               <div className="flex flex-col md:flex-row items-center justify-between space-y-6 md:space-y-0 md:space-x-8">
                 <div className="text-center md:text-left">
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                  <h3 className="text-xl font-bold text-foreground mb-2">
                     Complete Beginner Course
                   </h3>
-                  <p className="text-gray-600 dark:text-gray-300 mb-4">
+                  <p className="text-muted-foreground mb-4">
                     Follow our structured 6-lesson course to become a room building expert
                   </p>
                   <div className="flex items-center justify-center md:justify-start space-x-4 text-sm">
-                    <span className="flex items-center text-gray-500">
+                    <span className="flex items-center text-muted-foreground">
                       <Clock className="w-4 h-4 mr-1" />
                       30 minutes total
                     </span>
-                    <span className="flex items-center text-gray-500">
+                    <span className="flex items-center text-muted-foreground">
                       <Award className="w-4 h-4 mr-1" />
                       Certificate included
                     </span>
@@ -335,7 +343,7 @@ export default function AcademyPage() {
                 </div>
                 <Button
                   size="lg"
-                  className="bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700"
+                  className="bg-gradient-to-r from-accent to-primary hover:from-accent/90 hover:to-primary/90"
                 >
                   <GraduationCap className="w-5 h-5 mr-2" />
                   Start Learning Path
