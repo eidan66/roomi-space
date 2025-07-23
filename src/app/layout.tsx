@@ -1,8 +1,7 @@
 import './globals.css';
 import LanguageEffect from '@/components/LanguageEffect';
-import Footer from '@/components/layout/Footer';
-import Header from '@/components/layout/Header';
 import Providers from '@/components/Providers';
+import AppLayout from '@/components/layout/AppLayout';
 
 import { inter, varelaRound } from './fonts';
 
@@ -30,11 +29,9 @@ export default function RootLayout({
       <body className={`${inter.variable} ${varelaRound.variable} font-sans`}>
         <Providers>
           <LanguageEffect />
-          <div className="flex flex-col min-h-screen">
-            <Header />
-            <main className="flex-grow">{children}</main>
-            <Footer />
-          </div>
+          <AppLayout>
+            {children}
+          </AppLayout>
         </Providers>
       </body>
     </html>
