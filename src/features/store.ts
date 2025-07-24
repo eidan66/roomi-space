@@ -1,4 +1,5 @@
 import { configureStore, createSlice } from '@reduxjs/toolkit';
+import roomReducer from './roomSlice';
 
 interface SettingsState {
   language: 'en' | 'he';
@@ -23,6 +24,7 @@ export const { toggleLanguage } = settingsSlice.actions;
 export const store = configureStore({
   reducer: {
     settings: settingsSlice.reducer,
+    room: roomReducer,
   },
 });
 

@@ -1,305 +1,234 @@
 'use client';
 
-import React, { useState } from 'react';
-
-import {
-  ArrowRight,
-  Building,
-  Move3d,
-  Palette,
-  Redo,
-  RotateCcw,
-  Save,
-  Square,
-  Undo,
-} from 'lucide-react';
-import Link from 'next/link';
+import React from 'react';
+import * as THREE from 'three';
 import { useTheme } from 'next-themes';
-
+import { useDispatch, useSelector } from 'react-redux';
+import HeaderToolbar from '@/components/layout/HeaderToolbar';
+import ModelSidebar from '@/components/layout/ModelSidebar';
 import ThreeCanvas from '@/components/ThreeCanvas';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
-
-type Wall = {
-  id: string;
-  start: { x: number; y: number; z: number };
-  end: { x: number; y: number; z: number };
-  height: number;
-  thickness: number;
-};
+import ColorPalette from '@/components/ui/ColorPalette';
+import { ROOM_SIZES } from '@/config/roomSizes';
+import { RootState } from '@/features/store';
+import {
+  addWall,
+  setSelectedObjectId,
+  setSelectedWallId,
+  updateObject,
+} from '@/features/roomSlice';
 
 export default function RoomBuilderPage() {
-  const [walls, setWalls] = useState<Wall[]>([
-    {
-      id: 'wall-test1',
-      start: { x: -2, y: 0, z: -2 },
-      end: { x: 2, y: 0, z: -2 },
-      height: 2.5,
-      thickness: 0.1,
-    },
-    {
-      id: 'wall-test2',
-      start: { x: 2, y: 0, z: -2 },
-      end: { x: 2, y: 0, z: 2 },
-      height: 2.5,
-      thickness: 0.1,
-    },
-    {
-      id: 'wall-test3',
-      start: { x: 2, y: 0, z: 2 },
-      end: { x: -2, y: 0, z: 2 },
-      height: 2.5,
-      thickness: 0.1,
-    },
-    {
-      id: 'wall-test4',
-      start: { x: -2, y: 0, z: 2 },
-      end: { x: -2, y: 0, z: -2 },
-      height: 2.5,
-      thickness: 0.1,
-    },
-  ]);
-  const [selectedTool, setSelectedTool] = useState('wall');
-  const [gridEnabled, setGridEnabled] = useState(true);
-  const [wallHeight, setWallHeight] = useState(2.5);
-  const [wallThickness, setWallThickness] = useState(0.1);
-  const [undoStack, setUndoStack] = useState<Wall[][]>([]);
-  const [redoStack, setRedoStack] = useState<Wall[][]>([]);
-  const [roomName, setRoomName] = useState('My Dream Room');
+  const dispatch = useDispatch();
   const { theme } = useTheme();
 
-  const addWall = (start: { x: number; z: number }, end: { x: number; z: number }) => {
-    const newWall: Wall = {
-      id: `wall-${Date.now()}`,
-      start: { x: start?.x || 0, y: 0, z: start?.z || 0 },
-      end: { x: end?.x || 1, y: 0, z: end?.z || 0 },
-      height: wallHeight,
-      thickness: wallThickness,
-    };
+  const {
+    walls,
+    objects,
+    doors,
+    windows,
+    selectedTool,
+    selectedWallId,
+    selectedObjectId,
+    selectedDoorId,
+    selectedWindowId,
+    gridEnabled,
+    snapToGrid,
+    isDrawing,
+    drawingStart,
+    viewMode,
+    firstPersonMode,
+    selectedColor,
+    floorColor,
+    roomSize,
+    hudEnabled,
+    wallHeight,
+    wallThickness,
+    wallColor,
+  } = useSelector((state: RootState) => state.room);
 
-    setUndoStack((prev) => [...prev, walls]);
-    setRedoStack([]);
-    setWalls((prev) => [...prev, newWall]);
+  const currentRoomSize = ROOM_SIZES[roomSize];
+
+  const snapToGridValue = (value: number) => {
+    if (!snapToGrid) {
+      return value;
+    }
+    return Math.round(value * 2) / 2;
   };
 
-  const clearAll = () => {
-    setUndoStack((prev) => [...prev, walls]);
-    setRedoStack([]);
-    setWalls([]);
-  };
-
-  const undo = () => {
-    if (undoStack.length > 0) {
-      const previousState = undoStack[undoStack.length - 1];
-      setRedoStack((prev) => [walls, ...prev]);
-      setUndoStack((prev) => prev.slice(0, -1));
-      setWalls(previousState);
+  const handleCanvasClick = (point: { x: number; z: number }) => {
+    if (selectedTool === 'wall' && isDrawing && drawingStart) {
+      const snappedStart = {
+        x: snapToGridValue(drawingStart.x),
+        z: snapToGridValue(drawingStart.z),
+      };
+      const snappedEnd = {
+        x: snapToGridValue(point.x),
+        z: snapToGridValue(point.z),
+      };
+      if (
+        Math.abs(snappedStart.x - snappedEnd.x) < 0.1 &&
+        Math.abs(snappedStart.z - snappedEnd.z) < 0.1
+      ) {
+        return;
+      }
+      const newWall = {
+        id: `wall-${Date.now()}`,
+        start: { x: snappedStart.x, y: 0, z: snappedStart.z },
+        end: { x: snappedEnd.x, y: 0, z: snappedEnd.z },
+        height: wallHeight,
+        thickness: wallThickness,
+        color: wallColor,
+      };
+      dispatch(addWall(newWall));
     }
   };
 
-  const redo = () => {
-    if (redoStack.length > 0) {
-      const nextState = redoStack[0];
-      setUndoStack((prev) => [...prev, walls]);
-      setRedoStack((prev) => prev.slice(1));
-      setWalls(nextState);
+  const handleWallSelect = (wallId: string | null) => {
+    dispatch(setSelectedWallId(wallId));
+  };
+
+  const handleObjectSelect = (objectId: string | null) => {
+    dispatch(setSelectedObjectId(objectId));
+  };
+
+  const handleObjectMove = (objectId: string, newPosition: THREE.Vector3) => {
+    dispatch(
+      updateObject({
+        id: objectId,
+        updates: {
+          position: { x: newPosition.x, y: newPosition.y, z: newPosition.z },
+        },
+      }),
+    );
+  };
+
+  // HUD Component
+  const HUD = () => {
+    if (!hudEnabled || viewMode === '2d') {
+      return null;
     }
-  };
-
-  const saveRoom = () => {
-    // Mock save
-    alert('Room saved!');
-  };
-
-  const handleAddPlaceholderWall = () => {
-    const lastWall = walls.length > 0 ? walls[walls.length - 1] : null;
-    const newStartX = lastWall ? lastWall.end.x : 0;
-    const newStartZ = lastWall ? lastWall.end.z : 0;
-    addWall({ x: newStartX, z: newStartZ }, { x: newStartX + 2, z: newStartZ });
+    return (
+      <div className="absolute top-4 right-4 bg-black bg-opacity-60 text-white p-4 rounded-lg text-sm space-y-2 min-w-[200px]">
+        <div className="font-semibold">Room Information</div>
+        <div>
+          Size: {currentRoomSize.name} ({currentRoomSize.width}x{currentRoomSize.length}m)
+        </div>
+        <div>View: {viewMode.toUpperCase()}</div>
+        <div>Tool: {selectedTool.charAt(0).toUpperCase() + selectedTool.slice(1)}</div>
+        <div>Walls: {walls.length}</div>
+        <div>Objects: {objects.length}</div>
+        {selectedWallId && <div className="text-green-400">Wall Selected</div>}
+        {selectedObjectId && <div className="text-blue-400">Object Selected</div>}
+        {firstPersonMode && <div className="text-yellow-400">First Person Mode</div>}
+      </div>
+    );
   };
 
   return (
-    <div className="h-screen flex flex-col md:flex-row bg-gray-50 dark:bg-gray-900">
-      <div className="w-full md:w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto p-6 space-y-6">
-        <div className="space-y-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl flex items-center justify-center">
-              <Building className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                Room Builder
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Draw your dream room
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+      {/* Header Toolbar */}
+      <HeaderToolbar />
+      <div className="flex-1 flex overflow-hidden">
+        {/* Model Sidebar */}
+        <ModelSidebar />
+        {/* Main 3D Canvas Area */}
+        <div className="flex-1 relative bg-gray-200 dark:bg-gray-700">
+          <ThreeCanvas
+            walls={walls}
+            objects={objects}
+            doors={doors}
+            windows={windows}
+            gridEnabled={gridEnabled}
+            isDarkMode={theme === 'dark'}
+            selectedWallId={selectedWallId}
+            selectedObjectId={selectedObjectId}
+            selectedDoorId={selectedDoorId}
+            selectedWindowId={selectedWindowId}
+            onWallSelect={handleWallSelect}
+            onObjectSelect={handleObjectSelect}
+            onObjectMove={handleObjectMove}
+            onCanvasClick={handleCanvasClick}
+            drawingStart={drawingStart}
+            isDrawing={isDrawing}
+            selectedTool={selectedTool}
+            viewMode={viewMode}
+            firstPersonMode={firstPersonMode}
+            hudEnabled={hudEnabled}
+            selectedColor={selectedColor}
+            floorColor={floorColor}
+            roomSize={currentRoomSize}
+          />
+          {/* HUD Overlay */}
+          <HUD />
+          {/* Controls Help */}
+          <div className="absolute bottom-4 left-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl p-4 shadow-lg text-xs md:text-sm max-w-xs">
+            <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
+              Controls:
+            </h3>
+            <div className="space-y-1 text-gray-600 dark:text-gray-300">
+              <p>
+                <strong>3D View:</strong>
               </p>
+              <p>• Orbit: Left-Click & Drag</p>
+              <p>• Zoom: Scroll Wheel</p>
+              <p>• Pan: Right-Click & Drag</p>
+              <p className="mt-2">
+                <strong>Tools:</strong>
+              </p>
+              <p>• Select: Click objects/walls</p>
+              <p>• Wall: Click to draw walls</p>
+              <p>• Drag: Move objects in 3D</p>
+              <p>• Paint: Color walls/objects</p>
+              <p>• Delete: Remove selected items</p>
+              <p>• Resize: Scale objects</p>
+              <p className="mt-2">
+                <strong>Shortcuts:</strong>
+              </p>
+              <p>• Esc: Cancel/Deselect</p>
+              <p>• Del: Delete selected</p>
+              <p>• Ctrl+Z: Undo</p>
+              <p>• Ctrl+Shift+Z: Redo</p>
             </div>
           </div>
-
-          <input
-            type="text"
-            value={roomName}
-            onChange={(e) => setRoomName(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            placeholder="Room name..."
-          />
-        </div>
-
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center space-x-2">
-              <Square className="w-5 h-5" />
-              <span>Drawing Tools</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button
-              variant={selectedTool === 'wall' ? 'default' : 'outline'}
-              className="w-full justify-start"
-              onClick={() => {
-                setSelectedTool('wall');
-                handleAddPlaceholderWall();
-              }}
-            >
-              <Building className="w-4 h-4 mr-2" />
-              Add Wall (Placeholder)
-            </Button>
-
-            <div className="pt-2 space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm">Show Grid</Label>
-                <Switch checked={gridEnabled} onCheckedChange={setGridEnabled} />
+          {/* Empty State */}
+          {walls.length === 0 && objects.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl p-8 shadow-lg text-center max-w-md">
+                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl flex items-center justify-center">
+                  <svg
+                    className="w-8 h-8 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold mb-3 text-gray-900 dark:text-white">
+                  Start Building Your Dream Room
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300 mb-6">
+                  Choose a room size, select tools from the toolbar, and add furniture
+                  from the sidebar to create your perfect space.
+                </p>
+                <div className="space-y-2 text-sm text-gray-500 dark:text-gray-400">
+                  <p>1. Set your room size in the toolbar</p>
+                  <p>2. Use the Wall tool to draw room boundaries</p>
+                  <p>3. Add furniture and decorations from the sidebar</p>
+                  <p>4. Use the Paint tool to customize colors</p>
+                </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center space-x-2">
-              <Palette className="w-5 h-5" />
-              <span>Wall Properties</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label className="text-sm mb-2 block">
-                Height: {wallHeight.toFixed(1)}m
-              </Label>
-              <Slider
-                value={[wallHeight]}
-                onValueChange={([value]) => setWallHeight(value)}
-                min={1}
-                max={4}
-                step={0.1}
-                className="w-full"
-              />
-            </div>
-
-            <div>
-              <Label className="text-sm mb-2 block">
-                Thickness: {wallThickness.toFixed(2)}m
-              </Label>
-              <Slider
-                value={[wallThickness]}
-                onValueChange={([value]) => setWallThickness(value)}
-                min={0.05}
-                max={0.3}
-                step={0.01}
-                className="w-full"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={undo}
-                disabled={undoStack.length === 0}
-                className="flex-1"
-              >
-                <Undo className="w-4 h-4 mr-1" />
-                Undo
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={redo}
-                disabled={redoStack.length === 0}
-                className="flex-1"
-              >
-                <Redo className="w-4 h-4 mr-1" />
-                Redo
-              </Button>
-            </div>
-
-            <Button variant="outline" onClick={clearAll} className="w-full">
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Clear All
-            </Button>
-
-            <Button
-              onClick={saveRoom}
-              className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
-              disabled={walls.length === 0}
-            >
-              <Save className="w-4 h-4 mr-2" />
-              Save Room
-            </Button>
-
-            {walls.length >= 1 && (
-              <Link href="/furnish" className="block">
-                <Button className="w-full bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700">
-                  <Move3d className="w-4 h-4 mr-2" />
-                  Start Furnishing (Test)
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </Link>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm">
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600 dark:text-gray-300">
-                Walls Built
-              </span>
-              <Badge variant="secondary">{walls.length}</Badge>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex-1 relative bg-gray-200 dark:bg-gray-700">
-        <ThreeCanvas
-          walls={walls}
-          gridEnabled={gridEnabled}
-          isDarkMode={theme === 'dark'}
-        />
-        <div className="absolute top-4 left-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl p-4 shadow-lg text-xs md:text-sm max-w-xs">
-          <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
-            3D View Controls:
-          </h3>
-          <div className="space-y-1 text-gray-600 dark:text-gray-300">
-            <p>• Orbit: Left-Click & Drag</p>
-            <p>• Zoom: Scroll Wheel</p>
-            <p>• Pan: Right-Click & Drag / Ctrl + Left-Click & Drag</p>
-            <p className="mt-2">Use sidebar to add/modify walls.</p>
-          </div>
+          )}
         </div>
       </div>
+      {/* Color Palette Modal */}
+      <ColorPalette />
     </div>
   );
 }
