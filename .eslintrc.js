@@ -103,21 +103,21 @@ module.exports = {
           'unknown',
         ],
         pathGroups: [
-            {
-              pattern: 'react',
-              group: 'external',
-              position: 'before',
-            },
-            {
-              pattern: '@/**',
-              group: 'internal',
-            },
-          ],
-          pathGroupsExcludedImportTypes: ['react'],
-          alphabetize: {
-            order: 'asc',
-            caseInsensitive: true,
+          {
+            pattern: 'react',
+            group: 'external',
+            position: 'before',
           },
+          {
+            pattern: '@/**',
+            group: 'internal',
+          },
+        ],
+        pathGroupsExcludedImportTypes: ['react'],
+        alphabetize: {
+          order: 'asc',
+          caseInsensitive: true,
+        },
       },
     ],
     'unused-imports/no-unused-imports': 'warn',
@@ -154,4 +154,4 @@ module.exports = {
       },
     },
   ],
-}; 
+};

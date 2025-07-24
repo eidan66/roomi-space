@@ -16,8 +16,6 @@ import {
   Users,
   Video,
 } from 'lucide-react';
-import Image from 'next/image';
-import { useTranslation } from 'react-i18next';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,14 +23,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function AcademyPage() {
-  const { t } = useTranslation();
   const [selectedDifficulty, setSelectedDifficulty] = useState('all');
 
   const tutorials = [
     {
       id: 1,
-      title: t('academy.tutorials.yourFirstRoom.title'),
-      description: t('academy.tutorials.yourFirstRoom.description'),
+      title: 'Your First Room',
+      description: 'Learn the basics of drawing walls and creating your first 3D room',
       difficulty: 'beginner',
       duration: '5 min',
       category: 'building',
@@ -43,8 +40,8 @@ export default function AcademyPage() {
     },
     {
       id: 2,
-      title: t('academy.tutorials.wallTechniques.title'),
-      description: t('academy.tutorials.wallTechniques.description'),
+      title: 'Wall Techniques',
+      description: 'Master advanced wall drawing techniques, doors, and windows',
       difficulty: 'intermediate',
       duration: '8 min',
       category: 'building',
@@ -55,8 +52,8 @@ export default function AcademyPage() {
     },
     {
       id: 3,
-      title: t('academy.tutorials.furniturePlacement.title'),
-      description: t('academy.tutorials.furniturePlacement.description'),
+      title: 'Furniture Placement',
+      description: 'Discover how to arrange furniture and create cozy spaces',
       difficulty: 'beginner',
       duration: '6 min',
       category: 'design',
@@ -67,8 +64,8 @@ export default function AcademyPage() {
     },
     {
       id: 4,
-      title: t('academy.tutorials.colorLighting.title'),
-      description: t('academy.tutorials.colorLighting.description'),
+      title: 'Color & Lighting',
+      description: 'Learn about color theory and lighting to make rooms beautiful',
       difficulty: 'intermediate',
       duration: '10 min',
       category: 'design',
@@ -79,8 +76,8 @@ export default function AcademyPage() {
     },
     {
       id: 5,
-      title: t('academy.tutorials.sharingCreations.title'),
-      description: t('academy.tutorials.sharingCreations.description'),
+      title: 'Sharing Your Creations',
+      description: 'How to take amazing screenshots and share with friends',
       difficulty: 'beginner',
       duration: '4 min',
       category: 'sharing',
@@ -91,8 +88,8 @@ export default function AcademyPage() {
     },
     {
       id: 6,
-      title: t('academy.tutorials.advancedBuilding.title'),
-      description: t('academy.tutorials.advancedBuilding.description'),
+      title: 'Advanced Building',
+      description: 'Create complex multi-room layouts and architectural details',
       difficulty: 'advanced',
       duration: '15 min',
       category: 'building',
@@ -104,52 +101,25 @@ export default function AcademyPage() {
   ];
 
   const categories = [
-    { id: 'all', name: t('academy.categories.all'), icon: BookOpen },
-    { id: 'building', name: t('academy.categories.building'), icon: Building },
-    { id: 'design', name: t('academy.categories.design'), icon: Palette },
-    { id: 'sharing', name: t('academy.categories.sharing'), icon: Share2 },
+    { id: 'all', name: 'All Topics', icon: BookOpen },
+    { id: 'building', name: 'Building', icon: Building },
+    { id: 'design', name: 'Design', icon: Palette },
+    { id: 'sharing', name: 'Sharing', icon: Share2 },
   ];
 
   const difficulties = [
-    { id: 'all', name: t('academy.difficulty.all'), color: 'bg-gray-100 text-gray-700' },
+    { id: 'all', name: 'All Levels', color: 'bg-gray-100 text-gray-700' },
     {
       id: 'beginner',
-      name: t('academy.difficulty.beginner'),
+      name: 'Beginner',
       color: 'bg-green-100 text-green-700',
     },
     {
       id: 'intermediate',
-      name: t('academy.difficulty.intermediate'),
+      name: 'Intermediate',
       color: 'bg-yellow-100 text-yellow-700',
     },
-    {
-      id: 'advanced',
-      name: t('academy.difficulty.advanced'),
-      color: 'bg-red-100 text-red-700',
-    },
-  ];
-
-  const stats = [
-    {
-      label: t('academy.stats.tutorials'),
-      value: t('academy.stats.tutorialsValue'),
-      icon: BookOpen,
-    },
-    {
-      label: t('academy.stats.students'),
-      value: t('academy.stats.studentsValue'),
-      icon: Users,
-    },
-    {
-      label: t('academy.stats.completed'),
-      value: t('academy.stats.completedValue'),
-      icon: Award,
-    },
-    {
-      label: t('academy.stats.avgRating'),
-      value: t('academy.stats.ratingValue'),
-      icon: Star,
-    },
+    { id: 'advanced', name: 'Advanced', color: 'bg-red-100 text-red-700' },
   ];
 
   const filteredTutorials = tutorials.filter(
@@ -183,44 +153,30 @@ export default function AcademyPage() {
     }
   };
 
-  const getDifficultyLabel = (difficulty: string) => {
-    switch (difficulty) {
-      case 'beginner':
-        return t('academy.difficulty.beginner');
-      case 'intermediate':
-        return t('academy.difficulty.intermediate');
-      case 'advanced':
-        return t('academy.difficulty.advanced');
-      default:
-        return difficulty;
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted to-accent/20">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <div className="container mx-auto px-4 py-8">
         <div className="text-center mb-12">
           <div className="flex items-center justify-center space-x-3 mb-4">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg overflow-hidden bg-white/90">
-              <Image
-                src="/images/roomi-logo-light.jpeg"
-                alt={t('alt.logo')}
-                width={48}
-                height={48}
-                className="w-full h-full object-contain"
-              />
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-500 rounded-2xl flex items-center justify-center shadow-lg">
+              <GraduationCap className="w-7 h-7 text-white" />
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-              {t('academy.title')}
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
+              Dream Academy
             </h1>
           </div>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            {t('academy.subtitle')}
+          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            Master the art of 3D room building with our interactive tutorials and guides
           </p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {stats.map((stat, index) => (
+          {[
+            { label: 'Tutorials', value: '20+', icon: BookOpen },
+            { label: 'Students', value: '5K+', icon: Users },
+            { label: 'Completed', value: '15K+', icon: Award },
+            { label: 'Avg. Rating', value: '4.8', icon: Star },
+          ].map((stat, index) => (
             <Card
               key={index}
               className="border-0 shadow-md bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm text-center"
@@ -245,7 +201,7 @@ export default function AcademyPage() {
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="flex-1">
                 <h3 className="font-semibold mb-3 text-gray-900 dark:text-white">
-                  {t('academy.sections.browseByTopic')}
+                  Browse by Topic
                 </h3>
                 <Tabs defaultValue="all" className="w-full">
                   <TabsList className="grid grid-cols-2 lg:grid-cols-4 gap-1">
@@ -265,7 +221,7 @@ export default function AcademyPage() {
 
               <div>
                 <h3 className="font-semibold mb-3 text-gray-900 dark:text-white">
-                  {t('academy.sections.difficultyLevel')}
+                  Difficulty Level
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {difficulties.map((difficulty) => (
@@ -293,25 +249,25 @@ export default function AcademyPage() {
             return (
               <Card
                 key={tutorial.id}
-                className="group hover:shadow-xl transition-all duration-300 border-0 bg-card/90 backdrop-blur-sm"
+                className="group hover:shadow-xl transition-all duration-300 border-0 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm"
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
-                        <TypeIcon className="w-6 h-6 text-primary-foreground" />
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
+                        <TypeIcon className="w-6 h-6 text-white" />
                       </div>
                       <div className="flex-1">
-                        <CardTitle className="text-lg font-bold text-foreground group-hover:text-primary transition-colors">
+                        <CardTitle className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                           {tutorial.title}
                         </CardTitle>
                         <div className="flex items-center space-x-2 mt-1">
                           <Badge className={getDifficultyColor(tutorial.difficulty)}>
-                            {getDifficultyLabel(tutorial.difficulty)}
+                            {tutorial.difficulty}
                           </Badge>
                           {tutorial.completed && (
                             <Badge className="bg-green-100 text-green-700 border-green-200">
-                              {t('academy.status.completed')}
+                              ✓ Completed
                             </Badge>
                           )}
                         </div>
@@ -344,9 +300,7 @@ export default function AcademyPage() {
 
                   <Button className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700">
                     <Play className="w-4 h-4 mr-2" />
-                    {tutorial.completed
-                      ? t('academy.actions.review')
-                      : t('academy.actions.startTutorial')}
+                    {tutorial.completed ? 'Review' : 'Start Tutorial'}
                   </Button>
                 </CardContent>
               </Card>
@@ -355,36 +309,36 @@ export default function AcademyPage() {
         </div>
 
         <section className="mt-16">
-          <h2 className="text-2xl font-bold text-foreground mb-6 text-center">
-            {t('academy.learningPath.title')}
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">
+            Recommended Learning Path
           </h2>
-          <Card className="border-0 shadow-lg bg-card/90 backdrop-blur-sm">
+          <Card className="border-0 shadow-lg bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm">
             <CardContent className="p-8">
               <div className="flex flex-col md:flex-row items-center justify-between space-y-6 md:space-y-0 md:space-x-8">
                 <div className="text-center md:text-left">
-                  <h3 className="text-xl font-bold text-foreground mb-2">
-                    {t('academy.learningPath.courseTitle')}
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                    Complete Beginner Course
                   </h3>
-                  <p className="text-muted-foreground mb-4">
-                    {t('academy.learningPath.courseDescription')}
+                  <p className="text-gray-600 dark:text-gray-300 mb-4">
+                    Follow our structured 6-lesson course to become a room building expert
                   </p>
                   <div className="flex items-center justify-center md:justify-start space-x-4 text-sm">
-                    <span className="flex items-center text-muted-foreground">
+                    <span className="flex items-center text-gray-500">
                       <Clock className="w-4 h-4 mr-1" />
-                      {t('academy.learningPath.totalTime')}
+                      30 minutes total
                     </span>
-                    <span className="flex items-center text-muted-foreground">
+                    <span className="flex items-center text-gray-500">
                       <Award className="w-4 h-4 mr-1" />
-                      {t('academy.learningPath.certificate')}
+                      Certificate included
                     </span>
                   </div>
                 </div>
                 <Button
                   size="lg"
-                  className="bg-gradient-to-r from-accent to-primary hover:from-accent/90 hover:to-primary/90"
+                  className="bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700"
                 >
                   <GraduationCap className="w-5 h-5 mr-2" />
-                  {t('academy.learningPath.startButton')}
+                  Start Learning Path
                 </Button>
               </div>
             </CardContent>

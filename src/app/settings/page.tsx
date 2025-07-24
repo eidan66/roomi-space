@@ -4,7 +4,6 @@ import React from 'react';
 
 import { Globe, LogOut, Moon, Palette, Sun, User } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +14,6 @@ import { useAppDispatch, useAppSelector } from '@/hooks/redux';
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
-  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const { language } = useAppSelector((state: RootState) => state.settings);
 
@@ -25,19 +23,23 @@ export default function SettingsPage() {
 
   const handleLogout = () => {
     // Mock logout
-    alert(t('alerts.loggedOut'));
+    alert('Logged out!');
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted to-accent/20">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <div className="text-center mb-12">
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground">Settings</h1>
-          <p className="text-xl text-muted-foreground">Customize your experience</p>
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
+            Settings
+          </h1>
+          <p className="text-xl text-gray-600 dark:text-gray-300">
+            Customize your experience
+          </p>
         </div>
 
         <div className="space-y-8">
-          <Card className="border-0 shadow-lg bg-card/90 backdrop-blur-sm">
+          <Card className="border-0 shadow-lg bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Palette className="w-5 h-5" />
@@ -71,7 +73,7 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg bg-card/90 dark:bg-gray-800/90 backdrop-blur-sm">
+          <Card className="border-0 shadow-lg bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <User className="w-5 h-5" />

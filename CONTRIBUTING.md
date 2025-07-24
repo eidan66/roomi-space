@@ -58,4 +58,4 @@ All commit messages should follow this format:
 
 ---
 
-Thank you for contributing! Please follow these conventions to keep the repository organized and traceable. 
+Thank you for contributing! Please follow these conventions to keep the repository organized and traceable.
