@@ -1,0 +1,620 @@
+import React, { useRef, useState, useCallback, useEffect } from 'react';
+
+// --- Types ---
+interface Point {
+  x: number;
+  z: number;
+}
+export interface Wall { // Exporting for parent component
+  id: string;
+  start: Point;
+  end: Point;
+  height: number;
+  thickness: number;
+}
+interface Floorplan2DCanvasProps {
+  walls: Wall[];
+  setWalls: React.Dispatch<React.SetStateAction<Wall[]>>;
+  mode: 'draw' | 'move' | 'idle';
+  setMode: React.Dispatch<React.SetStateAction<'draw' | 'move' | 'idle'>>;
+  wallHeight?: number;
+  wallThickness?: number;
+  onWallsChange?: () => void;
+}
+
+// --- Constants ---
+const GRID_STEP = 1; // 1 meter
+const SCALE = 25; // pixels per meter
+const SNAP_THRESHOLD = 0.5; // meters
+const SNAP_RADIUS = 10; // pixels
+
+// --- Helper Functions ---
+const toCanvas = (pt: Point): { x: number; y: number } => ({
+  x: pt.x * SCALE,
+  y: -pt.z * SCALE,
+});
+
+const toWorld = (pt: { x: number; y: number }): Point => ({
+  x: pt.x / SCALE,
+  z: -pt.y / SCALE,
+});
+
+const dist = (a: Point, b: Point): number => Math.sqrt((a.x - b.x) ** 2 + (a.z - b.z) ** 2);
+
+const wallToPoints = (walls: Wall[]): Point[] => {
+  const points: Point[] = [];
+  walls.forEach(wall => {
+    if (!points.some(p => dist(p, wall.start) < 0.01)) points.push(wall.start);
+    if (!points.some(p => dist(p, wall.end) < 0.01)) points.push(wall.end);
+  });
+  return points;
+};
+
+// Check if walls form a valid closed room
+const isValidRoom = (walls: Wall[]): boolean => {
+  if (walls.length < 3) return false;
+  
+  // Build a graph of connections
+  const connections = new Map<string, Set<string>>();
+  
+  walls.forEach(wall => {
+    const startKey = `${wall.start.x},${wall.start.z}`;
+    const endKey = `${wall.end.x},${wall.end.z}`;
+    
+    if (!connections.has(startKey)) connections.set(startKey, new Set());
+    if (!connections.has(endKey)) connections.set(endKey, new Set());
+    
+    connections.get(startKey)!.add(endKey);
+    connections.get(endKey)!.add(startKey);
+  });
+  
+  // Check that each point has exactly 2 connections (forms a loop)
+  for (const [_, connected] of connections.entries()) {
+    if (connected.size !== 2) return false;
+  }
+  
+  return true;
+};
+
+// Calculate room area
+const calculateRoomArea = (walls: Wall[]): number => {
+  if (walls.length < 3) return 0;
+  
+  // Get unique points
+  const points = wallToPoints(walls);
+  
+  // Try to order points clockwise
+  const center = points.reduce(
+    (acc, pt) => ({ x: acc.x + pt.x, z: acc.z + pt.z }),
+    { x: 0, z: 0 }
+  );
+  center.x /= points.length;
+  center.z /= points.length;
+  
+  // Sort points clockwise around center
+  const sortedPoints = [...points].sort((a, b) => {
+    const angleA = Math.atan2(a.z - center.z, a.x - center.x);
+    const angleB = Math.atan2(b.z - center.z, b.x - center.x);
+    return angleA - angleB;
+  });
+  
+  // Calculate area using Shoelace formula
+  let area = 0;
+  for (let i = 0; i < sortedPoints.length; i++) {
+    const j = (i + 1) % sortedPoints.length;
+    area += sortedPoints[i].x * sortedPoints[j].z;
+    area -= sortedPoints[j].x * sortedPoints[i].z;
+  }
+  
+  return Math.abs(area) / 2;
+};
+
+// --- Wall Sub-Component ---
+const WallComponent: React.FC<{ wall: Wall; isPreview?: boolean }> = ({ wall, isPreview = false }) => {
+  const p1 = toCanvas(wall.start);
+  const p2 = toCanvas(wall.end);
+  const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+  const thickness = (wall.thickness * SCALE) / 2;
+
+  const polygonPoints = [
+    { x: p1.x - Math.sin(angle) * thickness, y: p1.y + Math.cos(angle) * thickness },
+    { x: p2.x - Math.sin(angle) * thickness, y: p2.y + Math.cos(angle) * thickness },
+    { x: p2.x + Math.sin(angle) * thickness, y: p2.y - Math.cos(angle) * thickness },
+    { x: p1.x + Math.sin(angle) * thickness, y: p1.y - Math.cos(angle) * thickness },
+  ]
+    .map(p => `${p.x},${p.y}`)
+    .join(' ');
+
+  const length = dist(wall.start, wall.end);
+  const midX = (p1.x + p2.x) / 2;
+  const midY = (p1.y + p2.y) / 2;
+
+  return (
+    <g className={isPreview ? "opacity-60" : ""}>
+      <polygon 
+        points={polygonPoints} 
+        fill={isPreview ? "#CBD5E0" : "#E2E8F0"} 
+        stroke={isPreview ? "#94A3B8" : "#A0AEC0"} 
+        strokeWidth="1" 
+        strokeDasharray={isPreview ? "5,5" : "none"}
+      />
+      {length >= 0.5 && (
+        <text
+          x={midX}
+          y={midY - 10}
+          fontSize="12"
+          fill="#4A5568"
+          textAnchor="middle"
+          style={{ userSelect: 'none' }}
+        >
+          {`${length.toFixed(2)}m`}
+        </text>
+      )}
+    </g>
+  );
+};
+
+// --- Main Canvas Component ---
+const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({ 
+  walls, 
+  setWalls, 
+  mode, 
+  setMode,
+  wallHeight = 2.5,
+  wallThickness = 0.2,
+  onWallsChange
+}) => {
+  const [drawingPoints, setDrawingPoints] = useState<Point[]>([]);
+  const [previewPoint, setPreviewPoint] = useState<Point | null>(null);
+  const [snapPoint, setSnapPoint] = useState<Point | null>(null);
+
+  const [viewBox, setViewBox] = useState({ x: -400, y: -300, width: 800, height: 600 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+
+  const [selectedPoint, setSelectedPoint] = useState<Point | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isRoomValid, setIsRoomValid] = useState(false);
+  const [roomArea, setRoomArea] = useState(0);
+
+  const svgRef = useRef<SVGSVGElement>(null);
+  const lastMousePosRef = useRef<Point>({ x: 0, z: 0 });
+
+  // --- Coordinate & Snapping Logic ---
+  const getMousePos = (e: React.MouseEvent): Point => {
+    if (!svgRef.current) return { x: 0, z: 0 };
+    const svgPoint = svgRef.current.createSVGPoint();
+    svgPoint.x = e.clientX;
+    svgPoint.y = e.clientY;
+    const transformedPoint = svgPoint.matrixTransform(svgRef.current.getScreenCTM()?.inverse());
+    return toWorld(transformedPoint);
+  };
+
+  const getSnappedMousePos = (e: React.MouseEvent): Point => {
+    const worldPos = getMousePos(e);
+    lastMousePosRef.current = worldPos;
+    
+    // Try to snap to existing points first
+    const allPoints = wallToPoints(walls);
+    for (const point of allPoints) {
+      if (dist(worldPos, point) < SNAP_THRESHOLD) {
+        setSnapPoint(point);
+        return point;
+      }
+    }
+    
+    // Try to snap to existing wall lines
+    for (const wall of walls) {
+      const wallVector = {
+        x: wall.end.x - wall.start.x,
+        z: wall.end.z - wall.start.z
+      };
+      const wallLength = Math.sqrt(wallVector.x ** 2 + wallVector.z ** 2);
+      
+      if (wallLength < 0.1) continue;
+      
+      // Normalize wall vector
+      const wallDir = {
+        x: wallVector.x / wallLength,
+        z: wallVector.z / wallLength
+      };
+      
+      // Vector from wall start to mouse
+      const toMouse = {
+        x: worldPos.x - wall.start.x,
+        z: worldPos.z - wall.start.z
+      };
+      
+      // Project mouse position onto wall line
+      const projection = toMouse.x * wallDir.x + toMouse.z * wallDir.z;
+      
+      // Check if projection is within wall segment
+      if (projection >= 0 && projection <= wallLength) {
+        // Calculate perpendicular distance to wall
+        const perpDist = Math.abs(toMouse.x * wallDir.z - toMouse.z * wallDir.x);
+        
+        if (perpDist < SNAP_THRESHOLD) {
+          // Snap to wall line
+          const snapped = {
+            x: wall.start.x + wallDir.x * projection,
+            z: wall.start.z + wallDir.z * projection
+          };
+          setSnapPoint(snapped);
+          return snapped;
+        }
+      }
+    }
+    
+    // If no snap, just use grid
+    setSnapPoint(null);
+    return {
+      x: Math.round(worldPos.x / GRID_STEP) * GRID_STEP,
+      z: Math.round(worldPos.z / GRID_STEP) * GRID_STEP,
+    };
+  };
+
+  // --- Room Validation & Area Calculation ---
+  useEffect(() => {
+    const valid = isValidRoom(walls);
+    setIsRoomValid(valid);
+    
+    if (valid) {
+      const area = calculateRoomArea(walls);
+      setRoomArea(area);
+    } else {
+      setRoomArea(0);
+    }
+    
+    if (onWallsChange) {
+      onWallsChange();
+    }
+  }, [walls, onWallsChange]);
+
+  // --- State & Mode Management ---
+  const finishCurrentMode = useCallback(() => {
+    setMode('idle');
+    setDrawingPoints([]);
+    setPreviewPoint(null);
+    setIsDragging(false);
+    setSelectedPoint(null);
+  }, [setMode]);
+
+  const addWallSegment = useCallback((start: Point, end: Point) => {
+    // Don't add walls that are too short
+    if (dist(start, end) < 0.1) return;
+    
+    const newWall: Wall = {
+      id: `wall-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      start, end,
+      height: wallHeight,
+      thickness: wallThickness,
+    };
+    setWalls(prevWalls => [...prevWalls, newWall]);
+  }, [setWalls, wallHeight, wallThickness]);
+  
+  // --- Mouse Event Handlers ---
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 1 || e.button === 2) { // Middle or right mouse for panning
+      setIsPanning(true);
+      setPanStart({ x: e.clientX, y: e.clientY });
+      e.preventDefault();
+      return;
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isPanning) {
+      const dx = e.clientX - panStart.x;
+      const dy = e.clientY - panStart.y;
+      setViewBox(prev => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
+      setPanStart({ x: e.clientX, y: e.clientY });
+      return;
+    }
+
+    if (isDragging && selectedPoint && mode === 'move') {
+      const newPos = getSnappedMousePos(e);
+      const updatedWalls = walls.map(wall => {
+        if (dist(wall.start, selectedPoint) < 0.01) return { ...wall, start: newPos };
+        if (dist(wall.end, selectedPoint) < 0.01) return { ...wall, end: newPos };
+        return wall;
+      });
+      setWalls(updatedWalls);
+      setSelectedPoint(newPos);
+      return;
+    }
+
+    if (mode === 'draw') {
+      const snappedPos = getSnappedMousePos(e);
+      setPreviewPoint(snappedPos);
+    } else {
+      setPreviewPoint(null);
+      setSnapPoint(null);
+    }
+  };
+  
+  const handleMouseUp = () => {
+    setIsPanning(false);
+    if (isDragging) {
+      setIsDragging(false);
+      setSelectedPoint(null);
+    }
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (mode !== 'draw') return;
+    const pt = getSnappedMousePos(e);
+
+    if (drawingPoints.length > 0) {
+      const last = drawingPoints[drawingPoints.length - 1];
+      if (dist(pt, last) < 0.1) return; // Prevent double-clicks
+
+      // Check if clicking near the first point to close the shape
+      const first = drawingPoints[0];
+      if (drawingPoints.length >= 2 && dist(pt, first) < SNAP_THRESHOLD) {
+        addWallSegment(last, first);
+        finishCurrentMode();
+        return;
+      }
+      
+      addWallSegment(last, pt);
+    }
+    setDrawingPoints(prev => [...prev, pt]);
+  };
+  
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const zoomFactor = 1.1;
+    const scale = e.deltaY > 0 ? zoomFactor : 1 / zoomFactor;
+    
+    // Get mouse position in world coordinates for zoom centering
+    const mousePos = getMousePos(e);
+    const mouseCanvasPos = toCanvas(mousePos);
+    
+    const newWidth = viewBox.width * scale;
+    const newHeight = viewBox.height * scale;
+    
+    // Calculate new viewbox position to zoom toward mouse
+    const newX = mouseCanvasPos.x - (mouseCanvasPos.x - viewBox.x) * scale;
+    const newY = mouseCanvasPos.y - (mouseCanvasPos.y - viewBox.y) * scale;
+
+    setViewBox({
+      x: newX,
+      y: newY,
+      width: newWidth,
+      height: newHeight,
+    });
+  };
+
+  // --- Double Click to End Drawing ---
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if (mode === 'draw' && drawingPoints.length >= 3) {
+      // Close the shape
+      const first = drawingPoints[0];
+      const last = drawingPoints[drawingPoints.length - 1];
+      if (dist(first, last) > 0.1) {
+        addWallSegment(last, first);
+      }
+      finishCurrentMode();
+    }
+  };
+
+  // --- Context Menu (Right Click) ---
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (mode === 'draw') {
+      finishCurrentMode();
+    }
+  };
+
+  // --- Keyboard Shortcuts ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') finishCurrentMode();
+      
+      // Delete key to remove selected point and connected walls
+      if (e.key === 'Delete' && selectedPoint) {
+        setWalls(prevWalls => prevWalls.filter(wall => 
+          dist(wall.start, selectedPoint) > 0.01 && dist(wall.end, selectedPoint) > 0.01
+        ));
+        setSelectedPoint(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [finishCurrentMode, selectedPoint]);
+
+  const allDrawablePoints = wallToPoints(walls);
+  const wallsToRender = [...walls];
+  if (mode === 'draw' && drawingPoints.length > 0 && previewPoint) {
+    wallsToRender.push({
+      id: 'preview',
+      start: drawingPoints[drawingPoints.length - 1],
+      end: previewPoint,
+      thickness: wallThickness,
+      height: wallHeight,
+    });
+  }
+
+  // --- Auto-center on first render ---
+  useEffect(() => {
+    if (walls.length > 0 && svgRef.current) {
+      // Calculate bounding box
+      let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      walls.forEach(wall => {
+        minX = Math.min(minX, wall.start.x, wall.end.x);
+        maxX = Math.max(maxX, wall.start.x, wall.end.x);
+        minZ = Math.min(minZ, wall.start.z, wall.end.z);
+        maxZ = Math.max(maxZ, wall.start.z, wall.end.z);
+      });
+      
+      // Add padding
+      const padding = 2; // meters
+      minX -= padding;
+      maxX += padding;
+      minZ -= padding;
+      maxZ += padding;
+      
+      const width = (maxX - minX) * SCALE;
+      const height = (maxZ - minZ) * SCALE;
+      
+      if (width > 0 && height > 0) {
+        const centerX = (minX + maxX) / 2 * SCALE;
+        const centerZ = -(minZ + maxZ) / 2 * SCALE;
+        
+        setViewBox({
+          x: centerX - width / 2,
+          y: centerZ - height / 2,
+          width: width,
+          height: height
+        });
+      }
+    }
+  }, []); // Only run once on first render
+
+  return (
+    <div className="relative w-full h-full bg-gray-50">
+      {/* --- SVG Canvas --- */}
+      <svg
+        ref={svgRef}
+        width="100%"
+        height="100%"
+        viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
+        onMouseMove={handleMouseMove}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
+        onContextMenu={handleContextMenu}
+        onWheel={handleWheel}
+        style={{ cursor: mode === 'draw' ? 'crosshair' : (isPanning ? 'grabbing' : 'default') }}
+      >
+        <defs>
+          <pattern id="grid" width={GRID_STEP * SCALE} height={GRID_STEP * SCALE} patternUnits="userSpaceOnUse">
+            <path d={`M ${GRID_STEP * SCALE} 0 L 0 0 0 ${GRID_STEP * SCALE}`} fill="none" stroke="rgba(200, 200, 250, 0.5)" strokeWidth="0.5"/>
+          </pattern>
+          <pattern id="grid-major" width={GRID_STEP * SCALE * 5} height={GRID_STEP * SCALE * 5} patternUnits="userSpaceOnUse">
+            <path d={`M ${GRID_STEP * SCALE * 5} 0 L 0 0 0 ${GRID_STEP * SCALE * 5}`} fill="none" stroke="rgba(180, 180, 220, 0.8)" strokeWidth="1"/>
+          </pattern>
+        </defs>
+        <rect x={viewBox.x} y={viewBox.y} width={viewBox.width} height={viewBox.height} fill="url(#grid)" />
+        <rect x={viewBox.x} y={viewBox.y} width={viewBox.width} height={viewBox.height} fill="url(#grid-major)" />
+
+        {/* Room Area Display */}
+        {isRoomValid && roomArea > 0 && (
+          <g>
+            <rect
+              x={viewBox.x + 10}
+              y={viewBox.y + 10}
+              width="200"
+              height="50"
+              fill="rgba(255, 255, 255, 0.9)"
+              stroke="#CBD5E0"
+              strokeWidth="1"
+              rx="5"
+            />
+            <text
+              x={viewBox.x + 20}
+              y={viewBox.y + 30}
+              fontSize="14"
+              fontWeight="bold"
+              fill="#4A5568"
+              style={{ userSelect: 'none' }}
+            >
+              Room Area: {roomArea.toFixed(2)}m²
+            </text>
+            <text
+              x={viewBox.x + 20}
+              y={viewBox.y + 50}
+              fontSize="12"
+              fill="#6B7280"
+              style={{ userSelect: 'none' }}
+            >
+              Walls: {walls.length} | Perimeter: {walls.reduce((sum, w) => sum + dist(w.start, w.end), 0).toFixed(1)}m
+            </text>
+          </g>
+        )}
+
+        {/* Render Walls */}
+        {wallsToRender.map((wall) => (
+          <WallComponent 
+            key={wall.id} 
+            wall={wall} 
+            isPreview={wall.id === 'preview'} 
+          />
+        ))}
+
+        {/* Render Points for Moving */}
+        {mode === 'move' && allDrawablePoints.map((p, i) => (
+          <circle
+            key={i}
+            cx={toCanvas(p).x}
+            cy={toCanvas(p).y}
+            r="8"
+            className="cursor-move fill-blue-500 hover:fill-blue-700 opacity-50 hover:opacity-100"
+            onMouseDown={(e) => {
+              e.stopPropagation(); // Prevent canvas click
+              setIsDragging(true);
+              setSelectedPoint(p);
+            }}
+          />
+        ))}
+
+        {/* Snap Point Indicator */}
+        {snapPoint && mode === 'draw' && (
+          <circle
+            cx={toCanvas(snapPoint).x}
+            cy={toCanvas(snapPoint).y}
+            r={SNAP_RADIUS}
+            className="fill-green-500 opacity-50"
+            style={{ pointerEvents: 'none' }}
+          />
+        )}
+
+        {/* Drawing Points */}
+        {mode === 'draw' && drawingPoints.map((p, i) => (
+          <circle
+            key={i}
+            cx={toCanvas(p).x}
+            cy={toCanvas(p).y}
+            r="5"
+            className={i === 0 ? "fill-green-600" : "fill-blue-600"}
+            style={{ pointerEvents: 'none' }}
+          />
+        ))}
+
+        {/* First Point Highlight (for closing the shape) */}
+        {mode === 'draw' && drawingPoints.length >= 2 && (
+          <circle
+            cx={toCanvas(drawingPoints[0]).x}
+            cy={toCanvas(drawingPoints[0]).y}
+            r="10"
+            className="fill-transparent stroke-green-600 stroke-2"
+            style={{ pointerEvents: 'none' }}
+          />
+        )}
+      </svg>
+
+      {/* Instruction Overlay */}
+      {mode === 'draw' && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white bg-opacity-80 px-4 py-2 rounded-md shadow-lg text-sm">
+          {drawingPoints.length === 0 ? (
+            "Click to start drawing walls"
+          ) : drawingPoints.length < 3 ? (
+            "Continue clicking to add walls"
+          ) : (
+            "Click on the first point or double-click to close the shape"
+          )}
+        </div>
+      )}
+
+      {/* Invalid Room Warning */}
+      {!isRoomValid && walls.length > 0 && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-yellow-500 text-white px-4 py-2 rounded-md shadow-lg">
+          Room is not closed. Complete the shape to create a valid room.
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Floorplan2DCanvas; 

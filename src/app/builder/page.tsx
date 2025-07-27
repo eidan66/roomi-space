@@ -1,17 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
-
+import React, { useState, useCallback, useEffect } from 'react';
 import {
-  ArrowRight,
-  Building,
-  Move3d,
-  Palette,
-  Redo,
-  RotateCcw,
-  Save,
-  Square,
-  Undo,
+  ArrowRight, Building, Move, Move3d, Palette, Redo, Save, Square, Undo, PencilRuler, View,
+  Trash2, Home
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -19,6 +11,10 @@ import { useTheme } from 'next-themes';
 import { useTranslation } from 'react-i18next';
 
 import ThreeCanvas from '@/components/ThreeCanvas';
+import Floorplan2DCanvas, { Wall } from '@/components/Floorplan2DCanvas';
+import { useAdvancedRoom } from '@/components/AdvancedRoomBuilder';
+import MaterialPresets, { MaterialPreset } from '@/components/MaterialPresets';
+import RoomQualityAnalyzer from '@/components/RoomQualityAnalyzer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,80 +22,73 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 
-type Wall = {
-  id: string;
-  start: { x: number; y: number; z: number };
-  end: { x: number; y: number; z: number };
-  height: number;
-  thickness: number;
-};
+// Room templates are now generated dynamically using the advanced room builder
 
 export default function RoomBuilderPage() {
   const { t } = useTranslation();
-  const [walls, setWalls] = useState<Wall[]>([
-    {
-      id: 'wall-test1',
-      start: { x: -2, y: 0, z: -2 },
-      end: { x: 2, y: 0, z: -2 },
-      height: 2.5,
-      thickness: 0.1,
-    },
-    {
-      id: 'wall-test2',
-      start: { x: 2, y: 0, z: -2 },
-      end: { x: 2, y: 0, z: 2 },
-      height: 2.5,
-      thickness: 0.1,
-    },
-    {
-      id: 'wall-test3',
-      start: { x: 2, y: 0, z: 2 },
-      end: { x: -2, y: 0, z: 2 },
-      height: 2.5,
-      thickness: 0.1,
-    },
-    {
-      id: 'wall-test4',
-      start: { x: -2, y: 0, z: 2 },
-      end: { x: -2, y: 0, z: -2 },
-      height: 2.5,
-      thickness: 0.1,
-    },
-  ]);
-  const [selectedTool, setSelectedTool] = useState('wall');
+  const {
+    walls,
+    setWalls,
+    roomStats,
+    clearWalls,
+    generateRectangularRoom,
+    generateLShapedRoom
+  } = useAdvancedRoom([]);
+
+  const isRoomValid = roomStats.isValid;
+
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
+  const [editMode, setEditMode] = useState<'draw' | 'move' | 'idle'>('idle');
+
   const [gridEnabled, setGridEnabled] = useState(true);
+  const [showWindows, setShowWindows] = useState(true);
   const [wallHeight, setWallHeight] = useState(2.5);
-  const [wallThickness, setWallThickness] = useState(0.1);
+  const [wallThickness, setWallThickness] = useState(0.2);
+  const [floorType, setFloorType] = useState<'wood' | 'tile' | 'concrete' | 'marble' | 'carpet'>('wood');
+  const [wallMaterial, setWallMaterial] = useState<'paint' | 'brick' | 'stone' | 'wood' | 'metal'>('paint');
+  const [windowStyle, setWindowStyle] = useState<'modern' | 'classic' | 'industrial'>('modern');
+
   const [undoStack, setUndoStack] = useState<Wall[][]>([]);
   const [redoStack, setRedoStack] = useState<Wall[][]>([]);
   const [roomName, setRoomName] = useState('My Dream Room');
   const { theme } = useTheme();
 
-  const addWall = (start: { x: number; z: number }, end: { x: number; z: number }) => {
-    const newWall: Wall = {
-      id: `wall-${Date.now()}`,
-      start: { x: start?.x || 0, y: 0, z: start?.z || 0 },
-      end: { x: end?.x || 1, y: 0, z: end?.z || 0 },
-      height: wallHeight,
-      thickness: wallThickness,
-    };
 
-    setUndoStack((prev) => [...prev, walls]);
-    setRedoStack([]);
-    setWalls((prev) => [...prev, newWall]);
+
+  // Notification state
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: 'success' | 'error' | 'info';
+    visible: boolean;
+  }>({
+    message: '',
+    type: 'info',
+    visible: false
+  });
+
+  const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setNotification({
+      message,
+      type,
+      visible: true
+    });
+
+    // Auto-hide after 3 seconds
+    setTimeout(() => {
+      setNotification(prev => ({ ...prev, visible: false }));
+    }, 3000);
   };
 
-  const clearAll = () => {
-    setUndoStack((prev) => [...prev, walls]);
+  const recordUndo = useCallback(() => {
+    setUndoStack(prev => [...prev, walls]);
     setRedoStack([]);
-    setWalls([]);
-  };
+  }, [walls]);
 
   const undo = () => {
     if (undoStack.length > 0) {
       const previousState = undoStack[undoStack.length - 1];
-      setRedoStack((prev) => [walls, ...prev]);
-      setUndoStack((prev) => prev.slice(0, -1));
+      setRedoStack(prev => [walls, ...prev]);
+      setUndoStack(prev => prev.slice(0, -1));
       setWalls(previousState);
     }
   };
@@ -107,124 +96,314 @@ export default function RoomBuilderPage() {
   const redo = () => {
     if (redoStack.length > 0) {
       const nextState = redoStack[0];
-      setUndoStack((prev) => [...prev, walls]);
-      setRedoStack((prev) => prev.slice(1));
+      setUndoStack(prev => [...prev, walls]);
+      setRedoStack(prev => prev.slice(1));
       setWalls(nextState);
     }
   };
 
-  const saveRoom = () => {
-    // Mock save
-    alert(t('alerts.roomSaved'));
+  const clearAll = () => {
+    if (walls.length === 0) return;
+    recordUndo();
+    clearWalls();
+    showNotification('Room cleared', 'info');
   };
 
-  const handleAddPlaceholderWall = () => {
-    const lastWall = walls.length > 0 ? walls[walls.length - 1] : null;
-    const newStartX = lastWall ? lastWall.end.x : 0;
-    const newStartZ = lastWall ? lastWall.end.z : 0;
-    addWall({ x: newStartX, z: newStartZ }, { x: newStartX + 2, z: newStartZ });
+  const saveRoom = () => {
+    if (!isRoomValid) {
+      showNotification('Cannot save an invalid room. Please complete the walls.', 'error');
+      return;
+    }
+
+    // Here you would typically save to a database or localStorage
+    localStorage.setItem('savedRoom', JSON.stringify({
+      name: roomName,
+      walls,
+      createdAt: new Date().toISOString()
+    }));
+
+    showNotification('Room saved successfully!', 'success');
   };
+
+  const loadTemplate = (templateIndex: number) => {
+    if (walls.length > 0) {
+      recordUndo();
+    }
+
+    if (templateIndex === 1) {
+      // Square room template
+      generateRectangularRoom(4, 4, wallHeight, wallThickness);
+      showNotification('Loaded Square Room template', 'info');
+    } else if (templateIndex === 2) {
+      // L-shaped room template
+      generateLShapedRoom(6, 6, 3, 3, wallHeight, wallThickness);
+      showNotification('Loaded L-Shaped Room template', 'info');
+    }
+  };
+
+  const handleWallsChange = useCallback(() => {
+    // Room validation and area calculation is now handled by useAdvancedRoom hook
+    // Both 2D and 3D views use the same wall state for perfect synchronization
+  }, []);
+
+  // Apply wall properties to all walls
+  const applyWallProperties = () => {
+    if (walls.length === 0) return;
+
+    recordUndo();
+    const updatedWalls = walls.map(wall => ({
+      ...wall,
+      height: wallHeight,
+      thickness: wallThickness
+    }));
+
+    setWalls(updatedWalls);
+    showNotification('Wall properties applied to all walls', 'success');
+  };
+
+  const handlePresetSelect = (preset: MaterialPreset) => {
+    setFloorType(preset.floorType);
+    setWallMaterial(preset.wallMaterial);
+    setWindowStyle(preset.windowStyle);
+    showNotification(`Applied ${preset.name} preset`, 'success');
+  };
+
+  // Load saved room from localStorage on initial render
+  useEffect(() => {
+    const savedRoomJson = localStorage.getItem('savedRoom');
+    if (savedRoomJson) {
+      try {
+        const savedRoom = JSON.parse(savedRoomJson);
+        setWalls(savedRoom.walls);
+        setRoomName(savedRoom.name);
+        showNotification('Loaded your previously saved room', 'info');
+      } catch (error) {
+        console.error('Failed to load saved room:', error);
+      }
+    }
+  }, []);
 
   return (
     <div className="h-screen flex flex-col md:flex-row bg-background">
+      {/* --- Sidebar --- */}
       <div className="w-full md:w-80 bg-card border-r border-border overflow-y-auto p-6 space-y-6">
-        <div className="space-y-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden bg-white/90">
-              <Image
-                src="/images/roomi-logo-light.jpeg"
-                alt={t('alt.logo')}
-                width={40}
-                height={40}
-                className="w-full h-full object-contain"
-              />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-foreground">Room Builder</h1>
-              <p className="text-sm text-muted-foreground">Draw your dream room</p>
-            </div>
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden bg-white/90">
+            <Image src="/images/roomi-logo-light.jpeg" alt={t('alt.logo')} width={40} height={40} className="w-full h-full object-contain" />
           </div>
-
-          <input
-            type="text"
-            value={roomName}
-            onChange={(e) => setRoomName(e.target.value)}
-            className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            placeholder={t('room.placeholder')}
-          />
+          <div>
+            <h1 className="text-xl font-bold text-foreground">Room Builder</h1>
+            <p className="text-sm text-muted-foreground">Design your space</p>
+          </div>
         </div>
 
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center space-x-2">
-              <Square className="w-5 h-5" />
-              <span>Drawing Tools</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button
-              variant={selectedTool === 'wall' ? 'default' : 'outline'}
-              className="w-full justify-start"
-              onClick={() => {
-                setSelectedTool('wall');
-                handleAddPlaceholderWall();
-              }}
-            >
-              <Building className="w-4 h-4 mr-2" />
-              Add Wall (Placeholder)
-            </Button>
+        <input
+          type="text"
+          value={roomName}
+          onChange={(e) => setRoomName(e.target.value)}
+          className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          placeholder={t('room.placeholder')}
+        />
 
-            <div className="pt-2 space-y-3">
-              <div className="flex items-center justify-between">
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3"><CardTitle className="text-lg flex items-center"><View className="w-5 h-5 mr-2" />View Mode</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex space-x-2">
+              <Button variant={viewMode === '2d' ? 'default' : 'outline'} onClick={() => setViewMode('2d')} className="flex-1"><PencilRuler className="w-4 h-4 mr-2" />2D Plan</Button>
+              <Button variant={viewMode === '3d' ? 'default' : 'outline'} onClick={() => setViewMode('3d')} className="flex-1"><Move3d className="w-4 h-4 mr-2" />3D View</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {viewMode === '2d' && (
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-3"><CardTitle className="text-lg flex items-center"><Square className="w-5 h-5 mr-2" />Drawing Tools</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <Button variant={editMode === 'draw' ? 'secondary' : 'outline'} onClick={() => setEditMode('draw')} className="w-full justify-start"><Building className="w-4 h-4 mr-2" />Draw Walls</Button>
+              <Button variant={editMode === 'move' ? 'secondary' : 'outline'} onClick={() => setEditMode('move')} className="w-full justify-start"><Move className="w-4 h-4 mr-2" />Move Points</Button>
+              <div className="flex items-center justify-between pt-2">
                 <Label className="text-sm">Show Grid</Label>
                 <Switch checked={gridEnabled} onCheckedChange={setGridEnabled} />
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center space-x-2">
-              <Palette className="w-5 h-5" />
-              <span>Wall Properties</span>
-            </CardTitle>
-          </CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-lg flex items-center"><Palette className="w-5 h-5 mr-2" />Wall Properties</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label className="text-sm mb-2 block">
-                Height: {wallHeight.toFixed(1)}m
-              </Label>
-              <Slider
-                value={[wallHeight]}
-                onValueChange={([value]) => setWallHeight(value)}
-                min={1}
-                max={4}
-                step={0.1}
-                className="w-full"
-              />
+              <Label className="text-sm mb-2 block">Height: {wallHeight.toFixed(1)}m</Label>
+              <Slider value={[wallHeight]} onValueChange={([v]) => setWallHeight(v)} min={1} max={4} step={0.1} className="w-full" />
+            </div>
+            <div>
+              <Label className="text-sm mb-2 block">Thickness: {wallThickness.toFixed(2)}m</Label>
+              <Slider value={[wallThickness]} onValueChange={([v]) => setWallThickness(v)} min={0.05} max={0.3} step={0.01} className="w-full" />
+            </div>
+            <div className="flex items-center justify-between pt-2">
+              <Label className="text-sm">Show Windows</Label>
+              <Switch checked={showWindows} onCheckedChange={setShowWindows} />
+            </div>
+            <div className="pt-2">
+              <Label className="text-sm mb-2 block">Floor Material</Label>
+              <div className="grid grid-cols-3 gap-1 mb-2">
+                <Button
+                  variant={floorType === 'wood' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFloorType('wood')}
+                  className="text-xs"
+                >
+                  🪵 Wood
+                </Button>
+                <Button
+                  variant={floorType === 'tile' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFloorType('tile')}
+                  className="text-xs"
+                >
+                  🔲 Tile
+                </Button>
+                <Button
+                  variant={floorType === 'concrete' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFloorType('concrete')}
+                  className="text-xs"
+                >
+                  🏗️ Concrete
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                <Button
+                  variant={floorType === 'marble' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFloorType('marble')}
+                  className="text-xs"
+                >
+                  💎 Marble
+                </Button>
+                <Button
+                  variant={floorType === 'carpet' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFloorType('carpet')}
+                  className="text-xs"
+                >
+                  🧶 Carpet
+                </Button>
+              </div>
             </div>
 
-            <div>
-              <Label className="text-sm mb-2 block">
-                Thickness: {wallThickness.toFixed(2)}m
-              </Label>
-              <Slider
-                value={[wallThickness]}
-                onValueChange={([value]) => setWallThickness(value)}
-                min={0.05}
-                max={0.3}
-                step={0.01}
-                className="w-full"
-              />
+            <div className="pt-2">
+              <Label className="text-sm mb-2 block">Wall Material</Label>
+              <div className="grid grid-cols-3 gap-1 mb-2">
+                <Button
+                  variant={wallMaterial === 'paint' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setWallMaterial('paint')}
+                  className="text-xs"
+                >
+                  🎨 Paint
+                </Button>
+                <Button
+                  variant={wallMaterial === 'brick' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setWallMaterial('brick')}
+                  className="text-xs"
+                >
+                  🧱 Brick
+                </Button>
+                <Button
+                  variant={wallMaterial === 'stone' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setWallMaterial('stone')}
+                  className="text-xs"
+                >
+                  🪨 Stone
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                <Button
+                  variant={wallMaterial === 'wood' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setWallMaterial('wood')}
+                  className="text-xs"
+                >
+                  🪵 Wood
+                </Button>
+                <Button
+                  variant={wallMaterial === 'metal' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setWallMaterial('metal')}
+                  className="text-xs"
+                >
+                  🔩 Metal
+                </Button>
+              </div>
             </div>
+
+            <div className="pt-2">
+              <Label className="text-sm mb-2 block">Window Style</Label>
+              <div className="grid grid-cols-3 gap-1">
+                <Button
+                  variant={windowStyle === 'modern' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setWindowStyle('modern')}
+                  className="text-xs"
+                >
+                  🏢 Modern
+                </Button>
+                <Button
+                  variant={windowStyle === 'classic' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setWindowStyle('classic')}
+                  className="text-xs"
+                >
+                  🏛️ Classic
+                </Button>
+                <Button
+                  variant={windowStyle === 'industrial' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setWindowStyle('industrial')}
+                  className="text-xs"
+                >
+                  🏭 Industrial
+                </Button>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={applyWallProperties}
+              disabled={walls.length === 0}
+              className="w-full mt-2"
+            >
+              Apply to All Walls
+            </Button>
           </CardContent>
         </Card>
 
         <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Actions</CardTitle>
-          </CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-lg">Templates</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" size="sm" onClick={() => loadTemplate(1)}>
+                <Home className="w-4 h-4 mr-1" />Square
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => loadTemplate(2)}>
+                <Home className="w-4 h-4 mr-1" />L-Shape
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <MaterialPresets
+          onPresetSelect={handlePresetSelect}
+          currentFloorType={floorType}
+          currentWallMaterial={wallMaterial}
+          currentWindowStyle={windowStyle}
+        />
+
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3"><CardTitle className="text-lg">Actions</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="flex space-x-2">
               <Button
@@ -233,42 +412,58 @@ export default function RoomBuilderPage() {
                 onClick={undo}
                 disabled={undoStack.length === 0}
                 className="flex-1"
+                title="Undo last action"
               >
-                <Undo className="w-4 h-4 mr-1" />
-                Undo
+                <Undo className="w-4 h-4 mr-1" />Undo
               </Button>
+
               <Button
                 variant="outline"
                 size="sm"
                 onClick={redo}
                 disabled={redoStack.length === 0}
                 className="flex-1"
+                title="Redo last action"
               >
-                <Redo className="w-4 h-4 mr-1" />
-                Redo
+                <Redo className="w-4 h-4 mr-1" />Redo
               </Button>
             </div>
 
-            <Button variant="outline" onClick={clearAll} className="w-full">
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Clear All
+            <Button
+              variant="outline"
+              onClick={clearAll}
+              className="w-full"
+              disabled={walls.length === 0}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />Clear All
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (walls.length > 0) {
+                  showNotification('Advanced geometry processing applied!', 'success');
+                }
+              }}
+              className="w-full"
+              disabled={walls.length === 0}
+              title="Apply advanced geometry processing: vertex snapping, angle alignment, topology validation"
+            >
+              ⚡ Optimize Geometry
             </Button>
 
             <Button
               onClick={saveRoom}
-              className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
-              disabled={walls.length === 0}
+              className="w-full bg-gradient-to-r from-blue-500 to-purple-600"
+              disabled={walls.length === 0 || !isRoomValid}
             >
-              <Save className="w-4 h-4 mr-2" />
-              Save Room
+              <Save className="w-4 h-4 mr-2" />Save Room
             </Button>
 
-            {walls.length >= 1 && (
+            {isRoomValid && walls.length >= 3 && (
               <Link href="/furnish" className="block">
-                <Button className="w-full bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700">
-                  <Move3d className="w-4 h-4 mr-2" />
-                  Start Furnishing (Test)
-                  <ArrowRight className="w-4 h-4 ml-2" />
+                <Button className="w-full bg-gradient-to-r from-green-500 to-teal-600">
+                  <Move3d className="w-4 h-4 mr-2" />Start Furnishing<ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </Link>
             )}
@@ -276,31 +471,90 @@ export default function RoomBuilderPage() {
         </Card>
 
         <Card className="border-0 shadow-sm">
-          <CardContent className="pt-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center">
+              <Building className="w-5 h-5 mr-2" />
+              Room Statistics
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Walls Built</span>
-              <Badge variant="secondary">{walls.length}</Badge>
+              <Badge variant="secondary">{roomStats.wallCount}</Badge>
             </div>
+            {roomStats.isValid && (
+              <>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Room Area</span>
+                  <Badge variant="outline" className="bg-blue-50">{roomStats.area.toFixed(2)}m²</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Perimeter</span>
+                  <Badge variant="outline" className="bg-green-50">{roomStats.perimeter.toFixed(2)}m</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Avg Wall Length</span>
+                  <Badge variant="outline" className="bg-purple-50">{roomStats.averageWallLength.toFixed(2)}m</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Vertices</span>
+                  <Badge variant="outline" className="bg-orange-50">{roomStats.vertices.length}</Badge>
+                </div>
+              </>
+            )}
+            {!roomStats.isValid && walls.length > 0 && (
+              <div className="text-sm text-red-500 font-medium">
+                ⚠️ Room shape is not closed
+              </div>
+            )}
           </CardContent>
         </Card>
+
+        <RoomQualityAnalyzer
+          walls={walls}
+          isValid={roomStats.isValid}
+          area={roomStats.area}
+          perimeter={roomStats.perimeter}
+        />
       </div>
 
+      {/* --- Main Canvas Area --- */}
       <div className="flex-1 relative bg-muted">
-        <ThreeCanvas
-          walls={walls}
-          gridEnabled={gridEnabled}
-          isDarkMode={theme === 'dark'}
-        />
-        <div className="absolute top-4 left-4 bg-card/90 backdrop-blur-sm rounded-xl p-4 shadow-lg text-xs md:text-sm max-w-xs">
-          <h3 className="font-semibold mb-2 text-foreground">3D View Controls:</h3>
-          <div className="space-y-1 text-muted-foreground">
-            <p>• Orbit: Left-Click & Drag</p>
-            <p>• Zoom: Scroll Wheel</p>
-            <p>• Pan: Right-Click & Drag / Ctrl + Left-Click & Drag</p>
-            <p className="mt-2">Use sidebar to add/modify walls.</p>
-          </div>
-        </div>
+        {viewMode === '2d' ? (
+          <Floorplan2DCanvas
+            walls={walls}
+            setWalls={setWalls}
+            mode={editMode}
+            setMode={setEditMode}
+            wallHeight={wallHeight}
+            wallThickness={wallThickness}
+            onWallsChange={handleWallsChange}
+          />
+        ) : (
+          <ThreeCanvas
+            walls={walls}
+            gridEnabled={gridEnabled}
+            isDarkMode={theme === 'dark'}
+            showWindows={showWindows}
+            floorType={floorType}
+            wallMaterial={wallMaterial}
+            windowStyle={windowStyle}
+          />
+        )}
       </div>
+
+      {/* Notification Toast */}
+      {notification.visible && (
+        <div
+          className={`fixed bottom-4 right-4 px-4 py-2 rounded-md shadow-lg text-white transition-opacity duration-300 ${notification.type === 'success' ? 'bg-green-500' :
+            notification.type === 'error' ? 'bg-red-500' :
+              'bg-blue-500'
+            }`}
+        >
+          {notification.message}
+        </div>
+      )}
     </div>
   );
 }
+

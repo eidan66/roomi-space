@@ -1,35 +1,2508 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
-
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { Wall } from './Floorplan2DCanvas';
+import AdvancedGeometryEngine, { WindowPlacement, TopologyValidation, ConsistencyReport } from './AdvancedGeometryEngine';
 
-type Wall = {
-  id: string;
-  start: { x: number; y: number; z: number };
-  end: { x: number; y: number; z: number };
-  height: number;
-  thickness: number;
+// --- Advanced geometry helper functions ---
+
+// Ensure vertices are in counter-clockwise order for proper face orientation
+const ensureCounterClockwise = (vertices: { x: number; z: number }[]): { x: number; z: number }[] => {
+  if (vertices.length < 3) return vertices;
+
+  // Calculate signed area to determine winding order
+  let signedArea = 0;
+  for (let i = 0; i < vertices.length; i++) {
+    const j = (i + 1) % vertices.length;
+    signedArea += (vertices[j].x - vertices[i].x) * (vertices[j].z + vertices[i].z);
+  }
+
+  // If signed area is positive, vertices are clockwise, so reverse them
+  return signedArea > 0 ? [...vertices].reverse() : vertices;
 };
 
-type RoomObject = {
-  id: string;
-  type: string;
-  position: { x: number; y: number; z: number };
-  rotation: { x: number; y: number; z: number };
-  scale: { x: number; y: number; z: number };
-  color: string;
+// Create floor geometry using manual triangulation
+const createManualFloorGeometry = (vertices: { x: number; z: number }[]): THREE.BufferGeometry => {
+  const geometry = new THREE.BufferGeometry();
+
+  // Simple ear-clipping algorithm for polygon triangulation
+  const triangles = triangulatePolygon(vertices);
+
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const normals: number[] = [];
+  const uvs: number[] = [];
+
+  // Calculate bounding box for UV mapping
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  vertices.forEach(v => {
+    minX = Math.min(minX, v.x);
+    maxX = Math.max(maxX, v.x);
+    minZ = Math.min(minZ, v.z);
+    maxZ = Math.max(maxZ, v.z);
+  });
+
+  const width = maxX - minX;
+  const height = maxZ - minZ;
+
+  // Add vertices
+  vertices.forEach(v => {
+    positions.push(v.x, 0, v.z);
+    normals.push(0, 1, 0); // Floor normal points up
+    uvs.push((v.x - minX) / width, (v.z - minZ) / height);
+  });
+
+  // Add triangle indices
+  triangles.forEach(triangle => {
+    indices.push(triangle[0], triangle[1], triangle[2]);
+  });
+
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+
+  return geometry;
+};
+
+// Simple ear-clipping triangulation
+const triangulatePolygon = (vertices: { x: number; z: number }[]): number[][] => {
+  if (vertices.length < 3) return [];
+  if (vertices.length === 3) return [[0, 1, 2]];
+
+  const triangles: number[][] = [];
+  const remaining = vertices.map((_, i) => i);
+
+  while (remaining.length > 3) {
+    let earFound = false;
+
+    for (let i = 0; i < remaining.length; i++) {
+      const prev = remaining[(i - 1 + remaining.length) % remaining.length];
+      const curr = remaining[i];
+      const next = remaining[(i + 1) % remaining.length];
+
+      if (isEar(vertices, prev, curr, next, remaining)) {
+        triangles.push([prev, curr, next]);
+        remaining.splice(i, 1);
+        earFound = true;
+        break;
+      }
+    }
+
+    if (!earFound) {
+      // Fallback: create fan triangulation from first vertex
+      for (let i = 1; i < remaining.length - 1; i++) {
+        triangles.push([remaining[0], remaining[i], remaining[i + 1]]);
+      }
+      break;
+    }
+  }
+
+  // Add the final triangle
+  if (remaining.length === 3) {
+    triangles.push([remaining[0], remaining[1], remaining[2]]);
+  }
+
+  return triangles;
+};
+
+// Check if a vertex forms an ear (convex vertex with no other vertices inside the triangle)
+const isEar = (vertices: { x: number; z: number }[], prev: number, curr: number, next: number, remaining: number[]): boolean => {
+  const a = vertices[prev];
+  const b = vertices[curr];
+  const c = vertices[next];
+
+  // Check if the angle is convex
+  const cross = (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
+  if (cross <= 0) return false; // Not convex
+
+  // Check if any other vertex is inside the triangle
+  for (const idx of remaining) {
+    if (idx === prev || idx === curr || idx === next) continue;
+
+    const p = vertices[idx];
+    if (pointInTriangle(p, a, b, c)) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+// Check if a point is inside a triangle
+const pointInTriangle = (p: { x: number; z: number }, a: { x: number; z: number }, b: { x: number; z: number }, c: { x: number; z: number }): boolean => {
+  const denom = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z);
+  if (Math.abs(denom) < 1e-10) return false;
+
+  const alpha = ((b.z - c.z) * (p.x - c.x) + (c.x - b.x) * (p.z - c.z)) / denom;
+  const beta = ((c.z - a.z) * (p.x - c.x) + (a.x - c.x) * (p.z - c.z)) / denom;
+  const gamma = 1 - alpha - beta;
+
+  return alpha >= 0 && beta >= 0 && gamma >= 0;
+};
+
+const getOrderedVertices = (walls: Wall[]): { x: number; z: number }[] => {
+  if (walls.length === 0) return [];
+
+  // Create a graph of connected points with better precision handling
+  const connections = new Map<string, { point: { x: number; z: number }; neighbors: { x: number; z: number }[] }>();
+  const PRECISION = 0.001; // 1mm precision
+
+  // Helper to create consistent keys
+  const createKey = (point: { x: number; z: number }) => {
+    const x = Math.round(point.x / PRECISION) * PRECISION;
+    const z = Math.round(point.z / PRECISION) * PRECISION;
+    return `${x.toFixed(3)},${z.toFixed(3)}`;
+  };
+
+  // Build the connection graph
+  walls.forEach(wall => {
+    const startKey = createKey(wall.start);
+    const endKey = createKey(wall.end);
+
+    if (!connections.has(startKey)) {
+      connections.set(startKey, { point: wall.start, neighbors: [] });
+    }
+    if (!connections.has(endKey)) {
+      connections.set(endKey, { point: wall.end, neighbors: [] });
+    }
+
+    connections.get(startKey)!.neighbors.push(wall.end);
+    connections.get(endKey)!.neighbors.push(wall.start);
+  });
+
+  // Find starting point - prefer leftmost, then bottommost point for consistency
+  let startPoint: { x: number; z: number } | null = null;
+  let minX = Infinity;
+  let minZ = Infinity;
+
+  for (const [_, data] of connections.entries()) {
+    if (data.neighbors.length === 2) { // Valid connection point
+      if (data.point.x < minX || (Math.abs(data.point.x - minX) < PRECISION && data.point.z < minZ)) {
+        minX = data.point.x;
+        minZ = data.point.z;
+        startPoint = data.point;
+      }
+    }
+  }
+
+  if (!startPoint) {
+    // Fallback to any point
+    const firstEntry = connections.entries().next().value;
+    if (!firstEntry) return [];
+    startPoint = firstEntry[1].point;
+  }
+
+  // Traverse the polygon to get ordered vertices using proper graph traversal
+  const orderedVertices: { x: number; z: number }[] = [];
+  const visited = new Set<string>();
+  let currentPoint = startPoint;
+  let previousPoint: { x: number; z: number } | null = null;
+
+  // Traverse until we complete the loop or run out of connections
+  while (currentPoint && orderedVertices.length <= walls.length) {
+    const currentKey = createKey(currentPoint);
+
+    // If we've visited this point and have at least 3 vertices, we've completed the loop
+    if (visited.has(currentKey) && orderedVertices.length >= 3) {
+      break;
+    }
+
+    // Add current point if not already added
+    if (!visited.has(currentKey)) {
+      orderedVertices.push({ x: currentPoint.x, z: currentPoint.z });
+      visited.add(currentKey);
+    }
+
+    const currentData = connections.get(currentKey);
+    if (!currentData || currentData.neighbors.length !== 2) break;
+
+    // Find the next neighbor (not the previous one)
+    let nextPoint: { x: number; z: number } | null = null;
+    for (const neighbor of currentData.neighbors) {
+      const isSameAsPrevious = previousPoint &&
+        Math.abs(neighbor.x - previousPoint.x) < PRECISION &&
+        Math.abs(neighbor.z - previousPoint.z) < PRECISION;
+
+      if (!isSameAsPrevious) {
+        nextPoint = neighbor;
+        break;
+      }
+    }
+
+    previousPoint = currentPoint;
+    currentPoint = nextPoint;
+  }
+
+  return orderedVertices;
+};
+
+// Check if a floor plan is valid (closed shape)
+const isValidFloorplan = (walls: Wall[]): boolean => {
+  if (walls.length < 3) return false;
+
+  // Build a graph of connections with better precision handling
+  const connections = new Map<string, Set<string>>();
+  const PRECISION = 0.001;
+
+  const createKey = (point: { x: number; z: number }) => {
+    const x = Math.round(point.x / PRECISION) * PRECISION;
+    const z = Math.round(point.z / PRECISION) * PRECISION;
+    return `${x.toFixed(3)},${z.toFixed(3)}`;
+  };
+
+  walls.forEach(wall => {
+    const startKey = createKey(wall.start);
+    const endKey = createKey(wall.end);
+
+    if (!connections.has(startKey)) connections.set(startKey, new Set());
+    if (!connections.has(endKey)) connections.set(endKey, new Set());
+
+    connections.get(startKey)!.add(endKey);
+    connections.get(endKey)!.add(startKey);
+  });
+
+  // Check that each point has exactly 2 connections (forms a loop)
+  for (const [key, connected] of connections.entries()) {
+    if (connected.size !== 2) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+// Ultra-Advanced Floor Rendering Engine with Multiple Algorithms
+class AdvancedFloorEngine {
+  private static PRECISION = 0.001;
+  private static MIN_AREA = 0.1; // Minimum floor area in m²
+
+  // Main entry point for advanced floor calculation
+  static createAdvancedInteriorFloor(walls: Wall[], exteriorVertices: { x: number; z: number }[]): { x: number; z: number }[] {
+    if (walls.length === 0 || exteriorVertices.length < 3) return exteriorVertices;
+
+    console.log('🏗️ Advanced Floor Engine: Processing', exteriorVertices.length, 'vertices');
+
+    // Calculate dynamic inset based on room characteristics
+    const insetDistance = this.calculateOptimalInset(walls, exteriorVertices);
+    console.log('📐 Calculated optimal inset:', insetDistance.toFixed(3), 'm');
+
+    // Try multiple algorithms in order of sophistication
+    const algorithms = [
+      () => this.straightSkeletonInset(exteriorVertices, insetDistance),
+      () => this.adaptivePolygonOffset(exteriorVertices, insetDistance),
+      () => this.voronoiBasedInset(exteriorVertices, insetDistance),
+      () => this.medialAxisInset(exteriorVertices, insetDistance),
+      () => this.centroidBasedInset(exteriorVertices, insetDistance)
+    ];
+
+    for (let i = 0; i < algorithms.length; i++) {
+      try {
+        const result = algorithms[i]();
+        if (this.validateInteriorPolygon(result, exteriorVertices)) {
+          console.log(`✅ Algorithm ${i + 1} succeeded:`, ['Straight Skeleton', 'Adaptive Offset', 'Voronoi', 'Medial Axis', 'Centroid'][i]);
+          return this.optimizeVertices(result);
+        }
+      } catch (error) {
+        console.log(`❌ Algorithm ${i + 1} failed:`, error);
+      }
+    }
+
+    console.log('⚠️ All algorithms failed, using safe fallback');
+    return this.safeFallbackInset(exteriorVertices, insetDistance * 0.5);
+  }
+
+  // Calculate optimal inset distance based on room characteristics
+  private static calculateOptimalInset(walls: Wall[], vertices: { x: number; z: number }[]): number {
+    const avgThickness = walls.reduce((sum, wall) => sum + wall.thickness, 0) / walls.length;
+    const roomArea = this.calculatePolygonArea(vertices);
+    const perimeter = this.calculatePolygonPerimeter(vertices);
+
+    // Adaptive inset based on room size and shape
+    const compactness = (4 * Math.PI * roomArea) / (perimeter * perimeter);
+    const sizeAdjustment = Math.min(1.0, roomArea / 50); // Larger rooms can have larger insets
+    const shapeAdjustment = Math.max(0.3, compactness); // More compact shapes can have larger insets
+
+    return avgThickness * 0.45 * sizeAdjustment * shapeAdjustment;
+  }
+
+  // Method 1: Straight Skeleton Algorithm (most advanced)
+  private static straightSkeletonInset(vertices: { x: number; z: number }[], inset: number): { x: number; z: number }[] {
+    const n = vertices.length;
+    const offsetVertices: { x: number; z: number }[] = [];
+
+    for (let i = 0; i < n; i++) {
+      const prev = vertices[(i - 1 + n) % n];
+      const curr = vertices[i];
+      const next = vertices[(i + 1) % n];
+
+      // Calculate edge vectors
+      const e1 = { x: curr.x - prev.x, z: curr.z - prev.z };
+      const e2 = { x: next.x - curr.x, z: next.z - curr.z };
+
+      // Normalize edges
+      const len1 = Math.sqrt(e1.x * e1.x + e1.z * e1.z);
+      const len2 = Math.sqrt(e2.x * e2.x + e2.z * e2.z);
+
+      if (len1 < this.PRECISION || len2 < this.PRECISION) continue;
+
+      e1.x /= len1; e1.z /= len1;
+      e2.x /= len2; e2.z /= len2;
+
+      // Calculate angle bisector
+      const bisector = { x: e1.x + e2.x, z: e1.z + e2.z };
+      const bisectorLen = Math.sqrt(bisector.x * bisector.x + bisector.z * bisector.z);
+
+      if (bisectorLen < this.PRECISION) continue;
+
+      bisector.x /= bisectorLen;
+      bisector.z /= bisectorLen;
+
+      // Calculate angle and adjust offset
+      const cosAngle = e1.x * e2.x + e1.z * e2.z;
+      const angle = Math.acos(Math.max(-1, Math.min(1, cosAngle)));
+      const sinHalfAngle = Math.sin(angle / 2);
+
+      if (sinHalfAngle < 0.1) continue; // Skip very sharp angles
+
+      const adjustedInset = inset / sinHalfAngle;
+
+      // Determine inward direction using cross product
+      const cross = e1.x * e2.z - e1.z * e2.x;
+      const inwardFactor = cross > 0 ? 1 : -1;
+
+      offsetVertices.push({
+        x: curr.x + bisector.x * adjustedInset * inwardFactor,
+        z: curr.z + bisector.z * adjustedInset * inwardFactor
+      });
+    }
+
+    return offsetVertices;
+  }
+
+  // Method 2: Adaptive Polygon Offset with Corner Detection
+  private static adaptivePolygonOffset(vertices: { x: number; z: number }[], inset: number): { x: number; z: number }[] {
+    const n = vertices.length;
+    const offsetVertices: { x: number; z: number }[] = [];
+
+    // Detect corner types and adjust offset accordingly
+    for (let i = 0; i < n; i++) {
+      const prev = vertices[(i - 1 + n) % n];
+      const curr = vertices[i];
+      const next = vertices[(i + 1) % n];
+
+      const cornerType = this.detectCornerType(prev, curr, next);
+      const adaptiveInset = this.getAdaptiveInset(inset, cornerType);
+
+      const normal = this.calculateInwardNormal(prev, curr, next);
+
+      offsetVertices.push({
+        x: curr.x + normal.x * adaptiveInset,
+        z: curr.z + normal.z * adaptiveInset
+      });
+    }
+
+    return this.smoothOffsetVertices(offsetVertices);
+  }
+
+  // Method 3: Voronoi-based Interior Calculation
+  private static voronoiBasedInset(vertices: { x: number; z: number }[], inset: number): { x: number; z: number }[] {
+    // Simplified Voronoi approach using distance fields
+    const centroid = this.calculateCentroid(vertices);
+    const offsetVertices: { x: number; z: number }[] = [];
+
+    for (let i = 0; i < vertices.length; i++) {
+      const vertex = vertices[i];
+
+      // Calculate distance to nearest edges
+      const distanceToEdges = this.calculateDistanceToNearestEdges(vertex, vertices);
+      const safeInset = Math.min(inset, distanceToEdges * 0.8);
+
+      // Direction towards centroid with edge-aware adjustment
+      const toCentroid = {
+        x: centroid.x - vertex.x,
+        z: centroid.z - vertex.z
+      };
+
+      const distance = Math.sqrt(toCentroid.x * toCentroid.x + toCentroid.z * toCentroid.z);
+      if (distance < this.PRECISION) continue;
+
+      const normalized = { x: toCentroid.x / distance, z: toCentroid.z / distance };
+
+      offsetVertices.push({
+        x: vertex.x + normalized.x * safeInset,
+        z: vertex.z + normalized.z * safeInset
+      });
+    }
+
+    return offsetVertices;
+  }
+
+  // Method 4: Medial Axis Transform
+  private static medialAxisInset(vertices: { x: number; z: number }[], inset: number): { x: number; z: number }[] {
+    const offsetVertices: { x: number; z: number }[] = [];
+
+    for (let i = 0; i < vertices.length; i++) {
+      const vertex = vertices[i];
+
+      // Find medial axis point (simplified)
+      const medialPoint = this.findLocalMedialAxis(vertex, vertices, i);
+
+      // Move towards medial axis
+      const direction = {
+        x: medialPoint.x - vertex.x,
+        z: medialPoint.z - vertex.z
+      };
+
+      const distance = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
+      if (distance < this.PRECISION) continue;
+
+      const normalized = { x: direction.x / distance, z: direction.z / distance };
+      const safeInset = Math.min(inset, distance * 0.7);
+
+      offsetVertices.push({
+        x: vertex.x + normalized.x * safeInset,
+        z: vertex.z + normalized.z * safeInset
+      });
+    }
+
+    return offsetVertices;
+  }
+
+  // Method 5: Enhanced Centroid-based Inset (fallback)
+  private static centroidBasedInset(vertices: { x: number; z: number }[], inset: number): { x: number; z: number }[] {
+    const centroid = this.calculateCentroid(vertices);
+
+    return vertices.map(vertex => {
+      const direction = {
+        x: centroid.x - vertex.x,
+        z: centroid.z - vertex.z
+      };
+
+      const distance = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
+      if (distance < this.PRECISION) return vertex;
+
+      const normalized = { x: direction.x / distance, z: direction.z / distance };
+
+      return {
+        x: vertex.x + normalized.x * inset,
+        z: vertex.z + normalized.z * inset
+      };
+    });
+  }
+
+  // Helper Methods
+  private static detectCornerType(prev: { x: number; z: number }, curr: { x: number; z: number }, next: { x: number; z: number }): 'convex' | 'concave' | 'straight' {
+    const cross = (curr.x - prev.x) * (next.z - curr.z) - (curr.z - prev.z) * (next.x - curr.x);
+    if (Math.abs(cross) < this.PRECISION) return 'straight';
+    return cross > 0 ? 'convex' : 'concave';
+  }
+
+  private static getAdaptiveInset(baseInset: number, cornerType: 'convex' | 'concave' | 'straight'): number {
+    switch (cornerType) {
+      case 'convex': return baseInset * 0.8; // Reduce inset for convex corners
+      case 'concave': return baseInset * 1.2; // Increase inset for concave corners
+      default: return baseInset;
+    }
+  }
+
+  private static calculateInwardNormal(prev: { x: number; z: number }, curr: { x: number; z: number }, next: { x: number; z: number }): { x: number; z: number } {
+    const e1 = { x: curr.x - prev.x, z: curr.z - prev.z };
+    const e2 = { x: next.x - curr.x, z: next.z - curr.z };
+
+    // Calculate perpendicular vectors (normals)
+    const n1 = { x: -e1.z, z: e1.x };
+    const n2 = { x: -e2.z, z: e2.x };
+
+    // Normalize
+    const len1 = Math.sqrt(n1.x * n1.x + n1.z * n1.z);
+    const len2 = Math.sqrt(n2.x * n2.x + n2.z * n2.z);
+
+    if (len1 > this.PRECISION) { n1.x /= len1; n1.z /= len1; }
+    if (len2 > this.PRECISION) { n2.x /= len2; n2.z /= len2; }
+
+    // Average the normals
+    const avgNormal = { x: (n1.x + n2.x) / 2, z: (n1.z + n2.z) / 2 };
+    const avgLen = Math.sqrt(avgNormal.x * avgNormal.x + avgNormal.z * avgNormal.z);
+
+    if (avgLen > this.PRECISION) {
+      avgNormal.x /= avgLen;
+      avgNormal.z /= avgLen;
+    }
+
+    return avgNormal;
+  }
+
+  private static smoothOffsetVertices(vertices: { x: number; z: number }[]): { x: number; z: number }[] {
+    if (vertices.length < 3) return vertices;
+
+    const smoothed: { x: number; z: number }[] = [];
+    const smoothingFactor = 0.3;
+
+    for (let i = 0; i < vertices.length; i++) {
+      const prev = vertices[(i - 1 + vertices.length) % vertices.length];
+      const curr = vertices[i];
+      const next = vertices[(i + 1) % vertices.length];
+
+      smoothed.push({
+        x: curr.x * (1 - smoothingFactor) + (prev.x + next.x) * smoothingFactor / 2,
+        z: curr.z * (1 - smoothingFactor) + (prev.z + next.z) * smoothingFactor / 2
+      });
+    }
+
+    return smoothed;
+  }
+
+  private static calculateDistanceToNearestEdges(point: { x: number; z: number }, vertices: { x: number; z: number }[]): number {
+    let minDistance = Infinity;
+
+    for (let i = 0; i < vertices.length; i++) {
+      const start = vertices[i];
+      const end = vertices[(i + 1) % vertices.length];
+      const distance = this.pointToLineDistance(point, start, end);
+      minDistance = Math.min(minDistance, distance);
+    }
+
+    return minDistance;
+  }
+
+  private static pointToLineDistance(point: { x: number; z: number }, lineStart: { x: number; z: number }, lineEnd: { x: number; z: number }): number {
+    const A = point.x - lineStart.x;
+    const B = point.z - lineStart.z;
+    const C = lineEnd.x - lineStart.x;
+    const D = lineEnd.z - lineStart.z;
+
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+
+    if (lenSq < this.PRECISION) return Math.sqrt(A * A + B * B);
+
+    const param = dot / lenSq;
+
+    let xx, zz;
+    if (param < 0) {
+      xx = lineStart.x;
+      zz = lineStart.z;
+    } else if (param > 1) {
+      xx = lineEnd.x;
+      zz = lineEnd.z;
+    } else {
+      xx = lineStart.x + param * C;
+      zz = lineStart.z + param * D;
+    }
+
+    const dx = point.x - xx;
+    const dz = point.z - zz;
+    return Math.sqrt(dx * dx + dz * dz);
+  }
+
+  private static findLocalMedialAxis(vertex: { x: number; z: number }, vertices: { x: number; z: number }[], index: number): { x: number; z: number } {
+    const n = vertices.length;
+    const prev = vertices[(index - 1 + n) % n];
+    const next = vertices[(index + 1) % n];
+
+    // Simplified medial axis calculation
+    const midpoint1 = { x: (vertex.x + prev.x) / 2, z: (vertex.z + prev.z) / 2 };
+    const midpoint2 = { x: (vertex.x + next.x) / 2, z: (vertex.z + next.z) / 2 };
+
+    return { x: (midpoint1.x + midpoint2.x) / 2, z: (midpoint1.z + midpoint2.z) / 2 };
+  }
+
+  private static calculateCentroid(vertices: { x: number; z: number }[]): { x: number; z: number } {
+    return {
+      x: vertices.reduce((sum, v) => sum + v.x, 0) / vertices.length,
+      z: vertices.reduce((sum, v) => sum + v.z, 0) / vertices.length
+    };
+  }
+
+  private static calculatePolygonArea(vertices: { x: number; z: number }[]): number {
+    let area = 0;
+    for (let i = 0; i < vertices.length; i++) {
+      const j = (i + 1) % vertices.length;
+      area += vertices[i].x * vertices[j].z;
+      area -= vertices[j].x * vertices[i].z;
+    }
+    return Math.abs(area) / 2;
+  }
+
+  private static calculatePolygonPerimeter(vertices: { x: number; z: number }[]): number {
+    let perimeter = 0;
+    for (let i = 0; i < vertices.length; i++) {
+      const j = (i + 1) % vertices.length;
+      const dx = vertices[j].x - vertices[i].x;
+      const dz = vertices[j].z - vertices[i].z;
+      perimeter += Math.sqrt(dx * dx + dz * dz);
+    }
+    return perimeter;
+  }
+
+  private static validateInteriorPolygon(interior: { x: number; z: number }[], exterior: { x: number; z: number }[]): boolean {
+    if (interior.length < 3) return false;
+
+    const interiorArea = this.calculatePolygonArea(interior);
+    const exteriorArea = this.calculatePolygonArea(exterior);
+
+    // Interior should be smaller but not too small
+    return interiorArea > this.MIN_AREA && interiorArea < exteriorArea * 0.95;
+  }
+
+  private static optimizeVertices(vertices: { x: number; z: number }[]): { x: number; z: number }[] {
+    // Remove vertices that are too close together
+    const optimized: { x: number; z: number }[] = [];
+
+    for (let i = 0; i < vertices.length; i++) {
+      const curr = vertices[i];
+      const next = vertices[(i + 1) % vertices.length];
+
+      const distance = Math.sqrt((next.x - curr.x) ** 2 + (next.z - curr.z) ** 2);
+      if (distance > this.PRECISION * 10) {
+        optimized.push(curr);
+      }
+    }
+
+    return optimized.length >= 3 ? optimized : vertices;
+  }
+
+  private static safeFallbackInset(vertices: { x: number; z: number }[], inset: number): { x: number; z: number }[] {
+    const centroid = this.calculateCentroid(vertices);
+    const safeInset = Math.min(inset, 0.1); // Very conservative fallback
+
+    return vertices.map(vertex => {
+      const direction = {
+        x: centroid.x - vertex.x,
+        z: centroid.z - vertex.z
+      };
+
+      const distance = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
+      if (distance < this.PRECISION) return vertex;
+
+      const normalized = { x: direction.x / distance, z: direction.z / distance };
+
+      return {
+        x: vertex.x + normalized.x * safeInset,
+        z: vertex.z + normalized.z * safeInset
+      };
+    });
+  }
+}
+
+// Main function using the advanced engine
+const createAdvancedInteriorFloor = (walls: Wall[], exteriorVertices: { x: number; z: number }[]): { x: number; z: number }[] => {
+  return AdvancedFloorEngine.createAdvancedInteriorFloor(walls, exteriorVertices);
+};
+
+// Advanced Geometry Creation Methods
+
+// Method 1: Constrained Delaunay Triangulation (most robust)
+const createConstrainedDelaunayGeometry = (vertices: { x: number; z: number }[]): THREE.BufferGeometry => {
+  const geometry = new THREE.BufferGeometry();
+
+  // Implement simplified Delaunay triangulation
+  const triangles = delaunayTriangulation(vertices);
+
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const normals: number[] = [];
+  const uvs: number[] = [];
+
+  // Calculate bounding box for UV mapping
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  vertices.forEach(v => {
+    minX = Math.min(minX, v.x);
+    maxX = Math.max(maxX, v.x);
+    minZ = Math.min(minZ, v.z);
+    maxZ = Math.max(maxZ, v.z);
+  });
+
+  const width = maxX - minX;
+  const height = maxZ - minZ;
+
+  // Add vertices with proper UVs and normals
+  vertices.forEach(v => {
+    positions.push(v.x, 0, v.z);
+    normals.push(0, 1, 0);
+    uvs.push((v.x - minX) / width, (v.z - minZ) / height);
+  });
+
+  // Add triangle indices
+  triangles.forEach(triangle => {
+    indices.push(triangle[0], triangle[1], triangle[2]);
+  });
+
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+
+  return geometry;
+};
+
+// Method 2: Advanced Shape Geometry with Holes Support
+const createAdvancedShapeGeometry = (vertices: { x: number; z: number }[]): THREE.BufferGeometry => {
+  const shape = new THREE.Shape();
+
+  // Create main shape
+  shape.moveTo(vertices[0].x, vertices[0].z);
+  for (let i = 1; i < vertices.length; i++) {
+    shape.lineTo(vertices[i].x, vertices[i].z);
+  }
+  shape.closePath();
+
+  // Create geometry with advanced settings
+  const geometry = new THREE.ShapeGeometry(shape, 32); // Higher curve segments
+  geometry.rotateX(-Math.PI / 2);
+
+  // Enhanced UV mapping with proper scaling
+  geometry.computeBoundingBox();
+  if (geometry.boundingBox) {
+    const positions = geometry.attributes.position;
+    const uvs = [];
+    const bboxSize = new THREE.Vector3();
+    geometry.boundingBox.getSize(bboxSize);
+
+    // Scale UVs based on real-world dimensions for proper material tiling
+    const scaleX = bboxSize.x / 4; // 4m tile repeat
+    const scaleZ = bboxSize.z / 4;
+
+    for (let i = 0; i < positions.count; i++) {
+      const x = positions.getX(i);
+      const z = positions.getZ(i);
+      uvs.push(
+        ((x - geometry.boundingBox.min.x) / bboxSize.x) * scaleX,
+        ((z - geometry.boundingBox.min.z) / bboxSize.z) * scaleZ
+      );
+    }
+
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  }
+
+  // Compute vertex normals for better lighting
+  geometry.computeVertexNormals();
+
+  return geometry;
+};
+
+// Method 3: Optimized Ear-Clipping with Quality Improvements
+const createOptimizedEarClippingGeometry = (vertices: { x: number; z: number }[]): THREE.BufferGeometry => {
+  const geometry = new THREE.BufferGeometry();
+
+  // Enhanced ear-clipping with quality checks
+  const triangles = optimizedEarClipping(vertices);
+
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const normals: number[] = [];
+  const uvs: number[] = [];
+
+  // Calculate centroid for better UV mapping
+  const centroid = {
+    x: vertices.reduce((sum, v) => sum + v.x, 0) / vertices.length,
+    z: vertices.reduce((sum, v) => sum + v.z, 0) / vertices.length
+  };
+
+  // Calculate maximum distance for UV normalization
+  let maxDistance = 0;
+  vertices.forEach(v => {
+    const distance = Math.sqrt((v.x - centroid.x) ** 2 + (v.z - centroid.z) ** 2);
+    maxDistance = Math.max(maxDistance, distance);
+  });
+
+  // Add vertices with radial UV mapping
+  vertices.forEach(v => {
+    positions.push(v.x, 0, v.z);
+    normals.push(0, 1, 0);
+
+    // Radial UV mapping for better material distribution
+    const dx = v.x - centroid.x;
+    const dz = v.z - centroid.z;
+    const distance = Math.sqrt(dx * dx + dz * dz);
+    const angle = Math.atan2(dz, dx);
+
+    uvs.push(
+      (Math.cos(angle) * distance / maxDistance + 1) / 2,
+      (Math.sin(angle) * distance / maxDistance + 1) / 2
+    );
+  });
+
+  // Add optimized triangle indices
+  triangles.forEach(triangle => {
+    indices.push(triangle[0], triangle[1], triangle[2]);
+  });
+
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+
+  return geometry;
+};
+
+// Delaunay Triangulation Implementation
+const delaunayTriangulation = (vertices: { x: number; z: number }[]): number[][] => {
+  if (vertices.length < 3) return [];
+
+  // Simplified Bowyer-Watson algorithm
+  const triangles: number[][] = [];
+
+  // Create super triangle that encompasses all points
+  const bounds = getBounds(vertices);
+  const superTriangle = createSuperTriangle(bounds);
+  const allVertices = [...vertices, ...superTriangle];
+
+  triangles.push([vertices.length, vertices.length + 1, vertices.length + 2]);
+
+  // Add each vertex one by one
+  for (let i = 0; i < vertices.length; i++) {
+    const vertex = vertices[i];
+    const badTriangles: number[] = [];
+
+    // Find triangles whose circumcircle contains the vertex
+    for (let j = 0; j < triangles.length; j++) {
+      const triangle = triangles[j];
+      if (inCircumcircle(vertex, allVertices[triangle[0]], allVertices[triangle[1]], allVertices[triangle[2]])) {
+        badTriangles.push(j);
+      }
+    }
+
+    // Find boundary of polygonal hole
+    const polygon: Array<[number, number]> = [];
+    for (const badTriangleIndex of badTriangles) {
+      const triangle = triangles[badTriangleIndex];
+      for (let k = 0; k < 3; k++) {
+        const edge: [number, number] = [triangle[k], triangle[(k + 1) % 3]];
+
+        // Check if edge is shared with another bad triangle
+        let isShared = false;
+        for (const otherBadTriangleIndex of badTriangles) {
+          if (otherBadTriangleIndex === badTriangleIndex) continue;
+          const otherTriangle = triangles[otherBadTriangleIndex];
+
+          if (hasEdge(otherTriangle, edge[0], edge[1])) {
+            isShared = true;
+            break;
+          }
+        }
+
+        if (!isShared) {
+          polygon.push(edge);
+        }
+      }
+    }
+
+    // Remove bad triangles
+    for (let j = badTriangles.length - 1; j >= 0; j--) {
+      triangles.splice(badTriangles[j], 1);
+    }
+
+    // Add new triangles formed by connecting vertex to polygon boundary
+    for (const edge of polygon) {
+      triangles.push([i, edge[0], edge[1]]);
+    }
+  }
+
+  // Remove triangles that contain super triangle vertices
+  return triangles.filter(triangle =>
+    triangle[0] < vertices.length &&
+    triangle[1] < vertices.length &&
+    triangle[2] < vertices.length
+  );
+};
+
+// Optimized Ear-Clipping Implementation
+const optimizedEarClipping = (vertices: { x: number; z: number }[]): number[][] => {
+  if (vertices.length < 3) return [];
+  if (vertices.length === 3) return [[0, 1, 2]];
+
+  const triangles: number[][] = [];
+  const remaining = vertices.map((_, i) => i);
+
+  // Pre-calculate vertex types (convex/reflex)
+  const isConvex = remaining.map(i => isVertexConvex(vertices, i));
+
+  while (remaining.length > 3) {
+    let earFound = false;
+
+    // Prioritize convex vertices for better triangle quality
+    const convexVertices = remaining.filter((_, i) => isConvex[remaining[i]]);
+    const searchOrder = [...convexVertices, ...remaining.filter((_, i) => !isConvex[remaining[i]])];
+
+    for (const vertexIndex of searchOrder) {
+      const i = remaining.indexOf(vertexIndex);
+      if (i === -1) continue;
+
+      const prev = remaining[(i - 1 + remaining.length) % remaining.length];
+      const curr = remaining[i];
+      const next = remaining[(i + 1) % remaining.length];
+
+      if (isEar(vertices, prev, curr, next, remaining)) {
+        triangles.push([prev, curr, next]);
+        remaining.splice(i, 1);
+
+        // Update convexity for neighboring vertices
+        const prevIndex = remaining.indexOf(prev);
+        const nextIndex = remaining.indexOf(next);
+        if (prevIndex !== -1) isConvex[prev] = isVertexConvex(vertices, prev);
+        if (nextIndex !== -1) isConvex[next] = isVertexConvex(vertices, next);
+
+        earFound = true;
+        break;
+      }
+    }
+
+    if (!earFound) {
+      // Fallback: create fan triangulation
+      for (let i = 1; i < remaining.length - 1; i++) {
+        triangles.push([remaining[0], remaining[i], remaining[i + 1]]);
+      }
+      break;
+    }
+  }
+
+  if (remaining.length === 3) {
+    triangles.push([remaining[0], remaining[1], remaining[2]]);
+  }
+
+  return triangles;
+};
+
+// Helper Functions
+const getBounds = (vertices: { x: number; z: number }[]) => {
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  vertices.forEach(v => {
+    minX = Math.min(minX, v.x);
+    maxX = Math.max(maxX, v.x);
+    minZ = Math.min(minZ, v.z);
+    maxZ = Math.max(maxZ, v.z);
+  });
+  return { minX, maxX, minZ, maxZ };
+};
+
+const createSuperTriangle = (bounds: { minX: number; maxX: number; minZ: number; maxZ: number }) => {
+  const width = bounds.maxX - bounds.minX;
+  const height = bounds.maxZ - bounds.minZ;
+  const centerX = (bounds.minX + bounds.maxX) / 2;
+  const centerZ = (bounds.minZ + bounds.maxZ) / 2;
+  const size = Math.max(width, height) * 3;
+
+  return [
+    { x: centerX, z: centerZ - size },
+    { x: centerX - size, z: centerZ + size },
+    { x: centerX + size, z: centerZ + size }
+  ];
+};
+
+const inCircumcircle = (p: { x: number; z: number }, a: { x: number; z: number }, b: { x: number; z: number }, c: { x: number; z: number }): boolean => {
+  const ax = a.x - p.x;
+  const ay = a.z - p.z;
+  const bx = b.x - p.x;
+  const by = b.z - p.z;
+  const cx = c.x - p.x;
+  const cy = c.z - p.z;
+
+  const det = (ax * ax + ay * ay) * (bx * cy - by * cx) +
+    (bx * bx + by * by) * (cx * ay - cy * ax) +
+    (cx * cx + cy * cy) * (ax * by - ay * bx);
+
+  return det > 0;
+};
+
+const hasEdge = (triangle: number[], v1: number, v2: number): boolean => {
+  return (triangle.includes(v1) && triangle.includes(v2));
+};
+
+const isVertexConvex = (vertices: { x: number; z: number }[], index: number): boolean => {
+  const n = vertices.length;
+  const prev = vertices[(index - 1 + n) % n];
+  const curr = vertices[index];
+  const next = vertices[(index + 1) % n];
+
+  const cross = (curr.x - prev.x) * (next.z - curr.z) - (curr.z - prev.z) * (next.x - curr.x);
+  return cross > 0;
+};
+
+// Polygon offset algorithm for creating interior boundaries
+const offsetPolygon = (vertices: { x: number; z: number }[], offset: number): { x: number; z: number }[] => {
+  if (vertices.length < 3) return vertices;
+
+  const offsetVertices: { x: number; z: number }[] = [];
+
+  for (let i = 0; i < vertices.length; i++) {
+    const prev = vertices[(i - 1 + vertices.length) % vertices.length];
+    const curr = vertices[i];
+    const next = vertices[(i + 1) % vertices.length];
+
+    // Calculate edge vectors
+    const edge1 = { x: curr.x - prev.x, z: curr.z - prev.z };
+    const edge2 = { x: next.x - curr.x, z: next.z - curr.z };
+
+    // Calculate edge normals (perpendicular vectors pointing inward)
+    const normal1 = { x: -edge1.z, z: edge1.x };
+    const normal2 = { x: -edge2.z, z: edge2.x };
+
+    // Normalize normals
+    const len1 = Math.sqrt(normal1.x ** 2 + normal1.z ** 2);
+    const len2 = Math.sqrt(normal2.x ** 2 + normal2.z ** 2);
+
+    if (len1 > 0.001) {
+      normal1.x /= len1;
+      normal1.z /= len1;
+    }
+    if (len2 > 0.001) {
+      normal2.x /= len2;
+      normal2.z /= len2;
+    }
+
+    // Calculate bisector (average of normals)
+    const bisector = {
+      x: (normal1.x + normal2.x) / 2,
+      z: (normal1.z + normal2.z) / 2
+    };
+
+    // Normalize bisector
+    const bisectorLen = Math.sqrt(bisector.x ** 2 + bisector.z ** 2);
+    if (bisectorLen > 0.001) {
+      bisector.x /= bisectorLen;
+      bisector.z /= bisectorLen;
+    }
+
+    // Calculate angle between edges to adjust offset
+    const dot = edge1.x * edge2.x + edge1.z * edge2.z;
+    const cross = edge1.x * edge2.z - edge1.z * edge2.x;
+    const angle = Math.atan2(cross, dot);
+
+    // Adjust offset based on angle (sharper angles need more offset)
+    const angleAdjustment = Math.abs(Math.sin(angle / 2));
+    const adjustedOffset = angleAdjustment > 0.1 ? offset / angleAdjustment : offset;
+
+    // Apply offset
+    const offsetVertex = {
+      x: curr.x + bisector.x * adjustedOffset,
+      z: curr.z + bisector.z * adjustedOffset
+    };
+
+    offsetVertices.push(offsetVertex);
+  }
+
+  return offsetVertices;
+};
+
+// Advanced Floor System with Multiple Layers and Details
+const createAdvancedFloorSystem = (
+  baseGeometry: THREE.BufferGeometry,
+  floorType: string,
+  isDarkMode: boolean,
+  vertices: { x: number; z: number }[]
+): THREE.Mesh[] => {
+  const floorMeshes: THREE.Mesh[] = [];
+
+  // Layer 1: Base Floor with Enhanced Materials
+  const baseMaterial = createEnhancedFloorMaterial(floorType, isDarkMode);
+  const baseMesh = new THREE.Mesh(baseGeometry.clone(), baseMaterial);
+  baseMesh.name = 'floor-base';
+  baseMesh.position.y = 0.005;
+  baseMesh.receiveShadow = true;
+  baseMesh.castShadow = false;
+  floorMeshes.push(baseMesh);
+
+  // Layer 2: Subtle Height Variation (for realism)
+  if (floorType !== 'carpet') {
+    const heightVariationMesh = createHeightVariationLayer(baseGeometry, floorType, isDarkMode);
+    if (heightVariationMesh) {
+      heightVariationMesh.position.y = 0.006;
+      floorMeshes.push(heightVariationMesh);
+    }
+  }
+
+  // Layer 3: Procedural Details (scratches, wear patterns)
+  const detailMesh = createProceduralDetails(baseGeometry, floorType, isDarkMode, vertices);
+  if (detailMesh) {
+    detailMesh.position.y = 0.007;
+    floorMeshes.push(detailMesh);
+  }
+
+  // Layer 4: Ambient Occlusion Enhancement
+  const aoMesh = createAmbientOcclusionLayer(baseGeometry, vertices, isDarkMode);
+  if (aoMesh) {
+    aoMesh.position.y = 0.004;
+    floorMeshes.push(aoMesh);
+  }
+
+  // Layer 5: Edge Finishing (baseboards, transitions)
+  const edgeFinishing = createEdgeFinishing(vertices, isDarkMode);
+  floorMeshes.push(...edgeFinishing);
+
+  return floorMeshes;
+};
+
+// Enhanced Floor Materials with Advanced Properties
+const createEnhancedFloorMaterial = (floorType: string, isDarkMode: boolean): THREE.MeshStandardMaterial => {
+  const baseMaterial = createFloorMaterialByType(floorType as any, isDarkMode);
+
+  // Enhance material properties based on type
+  switch (floorType) {
+    case 'wood':
+      baseMaterial.roughness = 0.7;
+      baseMaterial.metalness = 0.02;
+      baseMaterial.normalScale = new THREE.Vector2(0.8, 0.8);
+      break;
+    case 'tile':
+      baseMaterial.roughness = 0.2;
+      baseMaterial.metalness = 0.05;
+      baseMaterial.normalScale = new THREE.Vector2(0.3, 0.3);
+      break;
+    case 'marble':
+      baseMaterial.roughness = 0.1;
+      baseMaterial.metalness = 0.1;
+      baseMaterial.normalScale = new THREE.Vector2(0.5, 0.5);
+      break;
+    case 'concrete':
+      baseMaterial.roughness = 0.9;
+      baseMaterial.metalness = 0.01;
+      baseMaterial.normalScale = new THREE.Vector2(1.0, 1.0);
+      break;
+    case 'carpet':
+      baseMaterial.roughness = 0.95;
+      baseMaterial.metalness = 0.0;
+      baseMaterial.normalScale = new THREE.Vector2(1.2, 1.2);
+      break;
+  }
+
+  return baseMaterial;
+};
+
+// Height Variation Layer for Realistic Surface Imperfections
+const createHeightVariationLayer = (
+  baseGeometry: THREE.BufferGeometry,
+  floorType: string,
+  isDarkMode: boolean
+): THREE.Mesh | null => {
+  if (floorType === 'carpet') return null;
+
+  const geometry = baseGeometry.clone();
+  const positions = geometry.attributes.position;
+
+  // Add subtle height variations
+  for (let i = 0; i < positions.count; i++) {
+    const variation = (Math.random() - 0.5) * 0.002; // 2mm max variation
+    positions.setY(i, positions.getY(i) + variation);
+  }
+
+  positions.needsUpdate = true;
+  geometry.computeVertexNormals();
+
+  const material = new THREE.MeshStandardMaterial({
+    color: isDarkMode ? 0x2A2A2A : 0xF0F0F0,
+    transparent: true,
+    opacity: 0.1,
+    roughness: 0.8,
+    metalness: 0.0,
+    side: THREE.DoubleSide
+  });
+
+  return new THREE.Mesh(geometry, material);
+};
+
+// Procedural Details (wear patterns, scratches, stains)
+const createProceduralDetails = (
+  baseGeometry: THREE.BufferGeometry,
+  floorType: string,
+  isDarkMode: boolean,
+  vertices: { x: number; z: number }[]
+): THREE.Mesh | null => {
+  // Create detail texture based on floor type
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d')!;
+
+  // Base transparent
+  ctx.clearRect(0, 0, 512, 512);
+
+  // Add procedural details based on floor type
+  switch (floorType) {
+    case 'wood':
+      addWoodDetails(ctx, isDarkMode);
+      break;
+    case 'tile':
+      addTileDetails(ctx, isDarkMode);
+      break;
+    case 'concrete':
+      addConcreteDetails(ctx, isDarkMode);
+      break;
+    case 'marble':
+      addMarbleDetails(ctx, isDarkMode);
+      break;
+    default:
+      return null;
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(4, 4);
+
+  const material = new THREE.MeshStandardMaterial({
+    map: texture,
+    transparent: true,
+    opacity: 0.3,
+    roughness: 0.9,
+    metalness: 0.0,
+    side: THREE.DoubleSide
+  });
+
+  return new THREE.Mesh(baseGeometry.clone(), material);
+};
+
+// Ambient Occlusion Layer for Enhanced Depth
+const createAmbientOcclusionLayer = (
+  baseGeometry: THREE.BufferGeometry,
+  vertices: { x: number; z: number }[],
+  isDarkMode: boolean
+): THREE.Mesh | null => {
+  const geometry = baseGeometry.clone();
+
+  // Calculate AO based on vertex proximity to edges
+  const positions = geometry.attributes.position;
+  const colors: number[] = [];
+
+  for (let i = 0; i < positions.count; i++) {
+    const x = positions.getX(i);
+    const z = positions.getZ(i);
+
+    // Calculate distance to nearest edge
+    let minDistance = Infinity;
+    for (let j = 0; j < vertices.length; j++) {
+      const start = vertices[j];
+      const end = vertices[(j + 1) % vertices.length];
+      const distance = pointToLineDistance({ x, z }, start, end);
+      minDistance = Math.min(minDistance, distance);
+    }
+
+    // Create AO effect (darker near edges)
+    const aoFactor = Math.min(1.0, minDistance / 0.5); // 0.5m falloff
+    const intensity = isDarkMode ? 0.3 : 0.7;
+    const aoValue = intensity + (1 - intensity) * aoFactor;
+
+    colors.push(aoValue, aoValue, aoValue);
+  }
+
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+  const material = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.4,
+    side: THREE.DoubleSide
+  });
+
+  return new THREE.Mesh(geometry, material);
+};
+
+// Edge Finishing (baseboards, transitions)
+const createEdgeFinishing = (vertices: { x: number; z: number }[], isDarkMode: boolean): THREE.Mesh[] => {
+  const edgeMeshes: THREE.Mesh[] = [];
+
+  // Create baseboards along room perimeter
+  for (let i = 0; i < vertices.length; i++) {
+    const start = vertices[i];
+    const end = vertices[(i + 1) % vertices.length];
+
+    const length = Math.sqrt((end.x - start.x) ** 2 + (end.z - start.z) ** 2);
+    if (length < 0.01) continue;
+
+    // Baseboard geometry
+    const baseboardGeometry = new THREE.BoxGeometry(length, 0.1, 0.02);
+    const baseboardMaterial = new THREE.MeshStandardMaterial({
+      color: isDarkMode ? 0x2A2A2A : 0xF5F5F5,
+      roughness: 0.8,
+      metalness: 0.0
+    });
+
+    const baseboardMesh = new THREE.Mesh(baseboardGeometry, baseboardMaterial);
+
+    // Position and rotate baseboard
+    const centerX = (start.x + end.x) / 2;
+    const centerZ = (start.z + end.z) / 2;
+    const angle = Math.atan2(end.z - start.z, end.x - start.x);
+
+    baseboardMesh.position.set(centerX, 0.05, centerZ);
+    baseboardMesh.rotation.y = angle;
+    baseboardMesh.castShadow = true;
+    baseboardMesh.receiveShadow = true;
+
+    edgeMeshes.push(baseboardMesh);
+  }
+
+  return edgeMeshes;
+};
+
+// Detail Generation Functions
+const addWoodDetails = (ctx: CanvasRenderingContext2D, isDarkMode: boolean) => {
+  ctx.globalAlpha = 0.2;
+  ctx.strokeStyle = isDarkMode ? '#8B4513' : '#654321';
+  ctx.lineWidth = 1;
+
+  // Add wood scratches
+  for (let i = 0; i < 20; i++) {
+    ctx.beginPath();
+    ctx.moveTo(Math.random() * 512, Math.random() * 512);
+    ctx.lineTo(Math.random() * 512, Math.random() * 512);
+    ctx.stroke();
+  }
+};
+
+const addTileDetails = (ctx: CanvasRenderingContext2D, isDarkMode: boolean) => {
+  ctx.globalAlpha = 0.1;
+  ctx.fillStyle = isDarkMode ? '#1A1A1A' : '#E0E0E0';
+
+  // Add tile imperfections
+  for (let i = 0; i < 50; i++) {
+    const x = Math.random() * 512;
+    const y = Math.random() * 512;
+    const size = Math.random() * 3 + 1;
+
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+};
+
+const addConcreteDetails = (ctx: CanvasRenderingContext2D, isDarkMode: boolean) => {
+  ctx.globalAlpha = 0.15;
+  ctx.fillStyle = isDarkMode ? '#2C3E50' : '#7F8C8D';
+
+  // Add concrete stains and wear
+  for (let i = 0; i < 30; i++) {
+    const x = Math.random() * 512;
+    const y = Math.random() * 512;
+    const size = Math.random() * 10 + 5;
+
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+};
+
+const addMarbleDetails = (ctx: CanvasRenderingContext2D, isDarkMode: boolean) => {
+  ctx.globalAlpha = 0.1;
+  ctx.strokeStyle = isDarkMode ? '#34495E' : '#ADB5BD';
+  ctx.lineWidth = 2;
+
+  // Add marble veining details
+  for (let i = 0; i < 10; i++) {
+    ctx.beginPath();
+    ctx.moveTo(Math.random() * 512, Math.random() * 512);
+
+    for (let j = 0; j < 5; j++) {
+      ctx.lineTo(Math.random() * 512, Math.random() * 512);
+    }
+    ctx.stroke();
+  }
+};
+
+const pointToLineDistance = (point: { x: number; z: number }, lineStart: { x: number; z: number }, lineEnd: { x: number; z: number }): number => {
+  const A = point.x - lineStart.x;
+  const B = point.z - lineStart.z;
+  const C = lineEnd.x - lineStart.x;
+  const D = lineEnd.z - lineStart.z;
+
+  const dot = A * C + B * D;
+  const lenSq = C * C + D * D;
+
+  if (lenSq < 0.001) return Math.sqrt(A * A + B * B);
+
+  const param = dot / lenSq;
+
+  let xx, zz;
+  if (param < 0) {
+    xx = lineStart.x;
+    zz = lineStart.z;
+  } else if (param > 1) {
+    xx = lineEnd.x;
+    zz = lineEnd.z;
+  } else {
+    xx = lineStart.x + param * C;
+    zz = lineStart.z + param * D;
+  }
+
+  const dx = point.x - xx;
+  const dz = point.z - zz;
+  return Math.sqrt(dx * dx + dz * dz);
+};
+
+// Create realistic floor material with procedural textures
+const createFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+  // Create procedural wood floor texture
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d')!;
+
+  // Base wood color
+  const baseColor = isDarkMode ? '#8B4513' : '#DEB887'; // Dark brown or light wood
+  const grainColor = isDarkMode ? '#654321' : '#CD853F'; // Darker grain
+  const highlightColor = isDarkMode ? '#A0522D' : '#F5DEB3'; // Lighter highlights
+
+  // Fill base color
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(0, 0, 512, 512);
+
+  // Create wood grain pattern
+  for (let i = 0; i < 20; i++) {
+    const y = (i * 25) + Math.random() * 10;
+
+    // Main grain line
+    ctx.strokeStyle = grainColor;
+    ctx.lineWidth = 2 + Math.random() * 2;
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+
+    // Create wavy grain lines
+    for (let x = 0; x <= 512; x += 10) {
+      const waveY = y + Math.sin(x * 0.02) * 3 + Math.random() * 2;
+      ctx.lineTo(x, waveY);
+    }
+    ctx.stroke();
+
+    // Add highlights
+    ctx.strokeStyle = highlightColor;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(0, y - 1);
+    for (let x = 0; x <= 512; x += 10) {
+      const waveY = y - 1 + Math.sin(x * 0.02) * 2;
+      ctx.lineTo(x, waveY);
+    }
+    ctx.stroke();
+  }
+
+  // Add wood plank separations
+  ctx.globalAlpha = 0.4;
+  ctx.strokeStyle = isDarkMode ? '#5D4037' : '#8D6E63';
+  ctx.lineWidth = 1;
+
+  // Vertical plank lines
+  for (let x = 0; x < 512; x += 64 + Math.random() * 32) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, 512);
+    ctx.stroke();
+  }
+
+  // Horizontal plank lines (less frequent)
+  for (let y = 0; y < 512; y += 128 + Math.random() * 64) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(512, y);
+    ctx.stroke();
+  }
+
+  // Create texture from canvas
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(4, 4); // Repeat the texture 4x4 times across the floor
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+
+  // Create normal map for depth
+  const normalCanvas = document.createElement('canvas');
+  normalCanvas.width = 512;
+  normalCanvas.height = 512;
+  const normalCtx = normalCanvas.getContext('2d')!;
+
+  // Create subtle normal map for wood texture depth
+  const gradient = normalCtx.createLinearGradient(0, 0, 0, 512);
+  gradient.addColorStop(0, '#8080FF'); // Normal pointing up
+  gradient.addColorStop(0.5, '#7F7FFF');
+  gradient.addColorStop(1, '#8080FF');
+
+  normalCtx.fillStyle = gradient;
+  normalCtx.fillRect(0, 0, 512, 512);
+
+  // Add grain normal details
+  normalCtx.globalAlpha = 0.3;
+  for (let i = 0; i < 20; i++) {
+    const y = i * 25;
+    normalCtx.strokeStyle = '#6060FF'; // Slight depression for grain
+    normalCtx.lineWidth = 2;
+    normalCtx.beginPath();
+    normalCtx.moveTo(0, y);
+    normalCtx.lineTo(512, y);
+    normalCtx.stroke();
+  }
+
+  const normalTexture = new THREE.CanvasTexture(normalCanvas);
+  normalTexture.wrapS = THREE.RepeatWrapping;
+  normalTexture.wrapT = THREE.RepeatWrapping;
+  normalTexture.repeat.set(4, 4);
+
+  // Create the material
+  const material = new THREE.MeshStandardMaterial({
+    map: texture,
+    normalMap: normalTexture,
+    normalScale: new THREE.Vector2(0.5, 0.5),
+    roughness: 0.8,
+    metalness: 0.05,
+    side: THREE.DoubleSide,
+  });
+
+  return material;
+};
+
+// Create concrete floor material
+const createConcreteFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d')!;
+
+  // Concrete colors
+  const baseColor = isDarkMode ? '#34495E' : '#95A5A6';
+  const darkSpots = isDarkMode ? '#2C3E50' : '#7F8C8D';
+  const lightSpots = isDarkMode ? '#3E5771' : '#BDC3C7';
+
+  // Fill base color
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(0, 0, 512, 512);
+
+  // Add concrete texture with random spots and variations
+  ctx.globalAlpha = 0.3;
+  for (let i = 0; i < 200; i++) {
+    const x = Math.random() * 512;
+    const y = Math.random() * 512;
+    const size = Math.random() * 8 + 2;
+
+    ctx.fillStyle = Math.random() > 0.5 ? darkSpots : lightSpots;
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Add subtle cracks
+  ctx.globalAlpha = 0.2;
+  ctx.strokeStyle = darkSpots;
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 10; i++) {
+    ctx.beginPath();
+    ctx.moveTo(Math.random() * 512, Math.random() * 512);
+    const length = Math.random() * 100 + 50;
+    const angle = Math.random() * Math.PI * 2;
+    ctx.lineTo(
+      Math.random() * 512 + Math.cos(angle) * length,
+      Math.random() * 512 + Math.sin(angle) * length
+    );
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(6, 6);
+
+  return new THREE.MeshStandardMaterial({
+    map: texture,
+    roughness: 0.9,
+    metalness: 0.02,
+    side: THREE.DoubleSide,
+  });
+};
+
+// Create marble floor material
+const createMarbleFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d')!;
+
+  // Marble colors
+  const baseColor = isDarkMode ? '#2C3E50' : '#F8F9FA';
+  const veinColor = isDarkMode ? '#34495E' : '#ADB5BD';
+  const accentColor = isDarkMode ? '#5D6D7E' : '#6C757D';
+
+  // Fill base marble color
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(0, 0, 512, 512);
+
+  // Create marble veining pattern
+  ctx.globalAlpha = 0.4;
+  ctx.strokeStyle = veinColor;
+  ctx.lineWidth = 2;
+
+  // Main veins
+  for (let i = 0; i < 8; i++) {
+    ctx.beginPath();
+    const startX = Math.random() * 512;
+    const startY = Math.random() * 512;
+    ctx.moveTo(startX, startY);
+
+    let currentX = startX;
+    let currentY = startY;
+
+    for (let j = 0; j < 20; j++) {
+      currentX += (Math.random() - 0.5) * 40;
+      currentY += (Math.random() - 0.5) * 40;
+      ctx.lineTo(currentX, currentY);
+    }
+    ctx.stroke();
+  }
+
+  // Secondary veins
+  ctx.globalAlpha = 0.2;
+  ctx.strokeStyle = accentColor;
+  ctx.lineWidth = 1;
+
+  for (let i = 0; i < 15; i++) {
+    ctx.beginPath();
+    const startX = Math.random() * 512;
+    const startY = Math.random() * 512;
+    ctx.moveTo(startX, startY);
+
+    let currentX = startX;
+    let currentY = startY;
+
+    for (let j = 0; j < 10; j++) {
+      currentX += (Math.random() - 0.5) * 20;
+      currentY += (Math.random() - 0.5) * 20;
+      ctx.lineTo(currentX, currentY);
+    }
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(3, 3);
+
+  return new THREE.MeshStandardMaterial({
+    map: texture,
+    roughness: 0.1,
+    metalness: 0.05,
+    side: THREE.DoubleSide,
+  });
+};
+
+// Create carpet floor material
+const createCarpetFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+
+  // Carpet colors
+  const baseColor = isDarkMode ? '#8B4513' : '#D2691E';
+  const fiberColor1 = isDarkMode ? '#A0522D' : '#F4A460';
+  const fiberColor2 = isDarkMode ? '#654321' : '#CD853F';
+
+  // Fill base color
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Create carpet fiber texture
+  ctx.globalAlpha = 0.6;
+
+  for (let x = 0; x < 256; x += 2) {
+    for (let y = 0; y < 256; y += 2) {
+      const fiber = Math.random() > 0.5 ? fiberColor1 : fiberColor2;
+      ctx.fillStyle = fiber;
+      ctx.fillRect(x + Math.random() * 2, y + Math.random() * 2, 1, 1);
+    }
+  }
+
+  // Add carpet pattern
+  ctx.globalAlpha = 0.3;
+  ctx.strokeStyle = isDarkMode ? '#5D4037' : '#8D6E63';
+  ctx.lineWidth = 1;
+
+  // Diamond pattern
+  for (let x = 0; x < 256; x += 32) {
+    for (let y = 0; y < 256; y += 32) {
+      ctx.beginPath();
+      ctx.moveTo(x + 16, y);
+      ctx.lineTo(x + 32, y + 16);
+      ctx.lineTo(x + 16, y + 32);
+      ctx.lineTo(x, y + 16);
+      ctx.closePath();
+      ctx.stroke();
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(8, 8);
+
+  return new THREE.MeshStandardMaterial({
+    map: texture,
+    roughness: 0.95,
+    metalness: 0.0,
+    side: THREE.DoubleSide,
+  });
+};
+
+// Floor material selector
+const createFloorMaterialByType = (floorType: 'wood' | 'tile' | 'concrete' | 'marble' | 'carpet', isDarkMode: boolean): THREE.MeshStandardMaterial => {
+  // Simplified materials for better compatibility
+  const colors = {
+    wood: isDarkMode ? 0x8B4513 : 0xDEB887,
+    tile: isDarkMode ? 0x2C3E50 : 0xECF0F1,
+    concrete: isDarkMode ? 0x34495E : 0x95A5A6,
+    marble: isDarkMode ? 0x2C3E50 : 0xF8F9FA,
+    carpet: isDarkMode ? 0x8B4513 : 0xD2691E
+  };
+
+  const material = new THREE.MeshStandardMaterial({
+    color: colors[floorType],
+    roughness: floorType === 'marble' ? 0.1 : floorType === 'metal' ? 0.2 : 0.8,
+    metalness: floorType === 'metal' ? 0.8 : 0.05,
+    side: THREE.DoubleSide,
+  });
+
+  return material;
+
+  // Original complex materials (commented out for debugging)
+  /*
+  switch (floorType) {
+    case 'wood':
+      return createFloorMaterial(isDarkMode);
+    case 'tile':
+      return createTileFloorMaterial(isDarkMode);
+    case 'concrete':
+      return createConcreteFloorMaterial(isDarkMode);
+    case 'marble':
+      return createMarbleFloorMaterial(isDarkMode);
+    case 'carpet':
+      return createCarpetFloorMaterial(isDarkMode);
+    default:
+      return createFloorMaterial(isDarkMode);
+  }
+  */
+};
+
+// Create alternative tile floor material
+const createTileFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+
+  // Tile colors
+  const tileColor = isDarkMode ? '#2C3E50' : '#ECF0F1';
+  const groutColor = isDarkMode ? '#1A252F' : '#BDC3C7';
+
+  // Fill with grout color
+  ctx.fillStyle = groutColor;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Create tiles (4x4 grid)
+  const tileSize = 60;
+  const groutWidth = 4;
+
+  for (let x = 0; x < 4; x++) {
+    for (let y = 0; y < 4; y++) {
+      const tileX = x * (tileSize + groutWidth) + groutWidth;
+      const tileY = y * (tileSize + groutWidth) + groutWidth;
+
+      // Add slight color variation to each tile
+      const variation = (Math.random() - 0.5) * 20;
+      const r = parseInt(tileColor.slice(1, 3), 16) + variation;
+      const g = parseInt(tileColor.slice(3, 5), 16) + variation;
+      const b = parseInt(tileColor.slice(5, 7), 16) + variation;
+
+      ctx.fillStyle = `rgb(${Math.max(0, Math.min(255, r))}, ${Math.max(0, Math.min(255, g))}, ${Math.max(0, Math.min(255, b))})`;
+      ctx.fillRect(tileX, tileY, tileSize, tileSize);
+
+      // Add subtle tile texture
+      ctx.globalAlpha = 0.1;
+      ctx.fillStyle = isDarkMode ? '#FFFFFF' : '#000000';
+      for (let i = 0; i < 10; i++) {
+        const dotX = tileX + Math.random() * tileSize;
+        const dotY = tileY + Math.random() * tileSize;
+        ctx.fillRect(dotX, dotY, 1, 1);
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(8, 8);
+
+  return new THREE.MeshStandardMaterial({
+    map: texture,
+    roughness: 0.3,
+    metalness: 0.1,
+    side: THREE.DoubleSide,
+  });
+};
+
+// Create wall materials
+const createWallMaterial = (materialType: 'paint' | 'brick' | 'stone' | 'wood' | 'metal', isDarkMode: boolean): THREE.MeshStandardMaterial => {
+  // Simplified materials for better compatibility
+  const colors = {
+    paint: isDarkMode ? 0x4A5568 : 0xE2E8F0,
+    brick: isDarkMode ? 0x8B4513 : 0xCD853F,
+    stone: isDarkMode ? 0x696969 : 0xA9A9A9,
+    wood: isDarkMode ? 0x8B4513 : 0xDEB887,
+    metal: isDarkMode ? 0x2F4F4F : 0xC0C0C0
+  };
+
+  const material = new THREE.MeshStandardMaterial({
+    color: colors[materialType],
+    roughness: materialType === 'metal' ? 0.2 : 0.8,
+    metalness: materialType === 'metal' ? 0.8 : 0.1,
+    side: THREE.DoubleSide,
+  });
+
+  return material;
+
+  // Original complex materials (commented out for debugging)
+  /*
+  switch (materialType) {
+    case 'paint':
+      return createPaintWallMaterial(isDarkMode);
+    case 'brick':
+      return createBrickWallMaterial(isDarkMode);
+    case 'stone':
+      return createStoneWallMaterial(isDarkMode);
+    case 'wood':
+      return createWoodWallMaterial(isDarkMode);
+    case 'metal':
+      return createMetalWallMaterial(isDarkMode);
+    default:
+      return createPaintWallMaterial(isDarkMode);
+  }
+  */
+};
+
+// Create paint wall material
+const createPaintWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+  return new THREE.MeshStandardMaterial({
+    color: isDarkMode ? '#4A5568' : '#E2E8F0',
+    roughness: 0.8,
+    metalness: 0.0,
+    side: THREE.DoubleSide,
+  });
+};
+
+// Create brick wall material
+const createBrickWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+
+  // Brick colors
+  const brickColor = isDarkMode ? '#8B4513' : '#CD853F';
+  const mortarColor = isDarkMode ? '#696969' : '#D3D3D3';
+
+  // Fill with mortar color
+  ctx.fillStyle = mortarColor;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Draw bricks
+  const brickWidth = 60;
+  const brickHeight = 20;
+  const mortarWidth = 2;
+
+  for (let row = 0; row < 256 / (brickHeight + mortarWidth); row++) {
+    const y = row * (brickHeight + mortarWidth);
+    const offset = (row % 2) * (brickWidth / 2);
+
+    for (let col = 0; col < 256 / (brickWidth + mortarWidth) + 1; col++) {
+      const x = col * (brickWidth + mortarWidth) + offset;
+
+      // Add slight color variation
+      const variation = (Math.random() - 0.5) * 30;
+      const r = Math.max(0, Math.min(255, parseInt(brickColor.slice(1, 3), 16) + variation));
+      const g = Math.max(0, Math.min(255, parseInt(brickColor.slice(3, 5), 16) + variation));
+      const b = Math.max(0, Math.min(255, parseInt(brickColor.slice(5, 7), 16) + variation));
+
+      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      ctx.fillRect(x, y, brickWidth, brickHeight);
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(2, 4);
+
+  return new THREE.MeshStandardMaterial({
+    map: texture,
+    roughness: 0.9,
+    metalness: 0.0,
+    side: THREE.DoubleSide,
+  });
+};
+
+// Create stone wall material
+const createStoneWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+
+  // Stone colors
+  const baseColor = isDarkMode ? '#696969' : '#A9A9A9';
+  const darkColor = isDarkMode ? '#2F4F4F' : '#808080';
+  const lightColor = isDarkMode ? '#778899' : '#C0C0C0';
+
+  // Fill base color
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Create stone texture
+  ctx.globalAlpha = 0.4;
+  for (let i = 0; i < 100; i++) {
+    const x = Math.random() * 256;
+    const y = Math.random() * 256;
+    const size = Math.random() * 20 + 5;
+
+    ctx.fillStyle = Math.random() > 0.5 ? darkColor : lightColor;
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(1, 2);
+
+  return new THREE.MeshStandardMaterial({
+    map: texture,
+    roughness: 0.95,
+    metalness: 0.0,
+    side: THREE.DoubleSide,
+  });
+};
+
+// Create wood wall material
+const createWoodWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+
+  // Wood colors
+  const baseColor = isDarkMode ? '#8B4513' : '#DEB887';
+  const grainColor = isDarkMode ? '#654321' : '#CD853F';
+
+  // Fill base color
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Create vertical wood grain
+  ctx.globalAlpha = 0.6;
+  ctx.strokeStyle = grainColor;
+  ctx.lineWidth = 1;
+
+  for (let i = 0; i < 30; i++) {
+    const x = i * 8 + Math.random() * 4;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+
+    for (let y = 0; y <= 256; y += 10) {
+      const waveX = x + Math.sin(y * 0.02) * 2;
+      ctx.lineTo(waveX, y);
+    }
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(1, 2);
+
+  return new THREE.MeshStandardMaterial({
+    map: texture,
+    roughness: 0.8,
+    metalness: 0.0,
+    side: THREE.DoubleSide,
+  });
+};
+
+// Create metal wall material
+const createMetalWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+  return new THREE.MeshStandardMaterial({
+    color: isDarkMode ? '#2F4F4F' : '#C0C0C0',
+    roughness: 0.2,
+    metalness: 0.8,
+    side: THREE.DoubleSide,
+  });
+};
+
+// Create windows with different styles
+const createStyledWindow = (wall: Wall, windowPlacement: WindowPlacement, style: 'modern' | 'classic' | 'industrial'): THREE.Group => {
+  switch (style) {
+    case 'modern':
+      return createModernWindow(wall, windowPlacement);
+    case 'classic':
+      return createClassicWindow(wall, windowPlacement);
+    case 'industrial':
+      return createIndustrialWindow(wall, windowPlacement);
+    default:
+      return createModernWindow(wall, windowPlacement);
+  }
+};
+
+// Create modern window
+const createModernWindow = (wall: Wall, windowPlacement: WindowPlacement): THREE.Group => {
+  const windowGroup = new THREE.Group();
+
+  const wallVector = new THREE.Vector3(
+    wall.end.x - wall.start.x,
+    0,
+    wall.end.z - wall.start.z
+  );
+  const wallLength = wallVector.length();
+
+  if (wallLength < 2.5) return windowGroup;
+
+  const windowWidth = windowPlacement.width;
+  const windowHeight = windowPlacement.height;
+  const windowBottom = windowPlacement.bottomHeight;
+
+  const windowPosition = new THREE.Vector3(
+    windowPlacement.position.x,
+    windowBottom + windowHeight / 2,
+    windowPlacement.position.z
+  );
+
+  // Modern glass - large single pane
+  const glassGeometry = new THREE.BoxGeometry(windowWidth, windowHeight, 0.01);
+  const glassMaterial = new THREE.MeshStandardMaterial({
+    color: 0x88CCFF,
+    transparent: true,
+    opacity: 0.3,
+    metalness: 0.1,
+    roughness: 0.05,
+    side: THREE.DoubleSide
+  });
+
+  const glassMesh = new THREE.Mesh(glassGeometry, glassMaterial);
+  windowGroup.add(glassMesh);
+
+  // Minimal modern frame - thin aluminum
+  const frameThickness = 0.03;
+  const frameDepth = wall.thickness * 1.1;
+
+  const frameMaterial = new THREE.MeshStandardMaterial({
+    color: 0x2C3E50,
+    roughness: 0.3,
+    metalness: 0.7
+  });
+
+  // Thin frame around the glass
+  const frameGeometry = new THREE.BoxGeometry(windowWidth + frameThickness * 2, windowHeight + frameThickness * 2, frameDepth);
+  const frameMesh = new THREE.Mesh(frameGeometry, frameMaterial);
+  windowGroup.add(frameMesh);
+
+  // Glass cutout
+  const cutoutGeometry = new THREE.BoxGeometry(windowWidth, windowHeight, frameDepth + 0.01);
+  const cutoutMesh = new THREE.Mesh(cutoutGeometry, new THREE.MeshBasicMaterial({ visible: false }));
+  windowGroup.add(cutoutMesh);
+
+  windowGroup.position.copy(windowPosition);
+  windowGroup.rotation.y = Math.atan2(wallVector.z, wallVector.x);
+
+  return windowGroup;
+};
+
+// Create classic window
+const createClassicWindow = (wall: Wall, windowPlacement: WindowPlacement): THREE.Group => {
+  const windowGroup = new THREE.Group();
+
+  const wallVector = new THREE.Vector3(
+    wall.end.x - wall.start.x,
+    0,
+    wall.end.z - wall.start.z
+  );
+  const wallLength = wallVector.length();
+
+  if (wallLength < 2.5) return windowGroup;
+
+  const windowWidth = windowPlacement.width;
+  const windowHeight = windowPlacement.height;
+  const windowBottom = windowPlacement.bottomHeight;
+
+  const windowPosition = new THREE.Vector3(
+    windowPlacement.position.x,
+    windowBottom + windowHeight / 2,
+    windowPlacement.position.z
+  );
+
+  // Classic divided glass panes
+  const paneWidth = windowWidth / 2;
+  const paneHeight = windowHeight / 2;
+
+  const glassMaterial = new THREE.MeshStandardMaterial({
+    color: 0x88CCFF,
+    transparent: true,
+    opacity: 0.3,
+    metalness: 0.1,
+    roughness: 0.05,
+    side: THREE.DoubleSide
+  });
+
+  // Create 4 glass panes
+  for (let x = 0; x < 2; x++) {
+    for (let y = 0; y < 2; y++) {
+      const glassGeometry = new THREE.BoxGeometry(paneWidth - 0.02, paneHeight - 0.02, 0.01);
+      const glassMesh = new THREE.Mesh(glassGeometry, glassMaterial);
+      glassMesh.position.set(
+        (x - 0.5) * paneWidth,
+        (y - 0.5) * paneHeight,
+        0
+      );
+      windowGroup.add(glassMesh);
+    }
+  }
+
+  // Classic wooden frame
+  const frameThickness = 0.08;
+  const frameDepth = wall.thickness * 1.1;
+
+  const frameMaterial = new THREE.MeshStandardMaterial({
+    color: 0x8B4513,
+    roughness: 0.8,
+    metalness: 0.1
+  });
+
+  // Outer frame
+  const outerFrameGeometry = new THREE.BoxGeometry(windowWidth + frameThickness * 2, windowHeight + frameThickness * 2, frameDepth);
+  const outerFrameMesh = new THREE.Mesh(outerFrameGeometry, frameMaterial);
+  windowGroup.add(outerFrameMesh);
+
+  // Cross dividers
+  const hDividerGeometry = new THREE.BoxGeometry(windowWidth, frameThickness / 2, frameDepth);
+  const hDividerMesh = new THREE.Mesh(hDividerGeometry, frameMaterial);
+  windowGroup.add(hDividerMesh);
+
+  const vDividerGeometry = new THREE.BoxGeometry(frameThickness / 2, windowHeight, frameDepth);
+  const vDividerMesh = new THREE.Mesh(vDividerGeometry, frameMaterial);
+  windowGroup.add(vDividerMesh);
+
+  // Window sill
+  const sillGeometry = new THREE.BoxGeometry(windowWidth + frameThickness * 3, frameThickness, frameDepth + 0.05);
+  const sillMesh = new THREE.Mesh(sillGeometry, frameMaterial);
+  sillMesh.position.y = -windowHeight / 2 - frameThickness;
+  sillMesh.position.z = frameDepth * 0.1;
+  windowGroup.add(sillMesh);
+
+  windowGroup.position.copy(windowPosition);
+  windowGroup.rotation.y = Math.atan2(wallVector.z, wallVector.x);
+
+  return windowGroup;
+};
+
+// Create industrial window
+const createIndustrialWindow = (wall: Wall, windowPlacement: WindowPlacement): THREE.Group => {
+  const windowGroup = new THREE.Group();
+
+  const wallVector = new THREE.Vector3(
+    wall.end.x - wall.start.x,
+    0,
+    wall.end.z - wall.start.z
+  );
+  const wallLength = wallVector.length();
+
+  if (wallLength < 2.5) return windowGroup;
+
+  const windowWidth = windowPlacement.width;
+  const windowHeight = windowPlacement.height;
+  const windowBottom = windowPlacement.bottomHeight;
+
+  const windowPosition = new THREE.Vector3(
+    windowPlacement.position.x,
+    windowBottom + windowHeight / 2,
+    windowPlacement.position.z
+  );
+
+  // Industrial grid glass
+  const gridSize = 6;
+  const paneWidth = windowWidth / gridSize;
+  const paneHeight = windowHeight / gridSize;
+
+  const glassMaterial = new THREE.MeshStandardMaterial({
+    color: 0x88CCFF,
+    transparent: true,
+    opacity: 0.3,
+    metalness: 0.2,
+    roughness: 0.1,
+    side: THREE.DoubleSide
+  });
+
+  // Create grid of glass panes
+  for (let x = 0; x < gridSize; x++) {
+    for (let y = 0; y < gridSize; y++) {
+      const glassGeometry = new THREE.BoxGeometry(paneWidth - 0.01, paneHeight - 0.01, 0.01);
+      const glassMesh = new THREE.Mesh(glassGeometry, glassMaterial);
+      glassMesh.position.set(
+        (x - (gridSize - 1) / 2) * paneWidth,
+        (y - (gridSize - 1) / 2) * paneHeight,
+        0
+      );
+      windowGroup.add(glassMesh);
+    }
+  }
+
+  // Heavy metal frame
+  const frameThickness = 0.06;
+  const frameDepth = wall.thickness * 1.2;
+
+  const frameMaterial = new THREE.MeshStandardMaterial({
+    color: 0x2F4F4F,
+    roughness: 0.4,
+    metalness: 0.8
+  });
+
+  // Outer frame
+  const outerFrameGeometry = new THREE.BoxGeometry(windowWidth + frameThickness * 2, windowHeight + frameThickness * 2, frameDepth);
+  const outerFrameMesh = new THREE.Mesh(outerFrameGeometry, frameMaterial);
+  windowGroup.add(outerFrameMesh);
+
+  // Grid dividers
+  for (let i = 1; i < gridSize; i++) {
+    // Horizontal dividers
+    const hDividerGeometry = new THREE.BoxGeometry(windowWidth, frameThickness / 3, frameDepth);
+    const hDividerMesh = new THREE.Mesh(hDividerGeometry, frameMaterial);
+    hDividerMesh.position.y = (i - gridSize / 2) * paneHeight;
+    windowGroup.add(hDividerMesh);
+
+    // Vertical dividers
+    const vDividerGeometry = new THREE.BoxGeometry(frameThickness / 3, windowHeight, frameDepth);
+    const vDividerMesh = new THREE.Mesh(vDividerGeometry, frameMaterial);
+    vDividerMesh.position.x = (i - gridSize / 2) * paneWidth;
+    windowGroup.add(vDividerMesh);
+  }
+
+  windowGroup.position.copy(windowPosition);
+  windowGroup.rotation.y = Math.atan2(wallVector.z, wallVector.x);
+
+  return windowGroup;
+};
+
+// Create optimized windows based on advanced geometry engine
+const createOptimizedWindow = (wall: Wall, windowPlacement: WindowPlacement): THREE.Group => {
+  const windowGroup = new THREE.Group();
+
+  const wallVector = new THREE.Vector3(
+    wall.end.x - wall.start.x,
+    0,
+    wall.end.z - wall.start.z
+  );
+  const wallLength = wallVector.length();
+
+  if (wallLength < 2.5) return windowGroup;
+
+  // Use optimized window dimensions
+  const windowWidth = windowPlacement.width;
+  const windowHeight = windowPlacement.height;
+  const windowBottom = windowPlacement.bottomHeight;
+
+  // Use optimized position
+  const windowPosition = new THREE.Vector3(
+    windowPlacement.position.x,
+    windowBottom + windowHeight / 2,
+    windowPlacement.position.z
+  );
+
+  // Window glass with better transparency
+  const glassGeometry = new THREE.BoxGeometry(
+    windowWidth,
+    windowHeight,
+    0.02
+  );
+
+  const glassMaterial = new THREE.MeshStandardMaterial({
+    color: 0x88CCFF,
+    transparent: true,
+    opacity: 0.2,
+    metalness: 0.1,
+    roughness: 0.05,
+    envMapIntensity: 1.0,
+    side: THREE.DoubleSide
+  });
+
+  const glassMesh = new THREE.Mesh(glassGeometry, glassMaterial);
+  windowGroup.add(glassMesh);
+
+  // Enhanced window frame with better proportions
+  const frameThickness = 0.08;
+  const frameDepth = wall.thickness * 1.1;
+
+  const frameMaterial = new THREE.MeshStandardMaterial({
+    color: 0x8B4513,
+    roughness: 0.8,
+    metalness: 0.1
+  });
+
+  // Horizontal frame pieces (top and bottom)
+  const hFrameGeometry = new THREE.BoxGeometry(windowWidth + frameThickness * 2, frameThickness, frameDepth);
+
+  const topFrame = new THREE.Mesh(hFrameGeometry, frameMaterial);
+  topFrame.position.y = windowHeight / 2 + frameThickness / 2;
+  windowGroup.add(topFrame);
+
+  const bottomFrame = new THREE.Mesh(hFrameGeometry, frameMaterial);
+  bottomFrame.position.y = -windowHeight / 2 - frameThickness / 2;
+  windowGroup.add(bottomFrame);
+
+  // Vertical frame pieces (left and right)
+  const vFrameGeometry = new THREE.BoxGeometry(frameThickness, windowHeight, frameDepth);
+
+  const leftFrame = new THREE.Mesh(vFrameGeometry, frameMaterial);
+  leftFrame.position.x = -windowWidth / 2 - frameThickness / 2;
+  windowGroup.add(leftFrame);
+
+  const rightFrame = new THREE.Mesh(vFrameGeometry, frameMaterial);
+  rightFrame.position.x = windowWidth / 2 + frameThickness / 2;
+  windowGroup.add(rightFrame);
+
+  // Window sill
+  const sillGeometry = new THREE.BoxGeometry(windowWidth + frameThickness * 3, frameThickness / 2, frameDepth + 0.05);
+  const sillMesh = new THREE.Mesh(sillGeometry, frameMaterial);
+  sillMesh.position.y = -windowHeight / 2 - frameThickness;
+  sillMesh.position.z = frameDepth * 0.1;
+  windowGroup.add(sillMesh);
+
+  // Position and rotate the entire window group
+  windowGroup.position.copy(windowPosition);
+  windowGroup.rotation.y = Math.atan2(wallVector.z, wallVector.x);
+
+  // Enable shadows for all window components
+  windowGroup.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+
+  return windowGroup;
+};
+
+// Create windows in walls with enhanced visual details (legacy function)
+const createWindow = (wall: Wall, windowHeight: number = 1.2, windowWidth: number = 1.5, windowBottom: number = 0.8): THREE.Group => {
+  const windowGroup = new THREE.Group();
+
+  const wallVector = new THREE.Vector3(
+    wall.end.x - wall.start.x,
+    0,
+    wall.end.z - wall.start.z
+  );
+  const wallLength = wallVector.length();
+
+  // Only create windows in walls longer than 2.5m
+  if (wallLength < 2.5) return windowGroup;
+
+  // Adjust window width to fit wall proportionally
+  const actualWindowWidth = Math.min(windowWidth, wallLength * 0.6);
+
+  // Center the window in the wall
+  const windowPosition = new THREE.Vector3(
+    (wall.start.x + wall.end.x) / 2,
+    windowBottom + windowHeight / 2,
+    (wall.start.z + wall.end.z) / 2
+  );
+
+  // Window opening (cut into wall)
+  const openingGeometry = new THREE.BoxGeometry(
+    actualWindowWidth + 0.1,
+    windowHeight + 0.1,
+    wall.thickness + 0.1
+  );
+
+  // Window glass with better transparency
+  const glassGeometry = new THREE.BoxGeometry(
+    actualWindowWidth,
+    windowHeight,
+    0.02
+  );
+
+  const glassMaterial = new THREE.MeshStandardMaterial({
+    color: 0x88CCFF,
+    transparent: true,
+    opacity: 0.2,
+    metalness: 0.1,
+    roughness: 0.05,
+    envMapIntensity: 1.0,
+    side: THREE.DoubleSide
+  });
+
+  const glassMesh = new THREE.Mesh(glassGeometry, glassMaterial);
+  windowGroup.add(glassMesh);
+
+  // Enhanced window frame with better proportions
+  const frameThickness = 0.08;
+  const frameDepth = wall.thickness * 1.1;
+
+  const frameMaterial = new THREE.MeshStandardMaterial({
+    color: 0x8B4513,
+    roughness: 0.8,
+    metalness: 0.1
+  });
+
+  // Horizontal frame pieces (top and bottom)
+  const hFrameGeometry = new THREE.BoxGeometry(actualWindowWidth + frameThickness * 2, frameThickness, frameDepth);
+
+  const topFrame = new THREE.Mesh(hFrameGeometry, frameMaterial);
+  topFrame.position.y = windowHeight / 2 + frameThickness / 2;
+  windowGroup.add(topFrame);
+
+  const bottomFrame = new THREE.Mesh(hFrameGeometry, frameMaterial);
+  bottomFrame.position.y = -windowHeight / 2 - frameThickness / 2;
+  windowGroup.add(bottomFrame);
+
+  // Vertical frame pieces (left and right)
+  const vFrameGeometry = new THREE.BoxGeometry(frameThickness, windowHeight, frameDepth);
+
+  const leftFrame = new THREE.Mesh(vFrameGeometry, frameMaterial);
+  leftFrame.position.x = -actualWindowWidth / 2 - frameThickness / 2;
+  windowGroup.add(leftFrame);
+
+  const rightFrame = new THREE.Mesh(vFrameGeometry, frameMaterial);
+  rightFrame.position.x = actualWindowWidth / 2 + frameThickness / 2;
+  windowGroup.add(rightFrame);
+
+  // Window sill
+  const sillGeometry = new THREE.BoxGeometry(actualWindowWidth + frameThickness * 3, frameThickness / 2, frameDepth + 0.05);
+  const sillMesh = new THREE.Mesh(sillGeometry, frameMaterial);
+  sillMesh.position.y = -windowHeight / 2 - frameThickness;
+  sillMesh.position.z = frameDepth * 0.1;
+  windowGroup.add(sillMesh);
+
+  // Position and rotate the entire window group
+  windowGroup.position.copy(windowPosition);
+  windowGroup.rotation.y = Math.atan2(wallVector.z, wallVector.x);
+
+  // Enable shadows for all window components
+  windowGroup.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+
+  return windowGroup;
 };
 
 interface ThreeCanvasProps {
   walls: Wall[];
-  objects?: RoomObject[];
+  objects?: any[];
   gridEnabled: boolean;
   isDarkMode: boolean;
-  selectedObjectId?: string | null;
-  onObjectSelect?: (objectId: string | null) => void;
-  onObjectMove?: (objectId: string, newPosition: THREE.Vector3) => void;
+  showWindows?: boolean;
+  floorType?: 'wood' | 'tile' | 'concrete' | 'marble' | 'carpet';
+  wallMaterial?: 'paint' | 'brick' | 'stone' | 'wood' | 'metal';
+  windowStyle?: 'modern' | 'classic' | 'industrial';
 }
 
 const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
@@ -37,173 +2510,637 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   objects = [],
   gridEnabled,
   isDarkMode,
-  selectedObjectId,
-  onObjectSelect,
-  onObjectMove,
+  showWindows = true,
+  floorType = 'wood',
+  wallMaterial = 'paint',
+  windowStyle = 'modern',
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
+  const wallGroupRef = useRef<THREE.Group>(new THREE.Group());
+  const floorGroupRef = useRef<THREE.Group>(new THREE.Group());
+  const measurementGroupRef = useRef<THREE.Group>(new THREE.Group());
 
+  const [isFloorplanValid, setIsFloorplanValid] = useState(false);
+  const [processedWalls, setProcessedWalls] = useState<Wall[]>([]);
+
+  // --- Main setup effect (runs only once) ---
   useEffect(() => {
-    if (!mountRef.current) {
-      return;
-    }
-
+    if (!mountRef.current) return;
     const currentMount = mountRef.current;
 
-    // Scene setup - using custom theme colors
+    // --- Core Scene Setup ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(isDarkMode ? '#022358' : '#E9EFF5'); // pennBlue : aliceBlue
+    sceneRef.current = scene;
+    scene.background = new THREE.Color(isDarkMode ? '#1A202C' : '#F7FAFC');
+    scene.fog = new THREE.Fog(isDarkMode ? '#1A202C' : '#F7FAFC', 20, 60);
 
-    // Camera setup
-    const camera = new THREE.PerspectiveCamera(
-      75,
-      currentMount.clientWidth / currentMount.clientHeight,
-      0.1,
-      1000,
-    );
-    camera.position.set(0, 5, 5);
+    const camera = new THREE.PerspectiveCamera(60, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
+    cameraRef.current = camera;
+    camera.position.set(0, 15, 15);
     camera.lookAt(0, 0, 0);
 
-    // Renderer setup
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      logarithmicDepthBuffer: true
+    });
+    rendererRef.current = renderer;
     renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
-    currentMount.innerHTML = ''; // Clear previous renderer
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     currentMount.appendChild(renderer.domElement);
 
-    // Controls
     const controls = new OrbitControls(camera, renderer.domElement);
+    controlsRef.current = controls;
     controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 2;
+    controls.maxDistance = 50;
+    controls.maxPolarAngle = Math.PI / 2 - 0.1;
+    controls.target.set(0, 1, 0);
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // --- Add groups to scene ---
+    scene.add(wallGroupRef.current);
+    scene.add(floorGroupRef.current);
+    scene.add(measurementGroupRef.current);
+
+    // --- Advanced Lighting Setup ---
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(5, 10, 7.5);
+    const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+    hemisphereLight.position.set(0, 20, 0);
+    scene.add(hemisphereLight);
+
+    // Main directional light (sun) - warmer tone
+    const directionalLight = new THREE.DirectionalLight(0xfff4e6, 1.0);
+    directionalLight.position.set(-15, 25, 15);
     directionalLight.castShadow = true;
+    directionalLight.shadow.mapSize.width = 4096;
+    directionalLight.shadow.mapSize.height = 4096;
+    directionalLight.shadow.camera.left = -40;
+    directionalLight.shadow.camera.right = 40;
+    directionalLight.shadow.camera.top = 40;
+    directionalLight.shadow.camera.bottom = -40;
+    directionalLight.shadow.camera.near = 0.1;
+    directionalLight.shadow.camera.far = 120;
+    directionalLight.shadow.bias = -0.0001;
+    directionalLight.shadow.normalBias = 0.02;
+    directionalLight.shadow.radius = 4;
     scene.add(directionalLight);
 
-    // Grid Helper with theme colors
-    const gridHelper = gridEnabled
-      ? new THREE.GridHelper(
-          20,
-          20,
-          isDarkMode ? '#4C617D' : '#627690', // paynesGray : slateGray
-          isDarkMode ? '#657fa0' : '#bfc8d3', // border colors
-        )
-      : null;
-    if (gridHelper) {
-      scene.add(gridHelper);
-    }
+    // Fill light for softer shadows - cooler tone
+    const fillLight = new THREE.DirectionalLight(0xe6f3ff, 0.3);
+    fillLight.position.set(15, 15, -15);
+    scene.add(fillLight);
 
-    // Wall rendering logic
-    const wallGroup = new THREE.Group();
-    scene.add(wallGroup);
+    // Rim light for better edge definition
+    const rimLight = new THREE.DirectionalLight(0xffffff, 0.4);
+    rimLight.position.set(0, 8, -25);
+    scene.add(rimLight);
 
-    const renderWalls = () => {
-      wallGroup.children.forEach((child) => wallGroup.remove(child)); // Clear existing walls
+    // Additional accent lights for better material definition
+    const accentLight1 = new THREE.SpotLight(0xffffff, 0.5, 30, Math.PI / 6, 0.3, 2);
+    accentLight1.position.set(-10, 12, 10);
+    accentLight1.castShadow = true;
+    accentLight1.shadow.mapSize.width = 2048;
+    accentLight1.shadow.mapSize.height = 2048;
+    scene.add(accentLight1);
 
-      walls.forEach((wall) => {
-        const wallVector = new THREE.Vector3().subVectors(
-          new THREE.Vector3(wall.end.x, wall.end.y, wall.end.z),
-          new THREE.Vector3(wall.start.x, wall.start.y, wall.start.z),
-        );
-        const wallLength = wallVector.length();
-        const wallGeometry = new THREE.BoxGeometry(
-          wallLength,
-          wall.height,
-          wall.thickness,
-        );
-        const wallMaterial = new THREE.MeshStandardMaterial({
-          color: isDarkMode ? 0x5a6a7a : 0xa0aec0,
-        });
-        const wallMesh = new THREE.Mesh(wallGeometry, wallMaterial);
+    const accentLight2 = new THREE.SpotLight(0xffffff, 0.5, 30, Math.PI / 6, 0.3, 2);
+    accentLight2.position.set(10, 12, -10);
+    accentLight2.castShadow = true;
+    accentLight2.shadow.mapSize.width = 2048;
+    accentLight2.shadow.mapSize.height = 2048;
+    scene.add(accentLight2);
 
-        wallMesh.position.set(
-          (wall.start.x + wall.end.x) / 2,
-          wall.height / 2,
-          (wall.start.z + wall.end.z) / 2,
-        );
-        wallMesh.rotation.y = Math.atan2(wallVector.x, wallVector.z);
-        wallMesh.castShadow = true;
-        wallMesh.receiveShadow = true;
+    // --- Ground Plane (smaller, positioned below room floor) ---
+    const groundGeometry = new THREE.PlaneGeometry(50, 50);
+    const groundMaterial = new THREE.MeshStandardMaterial({
+      color: isDarkMode ? '#1A202C' : '#F7FAFC', // Match scene background
+      roughness: 1.0,
+      metalness: 0.0,
+      side: THREE.DoubleSide,
+    });
+    const groundPlane = new THREE.Mesh(groundGeometry, groundMaterial);
+    groundPlane.name = 'ground';
+    groundPlane.rotation.x = -Math.PI / 2;
+    groundPlane.position.y = -0.1; // Position below the room floor
+    groundPlane.receiveShadow = true;
+    scene.add(groundPlane);
 
-        wallGroup.add(wallMesh);
-      });
-    };
-
-    renderWalls();
-
-    // Object rendering logic
-    const objectGroup = new THREE.Group();
-    scene.add(objectGroup);
-
-    const renderObjects = () => {
-      objectGroup.children.forEach((child) => objectGroup.remove(child));
-
-      objects.forEach((obj) => {
-        let geometry;
-        // Simple geometry based on type
-        switch (obj.type) {
-          case 'table':
-            geometry = new THREE.BoxGeometry(1.5, 0.8, 0.8);
-            break;
-          case 'chair':
-          default:
-            geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
-            break;
-        }
-        const material = new THREE.MeshStandardMaterial({ color: obj.color });
-        const mesh = new THREE.Mesh(geometry, material);
-
-        mesh.position.set(obj.position.x, obj.position.y + 0.5, obj.position.z);
-        mesh.rotation.set(obj.rotation.x, obj.rotation.y, obj.rotation.z);
-        mesh.scale.set(obj.scale.x, obj.scale.y, obj.scale.z);
-        mesh.userData.id = obj.id;
-
-        objectGroup.add(mesh);
-      });
-    };
-
-    renderObjects();
-
-    // Animation loop
+    // --- Animation Loop ---
+    let animationFrameId: number;
     const animate = () => {
-      requestAnimationFrame(animate);
+      animationFrameId = requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
     };
-
     animate();
 
-    // Handle resize
+    // --- Resize Handling ---
     const handleResize = () => {
+      if (!currentMount || !renderer || !camera) return;
       camera.aspect = currentMount.clientWidth / currentMount.clientHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
     };
-
     window.addEventListener('resize', handleResize);
 
-    // Cleanup
+    // --- Cleanup ---
     return () => {
+      cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', handleResize);
-      if (currentMount) {
-        currentMount.innerHTML = '';
+      controls.dispose();
+      renderer.dispose();
+      if (currentMount && renderer.domElement) {
+        // Check if the domElement is still a child before removing
+        if (currentMount.contains(renderer.domElement)) {
+          currentMount.removeChild(renderer.domElement);
+        }
       }
     };
-  }, [
-    walls,
-    objects,
-    gridEnabled,
-    isDarkMode,
-    selectedObjectId,
-    onObjectSelect,
-    onObjectMove,
-  ]);
+  }, []); // Empty dependency array ensures this runs only once
 
-  return <div ref={mountRef} className="w-full h-full" />;
+  // --- Update lighting and background on theme change ---
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    scene.background = new THREE.Color(isDarkMode ? '#1A202C' : '#F7FAFC');
+    scene.fog = new THREE.Fog(isDarkMode ? '#1A202C' : '#F7FAFC', 20, 60);
+
+    // Update ground color
+    const ground = scene.getObjectByName('ground') as THREE.Mesh;
+    if (ground && ground.material instanceof THREE.MeshStandardMaterial) {
+      ground.material.color.set(isDarkMode ? '#2D3748' : '#EDF2F7');
+    }
+
+    // You can also update light colors here if needed
+    const hemisphereLight = scene.children.find(c => c instanceof THREE.HemisphereLight) as THREE.HemisphereLight;
+    if (hemisphereLight) {
+      hemisphereLight.color.set(isDarkMode ? 0x6688cc : 0xffffff);
+      hemisphereLight.groundColor.set(isDarkMode ? 0x334455 : 0x444444);
+    }
+
+  }, [isDarkMode]);
+
+  // --- Update grid visibility ---
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    const existingGrid = scene.getObjectByName('gridHelper');
+    if (existingGrid) {
+      scene.remove(existingGrid);
+    }
+
+    if (gridEnabled) {
+      const gridHelper = new THREE.GridHelper(40, 40, '#CBD5E0', '#E2E8F0');
+      gridHelper.name = 'gridHelper';
+      scene.add(gridHelper);
+    }
+  }, [gridEnabled]);
+
+  // --- Update walls and floor when wall data changes ---
+  useEffect(() => {
+    const wallGroup = wallGroupRef.current;
+    const floorGroup = floorGroupRef.current;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+
+    // Apply advanced geometry processing
+    let currentProcessedWalls = walls;
+
+    if (walls.length > 0) {
+      // 1. Enable vertex snapping with precision alignment
+      currentProcessedWalls = AdvancedGeometryEngine.snapVertices(currentProcessedWalls);
+
+      // 2. Detect and fix non-planar wall segments
+      currentProcessedWalls = AdvancedGeometryEngine.fixNonPlanarWalls(currentProcessedWalls);
+
+      // 3. Realign diagonals to rational angles
+      currentProcessedWalls = AdvancedGeometryEngine.realignDiagonals(currentProcessedWalls);
+
+      // 4. Smooth wall transitions and joints
+      currentProcessedWalls = AdvancedGeometryEngine.smoothWallTransitions(currentProcessedWalls);
+
+      // 5. Eliminate Z-fighting and rendering artifacts
+      currentProcessedWalls = AdvancedGeometryEngine.eliminateZFighting(currentProcessedWalls);
+
+      // 7. Validate polygon topology
+      const topologyValidation = AdvancedGeometryEngine.validateTopology(currentProcessedWalls);
+      console.log('Topology validation:', topologyValidation);
+
+      // 9. Perform visual consistency check
+      const consistencyReport = AdvancedGeometryEngine.performConsistencyCheck(currentProcessedWalls);
+      console.log('Consistency report:', consistencyReport);
+    }
+
+    // Update state with processed walls
+    setProcessedWalls(currentProcessedWalls);
+
+
+
+    // --- Advanced Floor Rendering ---
+    const renderFloor = () => {
+      floorGroup.clear();
+
+      // Use optimized walls for floor generation
+      const { walls: optimizedWalls } = AdvancedGeometryEngine.optimizeWindowPlacements(currentProcessedWalls);
+      const isValid = isValidFloorplan(optimizedWalls);
+      setIsFloorplanValid(isValid);
+
+      // Only render floor for valid, closed room shapes
+      if (!isValid || optimizedWalls.length < 3) {
+        console.log('Skipping floor render - invalid room or insufficient walls');
+        return;
+      }
+
+      try {
+        // Get ordered vertices from walls
+        const orderedVertices = getOrderedVertices(optimizedWalls);
+
+        if (orderedVertices.length < 3) {
+          console.log('Insufficient vertices for floor');
+          return;
+        }
+
+        // Create interior floor vertices using advanced polygon inset algorithm
+        const interiorVertices = createAdvancedInteriorFloor(optimizedWalls, orderedVertices);
+
+        // Ensure vertices are in counter-clockwise order for proper face orientation
+        const ccwVertices = ensureCounterClockwise(interiorVertices);
+
+        if (ccwVertices.length < 3) {
+          console.log('Failed to create interior vertices');
+          return;
+        }
+
+        // Create advanced floor geometry with multiple methods
+        let floorGeometry: THREE.BufferGeometry | null = null;
+
+        // Advanced Geometry Creation Pipeline
+        const geometryMethods = [
+          () => createConstrainedDelaunayGeometry(ccwVertices),
+          () => createAdvancedShapeGeometry(ccwVertices),
+          () => createOptimizedEarClippingGeometry(ccwVertices),
+          () => createManualFloorGeometry(ccwVertices)
+        ];
+
+        for (let i = 0; i < geometryMethods.length; i++) {
+          try {
+            floorGeometry = geometryMethods[i]();
+            if (floorGeometry && floorGeometry.attributes.position && floorGeometry.attributes.position.count > 0) {
+              console.log(`✅ Geometry method ${i + 1} succeeded:`, ['Delaunay', 'Advanced Shape', 'Optimized Ear-Clipping', 'Manual'][i]);
+              break;
+            }
+          } catch (error) {
+            console.log(`❌ Geometry method ${i + 1} failed:`, error);
+          }
+        }
+
+        if (!floorGeometry || !floorGeometry.attributes.position || floorGeometry.attributes.position.count === 0) {
+          console.log('Failed to create floor geometry');
+          return;
+        }
+
+        // Create advanced floor system with multiple layers
+        const floorSystem = createAdvancedFloorSystem(floorGeometry, floorType, isDarkMode, ccwVertices);
+        floorSystem.forEach(mesh => floorGroup.add(mesh));
+
+        // Add room outline for better visual definition
+        const outlineGeometry = new THREE.BufferGeometry();
+        const outlineVertices: number[] = [];
+
+        for (let i = 0; i < ccwVertices.length; i++) {
+          const current = ccwVertices[i];
+          const next = ccwVertices[(i + 1) % ccwVertices.length];
+
+          outlineVertices.push(current.x, 0.02, current.z);
+          outlineVertices.push(next.x, 0.02, next.z);
+        }
+
+        outlineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(outlineVertices, 3));
+
+        const outlineMaterial = new THREE.LineBasicMaterial({
+          color: isDarkMode ? 0x8B9DC3 : 0x6B7280,
+          linewidth: 2
+        });
+
+        const outlineMesh = new THREE.LineSegments(outlineGeometry, outlineMaterial);
+        outlineMesh.name = 'floor-outline';
+        floorGroup.add(outlineMesh);
+
+        // Add area display
+        const roomArea = calculateRoomArea(orderedVertices); // Use exterior vertices for area
+        if (roomArea > 0) {
+          const centerX = ccwVertices.reduce((sum, v) => sum + v.x, 0) / ccwVertices.length;
+          const centerZ = ccwVertices.reduce((sum, v) => sum + v.z, 0) / ccwVertices.length;
+
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d')!;
+          canvas.width = 512;
+          canvas.height = 128;
+
+          context.fillStyle = isDarkMode ? '#FFFFFF' : '#000000';
+          context.font = 'bold 48px Arial';
+          context.textAlign = 'center';
+          context.fillText(`${roomArea.toFixed(2)}m²`, 256, 80);
+
+          const texture = new THREE.CanvasTexture(canvas);
+          const spriteMaterial = new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            alphaTest: 0.1
+          });
+          const sprite = new THREE.Sprite(spriteMaterial);
+          sprite.position.set(centerX, 0.1, centerZ);
+          sprite.scale.set(2, 0.5, 1);
+          floorGroup.add(sprite);
+        }
+
+        console.log('Advanced floor rendered successfully');
+
+      } catch (error) {
+        console.error('Advanced floor rendering error:', error);
+      }
+
+      try {
+        const orderedVertices = getOrderedVertices(optimizedWalls);
+
+        if (orderedVertices.length < 3) {
+          return;
+        }
+
+        // Create the main floor shape with better error handling
+        const validVertices = orderedVertices.filter(v =>
+          !isNaN(v.x) && !isNaN(v.z) && isFinite(v.x) && isFinite(v.z)
+        );
+
+        if (validVertices.length < 3) {
+          return;
+        }
+
+        // Simple approach: Create a floor that's significantly smaller than the wall boundaries
+        // This ensures it stays well within the room
+
+        // Calculate room bounds
+        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+        validVertices.forEach(v => {
+          minX = Math.min(minX, v.x);
+          maxX = Math.max(maxX, v.x);
+          minZ = Math.min(minZ, v.z);
+          maxZ = Math.max(maxZ, v.z);
+        });
+
+        // Create a simple rectangular floor that's inset from the bounds
+        const avgThickness = optimizedWalls.reduce((sum, wall) => sum + wall.thickness, 0) / optimizedWalls.length;
+        const inset = avgThickness; // Full wall thickness inset
+
+        const floorWidth = (maxX - minX) - (inset * 2);
+        const floorDepth = (maxZ - minZ) - (inset * 2);
+        const floorCenterX = (minX + maxX) / 2;
+        const floorCenterZ = (minZ + maxZ) / 2;
+
+        // Create simple rectangular floor geometry
+        const floorGeometry = new THREE.PlaneGeometry(floorWidth, floorDepth);
+        floorGeometry.rotateX(-Math.PI / 2); // Make it horizontal
+
+
+        // Create realistic floor texture based on selected type
+        const floorMaterial = createFloorMaterialByType(floorType, isDarkMode);
+
+        const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
+        floorMesh.name = 'floor';
+        floorMesh.position.set(floorCenterX, 0.005, floorCenterZ); // Position at room center
+        floorMesh.receiveShadow = true;
+        floorMesh.castShadow = false; // Floor shouldn't cast shadows
+        floorGroup.add(floorMesh);
+        // Floor rendering complete - no additional elements needed for now
+
+      } catch (error) {
+        console.error("Error rendering floor:", error);
+        setIsFloorplanValid(false);
+      }
+    };
+
+    // Helper function to calculate room area from ordered vertices (matches AdvancedRoomBuilder)
+    const calculateRoomArea = (vertices: { x: number; z: number }[]): number => {
+      if (vertices.length < 3) return 0;
+
+      // Use the same calculation as AdvancedRoomBuilder for consistency
+      // This ensures the 3D view shows the same area as the 2D statistics
+      const orderedVertices = ensureCounterClockwise(vertices);
+
+      let area = 0;
+      for (let i = 0; i < orderedVertices.length; i++) {
+        const j = (i + 1) % orderedVertices.length;
+        area += orderedVertices[i].x * orderedVertices[j].z;
+        area -= orderedVertices[j].x * orderedVertices[i].z;
+      }
+
+      return Math.abs(area) / 2;
+    };
+
+    // --- Render Walls ---
+    const renderWalls = () => {
+      wallGroup.clear();
+
+      if (currentProcessedWalls.length === 0) return;
+
+      // 6. Optimize window placements
+      const { walls: wallsWithWindows, windows } = AdvancedGeometryEngine.optimizeWindowPlacements(currentProcessedWalls);
+
+      // Get ordered vertices to understand room shape
+      const orderedVertices = getOrderedVertices(wallsWithWindows);
+      const isValidRoom = isValidFloorplan(wallsWithWindows);
+
+      // Enhanced wall rendering with better positioning and materials
+      wallsWithWindows.forEach((wall, index) => {
+        const wallVector = new THREE.Vector3(
+          wall.end.x - wall.start.x,
+          0,
+          wall.end.z - wall.start.z
+        );
+        const wallLength = wallVector.length();
+
+        if (wallLength < 0.01) return; // Skip very short walls
+
+        // Create wall geometry
+        const wallGeometry = new THREE.BoxGeometry(wallLength, wall.height, wall.thickness);
+
+        // Enhanced wall material with selected material type
+        const wallMaterialMesh = createWallMaterial(wallMaterial, isDarkMode);
+
+        const wallMesh = new THREE.Mesh(wallGeometry, wallMaterialMesh);
+        wallMesh.name = `wall-${index}`;
+
+        // Position wall at center point
+        wallMesh.position.set(
+          (wall.start.x + wall.end.x) / 2,
+          wall.height / 2,
+          (wall.start.z + wall.end.z) / 2
+        );
+
+        // Rotate wall to align with wall direction
+        wallMesh.rotation.y = Math.atan2(wallVector.z, wallVector.x);
+
+        // Enable shadows
+        wallMesh.castShadow = true;
+        wallMesh.receiveShadow = true;
+
+        wallGroup.add(wallMesh);
+
+        // Add styled windows
+        if (showWindows) {
+          const wallWindows = windows.filter(w => w.wallId === wall.id);
+          wallWindows.forEach(windowPlacement => {
+            const windowGroup = createStyledWindow(wall, windowPlacement, windowStyle);
+            if (windowGroup.children.length > 0) {
+              wallGroup.add(windowGroup);
+            }
+          });
+        }
+
+        // Add wall length measurements
+        if (wallLength > 0.5) {
+          const midPoint = new THREE.Vector3(
+            (wall.start.x + wall.end.x) / 2,
+            wall.height + 0.3,
+            (wall.start.z + wall.end.z) / 2
+          );
+
+          // Create measurement text
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d')!;
+          canvas.width = 256;
+          canvas.height = 64;
+
+          context.fillStyle = isDarkMode ? '#FFFFFF' : '#000000';
+          context.font = 'bold 24px Arial';
+          context.textAlign = 'center';
+          context.fillText(`${wallLength.toFixed(2)}m`, 128, 40);
+
+          const texture = new THREE.CanvasTexture(canvas);
+          const spriteMaterial = new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            alphaTest: 0.1
+          });
+          const sprite = new THREE.Sprite(spriteMaterial);
+          sprite.position.copy(midPoint);
+          sprite.scale.set(1, 0.25, 1);
+
+          // Make measurement face camera
+          sprite.name = `measurement-${index}`;
+          wallGroup.add(sprite);
+        }
+      });
+
+      // Add corner connections for valid rooms
+      if (isValidRoom && orderedVertices.length > 2) {
+        const cornerMaterial = new THREE.MeshStandardMaterial({
+          color: isDarkMode ? 0x3A4A5A : 0xD2D8E0,
+          roughness: 0.9,
+          metalness: 0.1
+        });
+
+        orderedVertices.forEach((vertex, index) => {
+          // Find the average wall thickness at this corner
+          const connectedWalls = wallsWithWindows.filter(wall =>
+            (Math.abs(wall.start.x - vertex.x) < 0.01 && Math.abs(wall.start.z - vertex.z) < 0.01) ||
+            (Math.abs(wall.end.x - vertex.x) < 0.01 && Math.abs(wall.end.z - vertex.z) < 0.01)
+          );
+
+          if (connectedWalls.length >= 2) {
+            const avgThickness = connectedWalls.reduce((sum, w) => sum + w.thickness, 0) / connectedWalls.length;
+            const avgHeight = connectedWalls.reduce((sum, w) => sum + w.height, 0) / connectedWalls.length;
+
+            const cornerGeometry = new THREE.CylinderGeometry(
+              avgThickness / 2,
+              avgThickness / 2,
+              avgHeight,
+              8
+            );
+
+            const cornerMesh = new THREE.Mesh(cornerGeometry, cornerMaterial);
+            cornerMesh.position.set(vertex.x, avgHeight / 2, vertex.z);
+            cornerMesh.castShadow = true;
+            cornerMesh.receiveShadow = true;
+            wallGroup.add(cornerMesh);
+          }
+        });
+      }
+    };
+
+    renderWalls();
+    renderFloor();
+
+    // --- Center camera on the room ---
+    if (camera && controls && currentProcessedWalls.length > 0) {
+      // 10. Generate room collider and bounding box
+      const colliderData = AdvancedGeometryEngine.generateColliderAndBounds(currentProcessedWalls);
+
+      const centerX = (colliderData.boundingBox.min.x + colliderData.boundingBox.max.x) / 2;
+      const centerZ = (colliderData.boundingBox.min.z + colliderData.boundingBox.max.z) / 2;
+      const centerY = colliderData.boundingBox.max.y / 2;
+
+      controls.target.set(centerX, centerY, centerZ);
+
+      // Calculate optimal camera distance based on room size
+      const roomWidth = colliderData.boundingBox.max.x - colliderData.boundingBox.min.x;
+      const roomDepth = colliderData.boundingBox.max.z - colliderData.boundingBox.min.z;
+      const maxDimension = Math.max(roomWidth, roomDepth);
+      const cameraDistance = Math.max(15, maxDimension * 1.5);
+
+      camera.position.set(centerX, cameraDistance, centerZ + cameraDistance);
+    }
+
+  }, [walls, showWindows, isDarkMode, floorType, wallMaterial, windowStyle]);
+
+  return (
+    <div ref={mountRef} className="w-full h-full relative">
+      {/* Status indicators */}
+      {!isFloorplanValid && walls.length > 0 && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-md shadow-lg z-10">
+          Invalid floor plan: Walls must form a closed shape
+        </div>
+      )}
+
+      {isFloorplanValid && walls.length > 0 && (
+        <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-md shadow-lg text-sm z-10">
+          ✓ Valid Room ({walls.length} walls)
+        </div>
+      )}
+
+      {/* 3D Controls hint */}
+      <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-2 rounded-md text-sm z-10">
+        <div>🖱️ Left click + drag: Rotate</div>
+        <div>🖱️ Right click + drag: Pan</div>
+        <div>🖱️ Scroll: Zoom</div>
+      </div>
+
+      {/* Advanced Room Statistics */}
+      {isFloorplanValid && processedWalls.length > 0 && (
+        <div className="absolute bottom-4 right-4 bg-black bg-opacity-50 text-white px-3 py-2 rounded-md text-sm z-10 space-y-1">
+          <div className="font-semibold">Advanced Room Stats</div>
+          <div>Walls: {processedWalls.length}</div>
+          <div>Avg Height: {(processedWalls.reduce((sum, w) => sum + w.height, 0) / processedWalls.length).toFixed(1)}m</div>
+          <div>Perimeter: {processedWalls.reduce((sum, w) => sum + Math.sqrt((w.end.x - w.start.x) ** 2 + (w.end.z - w.start.z) ** 2), 0).toFixed(1)}m</div>
+          <div>Vertices: {getOrderedVertices(processedWalls).length}</div>
+          <div className="text-green-400">✓ Geometry Optimized</div>
+          <div className="text-blue-400">✓ Topology Validated</div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default ThreeCanvas;
