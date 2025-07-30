@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   ArrowRight, Building, Move, Move3d, Palette, Redo, Save, Square, Undo, PencilRuler, View,
   Trash2, Home
@@ -15,6 +15,7 @@ import Floorplan2DCanvas, { Wall } from '@/components/Floorplan2DCanvas';
 import { useAdvancedRoom } from '@/components/AdvancedRoomBuilder';
 import MaterialPresets, { MaterialPreset } from '@/components/MaterialPresets';
 import RoomQualityAnalyzer from '@/components/RoomQualityAnalyzer';
+import { AdvancedRoomCalculator } from '@/lib/advanced-room-calculator';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,7 +36,12 @@ export default function RoomBuilderPage() {
     generateLShapedRoom
   } = useAdvancedRoom([]);
 
-  const isRoomValid = roomStats.isValid;
+  // Calculate advanced metrics using the new calculator
+  const roomMetrics = useMemo(() => {
+    return AdvancedRoomCalculator.calculateRoomMetrics(walls);
+  }, [walls]);
+
+  const isRoomValid = roomMetrics.isValid;
 
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [editMode, setEditMode] = useState<'draw' | 'move' | 'idle'>('idle');
@@ -480,41 +486,54 @@ export default function RoomBuilderPage() {
           <CardContent className="space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Walls Built</span>
-              <Badge variant="secondary">{roomStats.wallCount}</Badge>
+              <Badge variant="secondary">{roomMetrics.wallCount}</Badge>
             </div>
-            {roomStats.isValid && (
+            {roomMetrics.isValid && (
               <>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Room Area</span>
-                  <Badge variant="outline" className="bg-blue-50">{roomStats.area.toFixed(2)}m²</Badge>
+                  <Badge variant="outline" className="bg-blue-50">{roomMetrics.area.toFixed(2)}m²</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Usable Area</span>
+                  <Badge variant="outline" className="bg-blue-100">{roomMetrics.usableArea.toFixed(2)}m²</Badge>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Perimeter</span>
-                  <Badge variant="outline" className="bg-green-50">{roomStats.perimeter.toFixed(2)}m</Badge>
+                  <Badge variant="outline" className="bg-green-50">{roomMetrics.perimeter.toFixed(2)}m</Badge>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Avg Wall Length</span>
-                  <Badge variant="outline" className="bg-purple-50">{roomStats.averageWallLength.toFixed(2)}m</Badge>
+                  <Badge variant="outline" className="bg-purple-50">{roomMetrics.averageWallLength.toFixed(2)}m</Badge>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Vertices</span>
-                  <Badge variant="outline" className="bg-orange-50">{roomStats.vertices.length}</Badge>
+                  <span className="text-sm text-muted-foreground">Compactness</span>
+                  <Badge variant="outline" className="bg-orange-50">{(roomMetrics.compactness * 100).toFixed(1)}%</Badge>
                 </div>
               </>
             )}
-            {!roomStats.isValid && walls.length > 0 && (
-              <div className="text-sm text-red-500 font-medium">
-                ⚠️ Room shape is not closed
+            {!roomMetrics.isValid && walls.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-sm text-red-500 font-medium">
+                  ⚠️ Room Issues Found
+                </div>
+                {roomMetrics.validationErrors.slice(0, 3).map((error, index) => (
+                  <div key={index} className="text-xs text-red-400">
+                    • {error}
+                  </div>
+                ))}
+                {roomMetrics.validationErrors.length > 3 && (
+                  <div className="text-xs text-red-300">
+                    +{roomMetrics.validationErrors.length - 3} more issues
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
         </Card>
 
         <RoomQualityAnalyzer
-          walls={walls}
-          isValid={roomStats.isValid}
-          area={roomStats.area}
-          perimeter={roomStats.perimeter}
+          metrics={roomMetrics}
         />
       </div>
 

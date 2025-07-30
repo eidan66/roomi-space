@@ -4,13 +4,10 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Wall } from './Floorplan2DCanvas';
+import { RoomMetrics } from '../lib/advanced-room-calculator';
 
 interface RoomQualityAnalyzerProps {
-  walls: Wall[];
-  isValid: boolean;
-  area: number;
-  perimeter: number;
+  metrics: RoomMetrics;
 }
 
 interface QualityMetric {
@@ -22,210 +19,155 @@ interface QualityMetric {
 }
 
 const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
-  walls,
-  isValid,
-  area,
-  perimeter
+  metrics
 }) => {
-  const analyzeRoomQuality = (): QualityMetric[] => {
-    const metrics: QualityMetric[] = [];
+  // Safety check to prevent errors if metrics is undefined
+  if (!metrics) {
+    return (
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Room Quality</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center text-muted-foreground">
+            Loading room analysis...
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
-    // 1. Room Shape Analysis
-    const shapeScore = analyzeRoomShape();
-    metrics.push({
-      name: 'Room Shape',
+  const analyzeRoomQuality = (): QualityMetric[] => {
+    const qualityMetrics: QualityMetric[] = [];
+
+    // 1. Shape Quality (based on compactness and convexity)
+    const shapeScore = Math.min(100, (metrics.compactness * 50) + (metrics.convexity * 50));
+    qualityMetrics.push({
+      name: 'Shape Quality',
       score: shapeScore,
       maxScore: 100,
-      description: 'Evaluates room proportions and regularity',
+      description: 'Evaluates room compactness and convexity',
       status: shapeScore >= 80 ? 'excellent' : shapeScore >= 60 ? 'good' : shapeScore >= 40 ? 'fair' : 'poor'
     });
 
-    // 2. Wall Quality Analysis
-    const wallScore = analyzeWallQuality();
-    metrics.push({
-      name: 'Wall Quality',
-      score: wallScore,
+    // 2. Geometric Regularity (rectangularity for 4-wall rooms)
+    let regularityScore = 50; // Base score
+    if (metrics.wallCount === 4) {
+      regularityScore = metrics.rectangularity * 100;
+    } else {
+      // For non-rectangular rooms, use angle consistency
+      const idealAngle = (2 * Math.PI) / metrics.wallCount;
+      const angleVariance = metrics.interiorAngles.reduce((sum, angle) => 
+        sum + Math.abs(angle - idealAngle), 0) / metrics.wallCount;
+      regularityScore = Math.max(0, 100 - (angleVariance * 100));
+    }
+    
+    qualityMetrics.push({
+      name: 'Regularity',
+      score: regularityScore,
       maxScore: 100,
-      description: 'Checks wall lengths and angles',
-      status: wallScore >= 80 ? 'excellent' : wallScore >= 60 ? 'good' : wallScore >= 40 ? 'fair' : 'poor'
+      description: metrics.wallCount === 4 ? 'How close to a perfect rectangle' : 'Consistency of interior angles',
+      status: regularityScore >= 80 ? 'excellent' : regularityScore >= 60 ? 'good' : regularityScore >= 40 ? 'fair' : 'poor'
     });
 
-    // 3. Room Size Analysis
-    const sizeScore = analyzeRoomSize();
-    metrics.push({
-      name: 'Room Size',
+    // 3. Size Appropriateness
+    const sizeScore = analyzeSizeQuality();
+    qualityMetrics.push({
+      name: 'Size Quality',
       score: sizeScore,
       maxScore: 100,
-      description: 'Evaluates room area and usability',
+      description: 'Room area and proportions for usability',
       status: sizeScore >= 80 ? 'excellent' : sizeScore >= 60 ? 'good' : sizeScore >= 40 ? 'fair' : 'poor'
     });
 
-    // 4. Structural Integrity
-    const structuralScore = analyzeStructuralIntegrity();
-    metrics.push({
-      name: 'Structure',
-      score: structuralScore,
+    // 4. Construction Feasibility
+    const constructionScore = analyzeConstructionFeasibility();
+    qualityMetrics.push({
+      name: 'Construction',
+      score: constructionScore,
       maxScore: 100,
-      description: 'Checks for closed shape and valid topology',
-      status: structuralScore >= 80 ? 'excellent' : structuralScore >= 60 ? 'good' : structuralScore >= 40 ? 'fair' : 'poor'
+      description: 'Wall lengths and angles for practical construction',
+      status: constructionScore >= 80 ? 'excellent' : constructionScore >= 60 ? 'good' : constructionScore >= 40 ? 'fair' : 'poor'
     });
 
-    return metrics;
-  };
-
-  const analyzeRoomShape = (): number => {
-    if (!isValid || walls.length < 3) return 0;
-
-    // Calculate aspect ratio
-    const vertices = getOrderedVertices();
-    if (vertices.length < 3) return 0;
-
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    vertices.forEach(v => {
-      minX = Math.min(minX, v.x);
-      maxX = Math.max(maxX, v.x);
-      minZ = Math.min(minZ, v.z);
-      maxZ = Math.max(maxZ, v.z);
+    // 5. Space Efficiency
+    const efficiencyScore = (1 - metrics.wallToFloorRatio) * 100;
+    qualityMetrics.push({
+      name: 'Efficiency',
+      score: Math.min(100, efficiencyScore),
+      maxScore: 100,
+      description: 'Ratio of usable floor area to total area',
+      status: efficiencyScore >= 80 ? 'excellent' : efficiencyScore >= 60 ? 'good' : efficiencyScore >= 40 ? 'fair' : 'poor'
     });
 
-    const width = maxX - minX;
-    const height = maxZ - minZ;
-    const aspectRatio = Math.max(width, height) / Math.min(width, height);
-
-    // Ideal aspect ratio is between 1:1 and 2:1
-    let shapeScore = 100;
-    if (aspectRatio > 3) shapeScore -= 30;
-    else if (aspectRatio > 2) shapeScore -= 15;
-
-    // Check for right angles (preferred in most rooms)
-    const rightAngleCount = countRightAngles();
-    const rightAngleRatio = rightAngleCount / walls.length;
-    shapeScore += rightAngleRatio * 20 - 10;
-
-    return Math.max(0, Math.min(100, shapeScore));
+    return qualityMetrics;
   };
 
-  const analyzeWallQuality = (): number => {
-    if (walls.length === 0) return 0;
+  const analyzeSizeQuality = (): number => {
+    if (metrics.area === 0) return 0;
 
-    let score = 100;
-    let shortWallPenalty = 0;
-    let longWallPenalty = 0;
-
-    walls.forEach(wall => {
-      const length = Math.sqrt(
-        Math.pow(wall.end.x - wall.start.x, 2) + 
-        Math.pow(wall.end.z - wall.start.z, 2)
-      );
-
-      // Penalize very short walls (< 1m)
-      if (length < 1) shortWallPenalty += 10;
-      
-      // Penalize very long walls (> 10m) without support
-      if (length > 10) longWallPenalty += 5;
-    });
-
-    score -= Math.min(shortWallPenalty, 40);
-    score -= Math.min(longWallPenalty, 20);
-
-    return Math.max(0, score);
-  };
-
-  const analyzeRoomSize = (): number => {
-    if (area === 0) return 0;
-
-    // Optimal room sizes for different purposes
     let score = 50; // Base score
 
-    if (area >= 9 && area <= 50) {
+    // Optimal room sizes for different purposes
+    if (metrics.area >= 9 && metrics.area <= 50) {
       // Good size for most rooms (3x3m to 7x7m)
       score = 100;
-    } else if (area >= 6 && area < 9) {
+    } else if (metrics.area >= 6 && metrics.area < 9) {
       // Small but usable
       score = 80;
-    } else if (area > 50 && area <= 100) {
+    } else if (metrics.area > 50 && metrics.area <= 100) {
       // Large room
       score = 90;
-    } else if (area < 6) {
+    } else if (metrics.area < 6) {
       // Too small
       score = 30;
-    } else if (area > 100) {
+    } else if (metrics.area > 100) {
       // Very large, might need columns
       score = 70;
     }
 
-    // Efficiency score (perimeter to area ratio)
-    const efficiency = (4 * Math.sqrt(area)) / perimeter;
-    score += (efficiency - 0.8) * 50;
+    // Aspect ratio penalty
+    if (metrics.aspectRatio > 3) score -= 20;
+    else if (metrics.aspectRatio > 2) score -= 10;
+
+    // Compactness bonus
+    score += metrics.compactness * 20;
 
     return Math.max(0, Math.min(100, score));
   };
 
-  const analyzeStructuralIntegrity = (): number => {
-    if (!isValid) return 0;
+  const analyzeConstructionFeasibility = (): number => {
+    if (!metrics.isValid) return 0;
 
     let score = 100;
 
-    // Check for minimum wall count
-    if (walls.length < 4) score -= 20;
+    // Penalize very short walls (< 1m)
+    const shortWalls = metrics.wallLengths.filter(length => length < 1).length;
+    score -= shortWalls * 15;
 
-    // Check wall thickness consistency
-    const thicknesses = walls.map(w => w.thickness);
-    const avgThickness = thicknesses.reduce((a, b) => a + b, 0) / thicknesses.length;
-    const thicknessVariation = Math.max(...thicknesses) - Math.min(...thicknesses);
-    
-    if (thicknessVariation > avgThickness * 0.5) score -= 15;
+    // Penalize very long walls (> 10m) without support
+    const longWalls = metrics.wallLengths.filter(length => length > 10).length;
+    score -= longWalls * 10;
 
-    // Check wall height consistency
-    const heights = walls.map(w => w.height);
-    const avgHeight = heights.reduce((a, b) => a + b, 0) / heights.length;
-    const heightVariation = Math.max(...heights) - Math.min(...heights);
-    
-    if (heightVariation > avgHeight * 0.2) score -= 10;
+    // Check for extreme angles
+    const extremeAngles = metrics.interiorAngles.filter(angle => {
+      const degrees = (angle * 180) / Math.PI;
+      return degrees < 30 || degrees > 330;
+    }).length;
+    score -= extremeAngles * 20;
+
+    // Bonus for regular angles (multiples of 15 degrees)
+    const regularAngles = metrics.interiorAngles.filter(angle => {
+      const degrees = (angle * 180) / Math.PI;
+      return degrees % 15 < 2 || degrees % 15 > 13;
+    }).length;
+    score += (regularAngles / metrics.interiorAngles.length) * 10;
 
     return Math.max(0, score);
   };
 
-  const getOrderedVertices = () => {
-    // Simplified vertex ordering for analysis
-    const vertices: { x: number; z: number }[] = [];
-    walls.forEach(wall => {
-      vertices.push(wall.start, wall.end);
-    });
-    return vertices;
-  };
-
-  const countRightAngles = (): number => {
-    if (walls.length < 3) return 0;
-
-    let rightAngles = 0;
-    for (let i = 0; i < walls.length; i++) {
-      const currentWall = walls[i];
-      const nextWall = walls[(i + 1) % walls.length];
-
-      const angle1 = Math.atan2(
-        currentWall.end.z - currentWall.start.z,
-        currentWall.end.x - currentWall.start.x
-      );
-      const angle2 = Math.atan2(
-        nextWall.end.z - nextWall.start.z,
-        nextWall.end.x - nextWall.start.x
-      );
-
-      const angleDiff = Math.abs(angle1 - angle2);
-      const normalizedAngle = Math.min(angleDiff, Math.PI * 2 - angleDiff);
-
-      // Check if angle is close to 90 degrees (π/2)
-      if (Math.abs(normalizedAngle - Math.PI / 2) < 0.1) {
-        rightAngles++;
-      }
-    }
-
-    return rightAngles;
-  };
-
-  const metrics = analyzeRoomQuality();
-  const overallScore = metrics.reduce((sum, metric) => sum + metric.score, 0) / metrics.length;
+  const qualityMetrics = analyzeRoomQuality();
+  const overallScore = qualityMetrics.reduce((sum, metric) => sum + metric.score, 0) / qualityMetrics.length;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -246,7 +188,7 @@ const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
     return 'F';
   };
 
-  if (walls.length === 0) {
+  if (metrics.wallCount === 0) {
     return (
       <Card className="border-0 shadow-sm">
         <CardHeader className="pb-3">
@@ -273,7 +215,7 @@ const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-3">
-          {metrics.map((metric, index) => (
+          {qualityMetrics.map((metric, index) => (
             <div key={index} className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">{metric.name}</span>
@@ -286,6 +228,21 @@ const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
             </div>
           ))}
         </div>
+        
+        {/* Show validation errors if any */}
+        {metrics.validationErrors.length > 0 && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <h4 className="text-sm font-semibold text-red-800 mb-2">Issues Found:</h4>
+            <ul className="text-xs text-red-700 space-y-1">
+              {metrics.validationErrors.map((error, index) => (
+                <li key={index} className="flex items-start gap-1">
+                  <span className="text-red-500 mt-0.5">•</span>
+                  {error}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         
         <div className="pt-2 border-t">
           <div className="flex justify-between items-center">

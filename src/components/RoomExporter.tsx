@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download, Share2, Image, FileText, Package } from 'lucide-react';
 import { Wall } from './Floorplan2DCanvas';
+import { RoomMetrics } from '../lib/advanced-room-calculator';
 
 interface RoomExporterProps {
   walls: Wall[];
@@ -12,12 +13,7 @@ interface RoomExporterProps {
   floorType: string;
   wallMaterial: string;
   windowStyle: string;
-  roomStats: {
-    area: number;
-    perimeter: number;
-    wallCount: number;
-    isValid: boolean;
-  };
+  metrics: RoomMetrics;
 }
 
 const RoomExporter: React.FC<RoomExporterProps> = ({
@@ -26,7 +22,7 @@ const RoomExporter: React.FC<RoomExporterProps> = ({
   floorType,
   wallMaterial,
   windowStyle,
-  roomStats
+  metrics
 }) => {
   const exportAsJSON = () => {
     const roomData = {
@@ -37,7 +33,7 @@ const RoomExporter: React.FC<RoomExporterProps> = ({
         wall: wallMaterial,
         window: windowStyle
       },
-      stats: roomStats,
+      stats: metrics,
       exportedAt: new Date().toISOString(),
       version: '1.0'
     };
@@ -45,7 +41,7 @@ const RoomExporter: React.FC<RoomExporterProps> = ({
     const dataStr = JSON.stringify(roomData, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
-    
+
     const link = document.createElement('a');
     link.href = url;
     link.download = `${roomName.replace(/\s+/g, '_')}_room_data.json`;
@@ -59,13 +55,16 @@ const RoomExporter: React.FC<RoomExporterProps> = ({
     const csvData = [
       ['Property', 'Value'],
       ['Room Name', roomName],
-      ['Wall Count', roomStats.wallCount.toString()],
-      ['Room Area', `${roomStats.area.toFixed(2)} m²`],
-      ['Perimeter', `${roomStats.perimeter.toFixed(2)} m`],
+      ['Wall Count', metrics.wallCount.toString()],
+      ['Room Area', `${metrics.area.toFixed(2)} m²`],
+      ['Perimeter', `${metrics.perimeter.toFixed(2)} m`],
+      ['Usable Area', `${metrics.usableArea.toFixed(2)} m²`],
+      ['Compactness', `${(metrics.compactness * 100).toFixed(1)}%`],
+      ['Aspect Ratio', `${metrics.aspectRatio.toFixed(2)}:1`],
       ['Floor Material', floorType],
       ['Wall Material', wallMaterial],
       ['Window Style', windowStyle],
-      ['Valid Room', roomStats.isValid ? 'Yes' : 'No'],
+      ['Valid Room', metrics.isValid ? 'Yes' : 'No'],
       ['Export Date', new Date().toLocaleDateString()],
       ['', ''],
       ['Wall Details', ''],
@@ -74,7 +73,7 @@ const RoomExporter: React.FC<RoomExporterProps> = ({
 
     walls.forEach((wall, index) => {
       const length = Math.sqrt(
-        Math.pow(wall.end.x - wall.start.x, 2) + 
+        Math.pow(wall.end.x - wall.start.x, 2) +
         Math.pow(wall.end.z - wall.start.z, 2)
       );
       csvData.push([
@@ -92,7 +91,7 @@ const RoomExporter: React.FC<RoomExporterProps> = ({
     const csvContent = csvData.map(row => row.join(',')).join('\n');
     const dataBlob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(dataBlob);
-    
+
     const link = document.createElement('a');
     link.href = url;
     link.download = `${roomName.replace(/\s+/g, '_')}_room_report.csv`;
@@ -116,7 +115,7 @@ const RoomExporter: React.FC<RoomExporterProps> = ({
 
     const encodedData = btoa(JSON.stringify(roomData));
     const shareUrl = `${window.location.origin}/builder?room=${encodedData}`;
-    
+
     navigator.clipboard.writeText(shareUrl).then(() => {
       alert('Shareable link copied to clipboard!');
     }).catch(() => {
@@ -145,10 +144,20 @@ Generated: ${new Date().toLocaleString()}
 
 ROOM SPECIFICATIONS
 ------------------
-• Area: ${roomStats.area.toFixed(2)} m²
-• Perimeter: ${roomStats.perimeter.toFixed(2)} m
-• Wall Count: ${roomStats.wallCount}
-• Room Status: ${roomStats.isValid ? 'Valid' : 'Invalid'}
+• Area: ${metrics.area.toFixed(2)} m²
+• Usable Area: ${metrics.usableArea.toFixed(2)} m²
+• Perimeter: ${metrics.perimeter.toFixed(2)} m
+• Wall Count: ${metrics.wallCount}
+• Room Status: ${metrics.isValid ? 'Valid' : 'Invalid'}
+
+SHAPE ANALYSIS
+--------------
+• Compactness: ${(metrics.compactness * 100).toFixed(1)}%
+• Convexity: ${(metrics.convexity * 100).toFixed(1)}%
+• Aspect Ratio: ${metrics.aspectRatio.toFixed(2)}:1
+${metrics.wallCount === 4 ? `• Rectangularity: ${(metrics.rectangularity * 100).toFixed(1)}%` : ''}
+• Average Wall Length: ${metrics.averageWallLength.toFixed(2)}m
+• Wall-to-Floor Ratio: ${(metrics.wallToFloorRatio * 100).toFixed(1)}%
 
 MATERIALS SELECTED
 -----------------
@@ -159,12 +168,12 @@ MATERIALS SELECTED
 WALL DETAILS
 -----------
 ${walls.map((wall, index) => {
-  const length = Math.sqrt(
-    Math.pow(wall.end.x - wall.start.x, 2) + 
-    Math.pow(wall.end.z - wall.start.z, 2)
-  );
-  return `Wall ${index + 1}: ${length.toFixed(2)}m long, ${wall.height.toFixed(2)}m high, ${wall.thickness.toFixed(2)}m thick`;
-}).join('\n')}
+      const length = Math.sqrt(
+        Math.pow(wall.end.x - wall.start.x, 2) +
+        Math.pow(wall.end.z - wall.start.z, 2)
+      );
+      return `Wall ${index + 1}: ${length.toFixed(2)}m long, ${wall.height.toFixed(2)}m high, ${wall.thickness.toFixed(2)}m thick`;
+    }).join('\n')}
 
 CONSTRUCTION NOTES
 -----------------
@@ -178,7 +187,7 @@ Generated by Roomi Room Builder
 
     const dataBlob = new Blob([report], { type: 'text/plain' });
     const url = URL.createObjectURL(dataBlob);
-    
+
     const link = document.createElement('a');
     link.href = url;
     link.download = `${roomName.replace(/\s+/g, '_')}_building_report.txt`;
@@ -256,7 +265,7 @@ Generated by Roomi Room Builder
           size="sm"
           onClick={generateShareableLink}
           className="w-full text-xs"
-          disabled={!roomStats.isValid}
+          disabled={!metrics.isValid}
         >
           <Share2 className="w-3 h-3 mr-1" />
           Share Room Link
