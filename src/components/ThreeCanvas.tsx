@@ -1103,7 +1103,7 @@ const createAdvancedFloorSystem = (
   const baseMaterial = createEnhancedFloorMaterial(floorType, isDarkMode);
   const baseMesh = new THREE.Mesh(baseGeometry.clone(), baseMaterial);
   baseMesh.name = 'floor-base';
-  baseMesh.position.y = 0.005;
+  baseMesh.position.y = 0; // Position at ground level
   baseMesh.receiveShadow = true;
   baseMesh.castShadow = false;
   floorMeshes.push(baseMesh);
@@ -2878,7 +2878,55 @@ const addRoomFurniture = (
   maxZ: number
 ) => {
   const furnitureSpacing = 1.5; // Minimum distance from walls
+  const objectSpacing = 1.0; // Minimum distance between furniture objects
   const minRoomSize = 2.0; // Minimum room dimension to add furniture
+
+  // Helper to clamp position inside bounds with margin
+  const clampPos = (x:number, z:number) => ({
+    x: THREE.MathUtils.clamp(x, minX + furnitureSpacing, maxX - furnitureSpacing),
+    z: THREE.MathUtils.clamp(z, minZ + furnitureSpacing, maxZ - furnitureSpacing)
+  });
+
+  // Track placed objects to avoid overlap
+  const placed: {x:number,z:number,r:number}[] = [];
+
+  const placeObject = (obj:THREE.Object3D, desiredX:number, desiredZ:number, radius:number=0.5) => {
+    let bestX = desiredX, bestZ = desiredZ;
+    let minDistance = Infinity;
+    
+    // Grid search for best non-conflicting position
+    const searchRadius = 3.0; // Search within 3m radius
+    const step = 0.5; // 50cm grid
+    
+    for(let dx = -searchRadius; dx <= searchRadius; dx += step) {
+      for(let dz = -searchRadius; dz <= searchRadius; dz += step) {
+        const testX = desiredX + dx;
+        const testZ = desiredZ + dz;
+        const {x, z} = clampPos(testX, testZ);
+        
+        // Check if position is valid (within bounds)
+        if(x === testX && z === testZ) {
+          // Check for conflicts with existing objects
+          const hasConflict = placed.some(p => 
+            Math.hypot(p.x - x, p.z - z) < (p.r + radius + objectSpacing)
+          );
+          
+          if(!hasConflict) {
+            const distance = Math.hypot(dx, dz);
+            if(distance < minDistance) {
+              minDistance = distance;
+              bestX = x;
+              bestZ = z;
+            }
+          }
+        }
+      }
+    }
+    
+    obj.position.set(bestX, obj.position.y, bestZ);
+    placed.push({x: bestX, z: bestZ, r: radius});
+    wallGroup.add(obj);
+  };
   
   if (roomWidth < minRoomSize || roomDepth < minRoomSize) return;
   
@@ -2890,47 +2938,49 @@ const addRoomFurniture = (
   if (roomArea > 20) {
     // Add sofa
     const sofa = createSofa(isDarkMode);
-    sofa.position.set(centerX, 0, centerZ - roomDepth * 0.2);
     sofa.name = 'furniture-sofa';
-    wallGroup.add(sofa);
+    placeObject(sofa, centerX, centerZ - roomDepth * 0.2, 1.0);
     
     // Add coffee table
     const table = createTable(isDarkMode);
-    table.position.set(centerX, 0, centerZ + roomDepth * 0.1);
     table.name = 'furniture-table';
-    wallGroup.add(table);
+    placeObject(table, centerX, centerZ + roomDepth * 0.1, 0.6);
     
     // Add chairs
     const chair1 = createChair(isDarkMode);
-    chair1.position.set(centerX - roomWidth * 0.25, 0, centerZ + roomDepth * 0.25);
     chair1.rotation.y = Math.PI / 4;
     chair1.name = 'furniture-chair1';
-    wallGroup.add(chair1);
+    placeObject(chair1, centerX - roomWidth * 0.25, centerZ + roomDepth * 0.25, 0.5);
     
     const chair2 = createChair(isDarkMode);
-    chair2.position.set(centerX + roomWidth * 0.25, 0, centerZ + roomDepth * 0.25);
     chair2.rotation.y = -Math.PI / 4;
     chair2.name = 'furniture-chair2';
-    wallGroup.add(chair2);
+    placeObject(chair2, centerX + roomWidth * 0.25, centerZ + roomDepth * 0.25, 0.5);
   }
   
   // Medium rooms (12-20m²) - Kitchen setup
   else if (roomArea > 12 && roomWidth > 3 && roomDepth > 3) {
     // Add kitchen island
     const island = createKitchenIsland(isDarkMode);
-    island.position.set(centerX, 0, centerZ);
+    const islandX = THREE.MathUtils.clamp(centerX, minX + furnitureSpacing, maxX - furnitureSpacing);
+    const islandZ = THREE.MathUtils.clamp(centerZ, minZ + furnitureSpacing, maxZ - furnitureSpacing);
+    island.position.set(islandX, 0, islandZ);
     island.name = 'furniture-kitchen-island';
     wallGroup.add(island);
     
     // Add refrigerator in corner
     const fridge = createRefrigerator(isDarkMode);
-    fridge.position.set(centerX - roomWidth * 0.35, 0, centerZ - roomDepth * 0.35);
+    const fridgeX = THREE.MathUtils.clamp(centerX - roomWidth * 0.35, minX + furnitureSpacing, maxX - furnitureSpacing);
+    const fridgeZ = THREE.MathUtils.clamp(centerZ - roomDepth * 0.35, minZ + furnitureSpacing, maxZ - furnitureSpacing);
+    fridge.position.set(fridgeX, 0, fridgeZ);
     fridge.name = 'furniture-refrigerator';
     wallGroup.add(fridge);
     
     // Add sink
     const sink = createSink(isDarkMode);
-    sink.position.set(centerX + roomWidth * 0.3, 0.8, centerZ + roomDepth * 0.3);
+    const sinkX = THREE.MathUtils.clamp(centerX + roomWidth * 0.3, minX + furnitureSpacing, maxX - furnitureSpacing);
+    const sinkZ = THREE.MathUtils.clamp(centerZ + roomDepth * 0.3, minZ + furnitureSpacing, maxZ - furnitureSpacing);
+    sink.position.set(sinkX, 0.8, sinkZ);
     sink.name = 'furniture-sink';
     wallGroup.add(sink);
   }
@@ -2939,14 +2989,18 @@ const addRoomFurniture = (
   else if (roomArea > 8) {
     // Add bed
     const bed = createBed(isDarkMode);
-    bed.position.set(centerX, 0, centerZ - roomDepth * 0.2);
+    const bedX = THREE.MathUtils.clamp(centerX, minX + furnitureSpacing, maxX - furnitureSpacing);
+    const bedZ = THREE.MathUtils.clamp(centerZ - roomDepth * 0.2, minZ + furnitureSpacing, maxZ - furnitureSpacing);
+    bed.position.set(bedX, 0, bedZ);
     bed.name = 'furniture-bed';
     wallGroup.add(bed);
     
     // Add side table
     const sideTable = createTable(isDarkMode);
     sideTable.scale.set(0.6, 1, 0.6); // Smaller side table
-    sideTable.position.set(centerX + roomWidth * 0.3, 0, centerZ - roomDepth * 0.2);
+    const tableX = THREE.MathUtils.clamp(centerX + roomWidth * 0.3, minX + furnitureSpacing, maxX - furnitureSpacing);
+    const tableZ = THREE.MathUtils.clamp(centerZ - roomDepth * 0.2, minZ + furnitureSpacing, maxZ - furnitureSpacing);
+    sideTable.position.set(tableX, 0, tableZ);
     sideTable.name = 'furniture-sidetable';
     wallGroup.add(sideTable);
   }
@@ -2955,13 +3009,17 @@ const addRoomFurniture = (
   else if (roomArea > 4 && roomArea <= 8) {
     // Add toilet
     const toilet = createToilet(isDarkMode);
-    toilet.position.set(centerX - roomWidth * 0.25, 0, centerZ - roomDepth * 0.25);
+    const toiletX = THREE.MathUtils.clamp(centerX - roomWidth * 0.25, minX + furnitureSpacing, maxX - furnitureSpacing);
+    const toiletZ = THREE.MathUtils.clamp(centerZ - roomDepth * 0.25, minZ + furnitureSpacing, maxZ - furnitureSpacing);
+    toilet.position.set(toiletX, 0, toiletZ);
     toilet.name = 'furniture-toilet';
     wallGroup.add(toilet);
     
     // Add sink
     const sink = createSink(isDarkMode);
-    sink.position.set(centerX + roomWidth * 0.25, 0.8, centerZ + roomDepth * 0.25);
+    const sinkX = THREE.MathUtils.clamp(centerX + roomWidth * 0.25, minX + furnitureSpacing, maxX - furnitureSpacing);
+    const sinkZ = THREE.MathUtils.clamp(centerZ + roomDepth * 0.25, minZ + furnitureSpacing, maxZ - furnitureSpacing);
+    sink.position.set(sinkX, 0.8, sinkZ);
     sink.name = 'furniture-bathroom-sink';
     wallGroup.add(sink);
   }
@@ -3018,6 +3076,8 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   const boundsRef = useRef<{minX:number,maxX:number,minZ:number,maxZ:number}|null>(null);
   const draggedRef = useRef<THREE.Object3D|null>(null);
   const draggableObjectsRef = useRef<THREE.Object3D[]>([]);
+  const selectedObjectRef = useRef<THREE.Object3D|null>(null);
+  const isRotatingRef = useRef<boolean>(false);
 
   const [isFloorplanValid, setIsFloorplanValid] = useState(false);
   const [processedWalls, setProcessedWalls] = useState<Wall[]>([]);
@@ -3156,13 +3216,25 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           furniture = furniture.parent;
         }
         if (furniture.name?.startsWith('furniture-')) {
-          draggedRef.current = furniture;
+          selectedObjectRef.current = furniture;
+          
+          // Check if user is holding shift for rotation
+          if (e.shiftKey) {
+            isRotatingRef.current = true;
+          } else {
+            draggedRef.current = furniture;
+          }
+          
+          // Disable orbit controls when manipulating objects
+          if (controls) {
+            controls.enabled = false;
+          }
         }
       }
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      if (!draggedRef.current || !boundsRef.current) return;
+      if (!selectedObjectRef.current || !boundsRef.current) return;
       
       const rect = renderer.domElement.getBoundingClientRect();
       const mouse = new THREE.Vector2(
@@ -3170,22 +3242,35 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         -((e.clientY - rect.top) / rect.height) * 2 + 1
       );
       
-      raycaster.setFromCamera(mouse, camera);
-      const intersectionPoint = new THREE.Vector3();
-      raycaster.ray.intersectPlane(dragPlane, intersectionPoint);
-      
-      const { minX, maxX, minZ, maxZ } = boundsRef.current;
-      const margin = 0.5; // Keep furniture 0.5m from walls
-      
-      draggedRef.current.position.set(
-        THREE.MathUtils.clamp(intersectionPoint.x, minX + margin, maxX - margin),
-        draggedRef.current.position.y,
-        THREE.MathUtils.clamp(intersectionPoint.z, minZ + margin, maxZ - margin)
-      );
+      if (isRotatingRef.current) {
+        // Rotate object based on mouse movement
+        const deltaX = e.movementX || 0;
+        selectedObjectRef.current.rotation.y += deltaX * 0.01;
+      } else if (draggedRef.current) {
+        // Move object
+        raycaster.setFromCamera(mouse, camera);
+        const intersectionPoint = new THREE.Vector3();
+        raycaster.ray.intersectPlane(dragPlane, intersectionPoint);
+        
+        const { minX, maxX, minZ, maxZ } = boundsRef.current;
+        const margin = 0.5; // Keep furniture 0.5m from walls
+        
+        draggedRef.current.position.set(
+          THREE.MathUtils.clamp(intersectionPoint.x, minX + margin, maxX - margin),
+          draggedRef.current.position.y,
+          THREE.MathUtils.clamp(intersectionPoint.z, minZ + margin, maxZ - margin)
+        );
+      }
     };
 
     const onPointerUp = () => {
       draggedRef.current = null;
+      selectedObjectRef.current = null;
+      isRotatingRef.current = false;
+      // Re-enable orbit controls
+      if (controls) {
+        controls.enabled = true;
+      }
     };
 
     renderer.domElement.addEventListener('pointerdown', onPointerDown);
@@ -3284,81 +3369,89 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
 
 
-    // --- Advanced Floor Rendering ---
+    // --- Simple Floor Rendering ---
     const renderFloor = () => {
+      console.log('🔧 Starting floor render...');
       floorGroup.clear();
 
-      // Use optimized walls for floor generation
-      const { walls: optimizedWalls } = AdvancedGeometryEngine.optimizeWindowPlacements(currentProcessedWalls);
-      const isValid = isValidFloorplan(optimizedWalls);
-      setIsFloorplanValid(isValid);
-
-      // Only render floor for valid, closed room shapes
-      if (!isValid || optimizedWalls.length < 3) {
-        console.log('Skipping floor render - invalid room or insufficient walls');
+      // Always create a simple floor regardless of wall validity
+      if (currentProcessedWalls.length === 0) {
+        console.log('⚠️ No walls found, creating default floor');
+        // Create a default 10x10 floor at origin
+        const defaultGeometry = new THREE.PlaneGeometry(10, 10);
+        defaultGeometry.rotateX(-Math.PI / 2);
+        
+        const material = new THREE.MeshStandardMaterial({
+          color: 0xf0f0f0, // Light gray
+          roughness: 0.6,
+          metalness: 0.0,
+          side: THREE.DoubleSide
+        });
+        
+        const floor = new THREE.Mesh(defaultGeometry, material);
+        floor.name = 'floor-default';
+        floor.position.set(0, -0.01, 0);
+        floor.receiveShadow = true;
+        floorGroup.add(floor);
+        console.log('✅ Default floor created');
         return;
       }
 
       try {
-        // Get ordered vertices from walls
-        const orderedVertices = getOrderedVertices(optimizedWalls);
+        // Get room bounds from walls
+        const allVertices: {x: number, z: number}[] = [];
+        currentProcessedWalls.forEach(wall => {
+          allVertices.push({x: wall.start.x, z: wall.start.z});
+          allVertices.push({x: wall.end.x, z: wall.end.z});
+        });
 
-        if (orderedVertices.length < 3) {
-          console.log('Insufficient vertices for floor');
+        if (allVertices.length === 0) {
+          console.log('⚠️ No vertices found');
           return;
         }
 
-        // Use exact wall vertices for floor (no inset to avoid mismatch)
-        const ccwVertices = ensureCounterClockwise(orderedVertices);
-
-        if (ccwVertices.length < 3) {
-          console.log('Failed to create interior vertices');
-          return;
-        }
-
-        // Create advanced floor geometry with multiple methods
-        let floorGeometry: THREE.BufferGeometry | null = null;
-
-        // Advanced Geometry Creation Pipeline
-        const geometryMethods = [
-          () => createConstrainedDelaunayGeometry(ccwVertices),
-          () => createAdvancedShapeGeometry(ccwVertices),
-          () => createOptimizedEarClippingGeometry(ccwVertices),
-          () => createManualFloorGeometry(ccwVertices)
-        ];
-
-        for (let i = 0; i < geometryMethods.length; i++) {
-          try {
-            floorGeometry = geometryMethods[i]();
-            if (floorGeometry && floorGeometry.attributes.position && floorGeometry.attributes.position.count > 0) {
-              console.log(`✅ Geometry method ${i + 1} succeeded:`, ['Delaunay', 'Advanced Shape', 'Optimized Ear-Clipping', 'Manual'][i]);
-              break;
-            }
-          } catch (error) {
-            console.log(`❌ Geometry method ${i + 1} failed:`, error);
-          }
-        }
-
-        if (!floorGeometry || !floorGeometry.attributes.position || floorGeometry.attributes.position.count === 0) {
-          console.log('Failed to create floor geometry');
-          return;
-        }
-
-        // Create advanced floor system with multiple layers
-        const floorSystem = createAdvancedFloorSystem(floorGeometry, floorType, isDarkMode, ccwVertices);
-        floorSystem.forEach(mesh => floorGroup.add(mesh));
+        // Calculate bounds
+        const minX = Math.min(...allVertices.map(v => v.x));
+        const maxX = Math.max(...allVertices.map(v => v.x));
+        const minZ = Math.min(...allVertices.map(v => v.z));
+        const maxZ = Math.max(...allVertices.map(v => v.z));
         
-        // Position floor slightly below to avoid z-fighting with walls
-        floorGroup.position.y = -0.001;
+        const width = maxX - minX;
+        const depth = maxZ - minZ;
+        const centerX = (minX + maxX) / 2;
+        const centerZ = (minZ + maxZ) / 2;
 
+        console.log(`📐 Floor bounds: ${width.toFixed(2)}x${depth.toFixed(2)} at (${centerX.toFixed(2)}, ${centerZ.toFixed(2)})`);
 
+        // Create simple rectangular floor
+        const floorGeometry = new THREE.PlaneGeometry(width, depth);
+        floorGeometry.rotateX(-Math.PI / 2);
 
-        // Add area display
-        const roomArea = calculateRoomArea(orderedVertices); // Use exterior vertices for area
+        // Create visible material with better colors
+        const floorMaterial = new THREE.MeshStandardMaterial({
+          color: floorType === 'wood' ? 0xdeb887 :      // Light wood
+                 floorType === 'tile' ? 0xf5f5f5 :      // Light gray tile
+                 floorType === 'marble' ? 0xffffff :     // White marble
+                 floorType === 'concrete' ? 0xd3d3d3 :   // Light concrete
+                 floorType === 'carpet' ? 0xcd853f :     // Tan carpet
+                 0xf0f0f0,                               // Default light gray
+          roughness: 0.6,
+          metalness: 0.0,
+          side: THREE.DoubleSide
+        });
+
+        const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
+        floorMesh.name = 'floor-simple';
+        floorMesh.position.set(centerX, -0.01, centerZ); // Slightly below walls
+        floorMesh.receiveShadow = true;
+        floorMesh.castShadow = false;
+        
+        floorGroup.add(floorMesh);
+        console.log('✅ Simple floor created and added to group');
+        
+        // Add area text
+        const roomArea = width * depth;
         if (roomArea > 0) {
-          const centerX = ccwVertices.reduce((sum, v) => sum + v.x, 0) / ccwVertices.length;
-          const centerZ = ccwVertices.reduce((sum, v) => sum + v.z, 0) / ccwVertices.length;
-
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d')!;
           canvas.width = 512;
@@ -3381,68 +3474,25 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           floorGroup.add(sprite);
         }
 
-        console.log('Advanced floor rendered successfully');
-
       } catch (error) {
-        console.error('Advanced floor rendering error:', error);
-      }
-
-      try {
-        const orderedVertices = getOrderedVertices(optimizedWalls);
-
-        if (orderedVertices.length < 3) {
-          return;
-        }
-
-        // Create the main floor shape with better error handling
-        const validVertices = orderedVertices.filter(v =>
-          !isNaN(v.x) && !isNaN(v.z) && isFinite(v.x) && isFinite(v.z)
-        );
-
-        if (validVertices.length < 3) {
-          return;
-        }
-
-        // Simple approach: Create a floor that's significantly smaller than the wall boundaries
-        // This ensures it stays well within the room
-
-        // Calculate room bounds
-        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-        validVertices.forEach(v => {
-          minX = Math.min(minX, v.x);
-          maxX = Math.max(maxX, v.x);
-          minZ = Math.min(minZ, v.z);
-          maxZ = Math.max(maxZ, v.z);
+        console.error('❌ Floor rendering error:', error);
+        
+        // Emergency fallback - always create a floor
+        const emergencyGeometry = new THREE.PlaneGeometry(10, 10);
+        emergencyGeometry.rotateX(-Math.PI / 2);
+        
+        const emergencyMaterial = new THREE.MeshStandardMaterial({
+          color: 0xf0f0f0, // Light gray instead of red
+          roughness: 0.6,
+          metalness: 0.0,
+          side: THREE.DoubleSide
         });
-
-        // Create a simple rectangular floor that's inset from the bounds
-        const avgThickness = optimizedWalls.reduce((sum, wall) => sum + wall.thickness, 0) / optimizedWalls.length;
-        const inset = avgThickness; // Full wall thickness inset
-
-        const floorWidth = (maxX - minX) - (inset * 2);
-        const floorDepth = (maxZ - minZ) - (inset * 2);
-        const floorCenterX = (minX + maxX) / 2;
-        const floorCenterZ = (minZ + maxZ) / 2;
-
-        // Create simple rectangular floor geometry
-        const floorGeometry = new THREE.PlaneGeometry(floorWidth, floorDepth);
-        floorGeometry.rotateX(-Math.PI / 2); // Make it horizontal
-
-
-        // Create realistic floor texture based on selected type
-        const floorMaterial = createFloorMaterialByType(floorType, isDarkMode);
-
-        const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
-        floorMesh.name = 'floor';
-        floorMesh.position.set(floorCenterX, 0.005, floorCenterZ); // Position at room center
-        floorMesh.receiveShadow = true;
-        floorMesh.castShadow = false; // Floor shouldn't cast shadows
-        floorGroup.add(floorMesh);
-        // Floor rendering complete - no additional elements needed for now
-
-      } catch (error) {
-        console.error("Error rendering floor:", error);
-        setIsFloorplanValid(false);
+        
+        const emergencyFloor = new THREE.Mesh(emergencyGeometry, emergencyMaterial);
+        emergencyFloor.name = 'floor-emergency';
+        emergencyFloor.position.set(0, -0.01, 0);
+        floorGroup.add(emergencyFloor);
+        console.log('🚨 Emergency floor created');
       }
     };
 
