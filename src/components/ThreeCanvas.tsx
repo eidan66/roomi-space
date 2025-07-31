@@ -287,7 +287,8 @@ class AdvancedFloorEngine {
     console.log('🏗️ Advanced Floor Engine: Processing', exteriorVertices.length, 'vertices');
 
     // Calculate dynamic inset based on room characteristics
-    const insetDistance = this.calculateOptimalInset(walls, exteriorVertices);
+    let insetDistance = this.calculateOptimalInset(walls, exteriorVertices);
+    insetDistance = Math.min(insetDistance, 0.05); // Cap inset to avoid floor shrinkage
     console.log('📐 Calculated optimal inset:', insetDistance.toFixed(3), 'm');
 
     // Try multiple algorithms in order of sophistication
@@ -2870,7 +2871,11 @@ const addRoomFurniture = (
   roomWidth: number,
   roomDepth: number,
   roomArea: number,
-  isDarkMode: boolean
+  isDarkMode: boolean,
+  minX: number,
+  maxX: number,
+  minZ: number,
+  maxZ: number
 ) => {
   const furnitureSpacing = 1.5; // Minimum distance from walls
   const minRoomSize = 2.0; // Minimum room dimension to add furniture
@@ -2980,6 +2985,14 @@ const addRoomFurniture = (
     lamp.name = 'furniture-lamp';
     wallGroup.add(lamp);
   }
+
+  // Clamp all furniture positions to avoid intersecting walls
+  wallGroup.children.forEach(child => {
+    if (child.name && child.name.startsWith('furniture-')) {
+      child.position.x = Math.max(minX + furnitureSpacing, Math.min(maxX - furnitureSpacing, child.position.x));
+      child.position.z = Math.max(minZ + furnitureSpacing, Math.min(maxZ - furnitureSpacing, child.position.z));
+    }
+  });
 };
 
 const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
@@ -3000,6 +3013,11 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   const wallGroupRef = useRef<THREE.Group>(new THREE.Group());
   const floorGroupRef = useRef<THREE.Group>(new THREE.Group());
   const measurementGroupRef = useRef<THREE.Group>(new THREE.Group());
+  
+  // Furniture dragging refs
+  const boundsRef = useRef<{minX:number,maxX:number,minZ:number,maxZ:number}|null>(null);
+  const draggedRef = useRef<THREE.Object3D|null>(null);
+  const draggableObjectsRef = useRef<THREE.Object3D[]>([]);
 
   const [isFloorplanValid, setIsFloorplanValid] = useState(false);
   const [processedWalls, setProcessedWalls] = useState<Wall[]>([]);
@@ -3117,10 +3135,70 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     };
     window.addEventListener('resize', handleResize);
 
+    // Furniture dragging setup
+    const raycaster = new THREE.Raycaster();
+    const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // y=0 plane
+
+    const onPointerDown = (e: PointerEvent) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObjects(draggableObjectsRef.current, true);
+      
+      if (hits.length > 0) {
+        // Find the furniture group (parent of the hit mesh)
+        let furniture = hits[0].object;
+        while (furniture.parent && !furniture.name?.startsWith('furniture-')) {
+          furniture = furniture.parent;
+        }
+        if (furniture.name?.startsWith('furniture-')) {
+          draggedRef.current = furniture;
+        }
+      }
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!draggedRef.current || !boundsRef.current) return;
+      
+      const rect = renderer.domElement.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      
+      raycaster.setFromCamera(mouse, camera);
+      const intersectionPoint = new THREE.Vector3();
+      raycaster.ray.intersectPlane(dragPlane, intersectionPoint);
+      
+      const { minX, maxX, minZ, maxZ } = boundsRef.current;
+      const margin = 0.5; // Keep furniture 0.5m from walls
+      
+      draggedRef.current.position.set(
+        THREE.MathUtils.clamp(intersectionPoint.x, minX + margin, maxX - margin),
+        draggedRef.current.position.y,
+        THREE.MathUtils.clamp(intersectionPoint.z, minZ + margin, maxZ - margin)
+      );
+    };
+
+    const onPointerUp = () => {
+      draggedRef.current = null;
+    };
+
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    renderer.domElement.addEventListener('pointermove', onPointerMove);
+    renderer.domElement.addEventListener('pointerup', onPointerUp);
+
     // --- Cleanup ---
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', handleResize);
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      renderer.domElement.removeEventListener('pointermove', onPointerMove);
+      renderer.domElement.removeEventListener('pointerup', onPointerUp);
       controls.dispose();
       renderer.dispose();
       if (currentMount && renderer.domElement) {
@@ -3230,11 +3308,8 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           return;
         }
 
-        // Create interior floor vertices using advanced polygon inset algorithm
-        const interiorVertices = createAdvancedInteriorFloor(optimizedWalls, orderedVertices);
-
-        // Ensure vertices are in counter-clockwise order for proper face orientation
-        const ccwVertices = ensureCounterClockwise(interiorVertices);
+        // Use exact wall vertices for floor (no inset to avoid mismatch)
+        const ccwVertices = ensureCounterClockwise(orderedVertices);
 
         if (ccwVertices.length < 3) {
           console.log('Failed to create interior vertices');
@@ -3272,6 +3347,9 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         // Create advanced floor system with multiple layers
         const floorSystem = createAdvancedFloorSystem(floorGeometry, floorType, isDarkMode, ccwVertices);
         floorSystem.forEach(mesh => floorGroup.add(mesh));
+        
+        // Position floor slightly below to avoid z-fighting with walls
+        floorGroup.position.y = -0.001;
 
 
 
@@ -3419,7 +3497,11 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       const roomArea = calculateRoomArea(orderedVertices);
 
       // Add furniture based on room size and type
-      addRoomFurniture(wallGroup, centerX, centerZ, roomWidth, roomDepth, roomArea, isDarkMode);
+      addRoomFurniture(wallGroup, centerX, centerZ, roomWidth, roomDepth, roomArea, isDarkMode, minX, maxX, minZ, maxZ);
+      
+      // Store bounds and draggable objects for furniture dragging
+      boundsRef.current = {minX, maxX, minZ, maxZ};
+      draggableObjectsRef.current = wallGroup.children.filter(c => c.name?.startsWith('furniture-'));
     };
 
     // --- Render Walls ---
