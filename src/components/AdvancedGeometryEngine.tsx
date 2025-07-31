@@ -6,7 +6,7 @@ import { Wall } from './Floorplan2DCanvas';
 // Advanced Geometry Engine for Room Building
 export class AdvancedGeometryEngine {
   private static PRECISION = 0.001; // 1mm precision
-  private static SNAP_THRESHOLD = 0.1; // 10cm snap threshold
+  private static SNAP_THRESHOLD = 0.001; // 1mm snap threshold - keep vertices close to original positions
   private static RATIONAL_ANGLES = [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330]; // degrees
 
   // 1. Vertex Snapping with Precision Alignment
@@ -65,14 +65,19 @@ export class AdvancedGeometryEngine {
     });
   }
 
-  // 3. Realign Diagonals to Rational Angles
-  static realignDiagonals(walls: Wall[]): Wall[] {
+  // 3. Realign Diagonals to Rational Angles (Optional)
+  static realignDiagonals(walls: Wall[], forceRationalAngles: boolean = false): Wall[] {
     return walls.map(wall => {
       const dx = wall.end.x - wall.start.x;
       const dz = wall.end.z - wall.start.z;
       const length = Math.sqrt(dx * dx + dz * dz);
       
       if (length < this.PRECISION) return wall;
+
+      // If not forcing rational angles, return wall as-is
+      if (!forceRationalAngles) {
+        return wall;
+      }
 
       // Calculate current angle
       const currentAngle = Math.atan2(dz, dx) * 180 / Math.PI;

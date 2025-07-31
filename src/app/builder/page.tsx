@@ -47,6 +47,7 @@ export default function RoomBuilderPage() {
   const [editMode, setEditMode] = useState<'draw' | 'move' | 'idle'>('idle');
 
   const [gridEnabled, setGridEnabled] = useState(true);
+  const [gridSnapping, setGridSnapping] = useState(true);
   const [showWindows, setShowWindows] = useState(true);
   const [wallHeight, setWallHeight] = useState(2.5);
   const [wallThickness, setWallThickness] = useState(0.2);
@@ -230,6 +231,10 @@ export default function RoomBuilderPage() {
               <div className="flex items-center justify-between pt-2">
                 <Label className="text-sm">Show Grid</Label>
                 <Switch checked={gridEnabled} onCheckedChange={setGridEnabled} />
+              </div>
+              <div className="flex items-center justify-between pt-2">
+                <Label className="text-sm">Grid Snapping</Label>
+                <Switch checked={gridSnapping} onCheckedChange={setGridSnapping} />
               </div>
             </CardContent>
           </Card>
@@ -548,6 +553,7 @@ export default function RoomBuilderPage() {
             wallHeight={wallHeight}
             wallThickness={wallThickness}
             onWallsChange={handleWallsChange}
+            gridSnapping={gridSnapping}
           />
         ) : (
           <ThreeCanvas

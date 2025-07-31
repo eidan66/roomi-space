@@ -233,6 +233,7 @@ const getOrderedVertices = (walls: Wall[]): { x: number; z: number }[] => {
     }
 
     previousPoint = currentPoint;
+    if (!nextPoint) break; // Break if nextPoint is null to avoid infinite loop
     currentPoint = nextPoint;
   }
 
@@ -1106,32 +1107,7 @@ const createAdvancedFloorSystem = (
   baseMesh.castShadow = false;
   floorMeshes.push(baseMesh);
 
-  // Layer 2: Subtle Height Variation (for realism)
-  if (floorType !== 'carpet') {
-    const heightVariationMesh = createHeightVariationLayer(baseGeometry, floorType, isDarkMode);
-    if (heightVariationMesh) {
-      heightVariationMesh.position.y = 0.006;
-      floorMeshes.push(heightVariationMesh);
-    }
-  }
 
-  // Layer 3: Procedural Details (scratches, wear patterns)
-  const detailMesh = createProceduralDetails(baseGeometry, floorType, isDarkMode, vertices);
-  if (detailMesh) {
-    detailMesh.position.y = 0.007;
-    floorMeshes.push(detailMesh);
-  }
-
-  // Layer 4: Ambient Occlusion Enhancement
-  const aoMesh = createAmbientOcclusionLayer(baseGeometry, vertices, isDarkMode);
-  if (aoMesh) {
-    aoMesh.position.y = 0.004;
-    floorMeshes.push(aoMesh);
-  }
-
-  // Layer 5: Edge Finishing (baseboards, transitions)
-  const edgeFinishing = createEdgeFinishing(vertices, isDarkMode);
-  floorMeshes.push(...edgeFinishing);
 
   return floorMeshes;
 };
@@ -1758,8 +1734,8 @@ const createFloorMaterialByType = (floorType: 'wood' | 'tile' | 'concrete' | 'ma
 
   const material = new THREE.MeshStandardMaterial({
     color: colors[floorType],
-    roughness: floorType === 'marble' ? 0.1 : floorType === 'metal' ? 0.2 : 0.8,
-    metalness: floorType === 'metal' ? 0.8 : 0.05,
+    roughness: floorType === 'marble' ? 0.1 : 0.8,
+    metalness: 0.05,
     side: THREE.DoubleSide,
   });
 
@@ -2111,7 +2087,10 @@ const createModernWindow = (wall: Wall, windowPlacement: WindowPlacement): THREE
   windowGroup.add(cutoutMesh);
 
   windowGroup.position.copy(windowPosition);
-  windowGroup.rotation.y = Math.atan2(wallVector.z, wallVector.x);
+  windowGroup.quaternion.setFromUnitVectors(
+    new THREE.Vector3(1, 0, 0), // Window's local X axis
+    wallVector.clone().normalize() // Wall direction
+  );
 
   return windowGroup;
 };
@@ -2198,7 +2177,10 @@ const createClassicWindow = (wall: Wall, windowPlacement: WindowPlacement): THRE
   windowGroup.add(sillMesh);
 
   windowGroup.position.copy(windowPosition);
-  windowGroup.rotation.y = Math.atan2(wallVector.z, wallVector.x);
+  windowGroup.quaternion.setFromUnitVectors(
+    new THREE.Vector3(1, 0, 0), // Window's local X axis
+    wallVector.clone().normalize() // Wall direction
+  );
 
   return windowGroup;
 };
@@ -2285,7 +2267,10 @@ const createIndustrialWindow = (wall: Wall, windowPlacement: WindowPlacement): T
   }
 
   windowGroup.position.copy(windowPosition);
-  windowGroup.rotation.y = Math.atan2(wallVector.z, wallVector.x);
+  windowGroup.quaternion.setFromUnitVectors(
+    new THREE.Vector3(1, 0, 0), // Window's local X axis
+    wallVector.clone().normalize() // Wall direction
+  );
 
   return windowGroup;
 };
@@ -2376,7 +2361,10 @@ const createOptimizedWindow = (wall: Wall, windowPlacement: WindowPlacement): TH
 
   // Position and rotate the entire window group
   windowGroup.position.copy(windowPosition);
-  windowGroup.rotation.y = Math.atan2(wallVector.z, wallVector.x);
+  windowGroup.quaternion.setFromUnitVectors(
+    new THREE.Vector3(1, 0, 0), // Window's local X axis
+    wallVector.clone().normalize() // Wall direction
+  );
 
   // Enable shadows for all window components
   windowGroup.traverse((child) => {
@@ -2481,7 +2469,10 @@ const createWindow = (wall: Wall, windowHeight: number = 1.2, windowWidth: numbe
 
   // Position and rotate the entire window group
   windowGroup.position.copy(windowPosition);
-  windowGroup.rotation.y = Math.atan2(wallVector.z, wallVector.x);
+  windowGroup.quaternion.setFromUnitVectors(
+    new THREE.Vector3(1, 0, 0), // Window's local X axis
+    wallVector.clone().normalize() // Wall direction
+  );
 
   // Enable shadows for all window components
   windowGroup.traverse((child) => {
@@ -2504,6 +2495,492 @@ interface ThreeCanvasProps {
   wallMaterial?: 'paint' | 'brick' | 'stone' | 'wood' | 'metal';
   windowStyle?: 'modern' | 'classic' | 'industrial';
 }
+
+// Furniture Creation Functions
+const createChair = (isDarkMode: boolean): THREE.Group => {
+  const chairGroup = new THREE.Group();
+  
+  const woodColor = isDarkMode ? 0x4A4A4A : 0x8B4513;
+  const cushionColor = isDarkMode ? 0x2A2A2A : 0x654321;
+  
+  const woodMaterial = new THREE.MeshStandardMaterial({ color: woodColor, roughness: 0.8 });
+  const cushionMaterial = new THREE.MeshStandardMaterial({ color: cushionColor, roughness: 0.6 });
+  
+  // Seat
+  const seatGeometry = new THREE.BoxGeometry(0.5, 0.05, 0.5);
+  const seatMesh = new THREE.Mesh(seatGeometry, cushionMaterial);
+  seatMesh.position.y = 0.45;
+  chairGroup.add(seatMesh);
+  
+  // Backrest
+  const backGeometry = new THREE.BoxGeometry(0.5, 0.6, 0.05);
+  const backMesh = new THREE.Mesh(backGeometry, woodMaterial);
+  backMesh.position.set(0, 0.75, -0.225);
+  chairGroup.add(backMesh);
+  
+  // Legs
+  const legGeometry = new THREE.BoxGeometry(0.05, 0.45, 0.05);
+  const legPositions = [
+    [-0.2, 0.225, -0.2], [0.2, 0.225, -0.2],
+    [-0.2, 0.225, 0.2], [0.2, 0.225, 0.2]
+  ];
+  
+  legPositions.forEach(pos => {
+    const legMesh = new THREE.Mesh(legGeometry, woodMaterial);
+    legMesh.position.set(pos[0], pos[1], pos[2]);
+    legMesh.castShadow = true;
+    chairGroup.add(legMesh);
+  });
+  
+  chairGroup.traverse(child => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+  
+  return chairGroup;
+};
+
+const createTable = (isDarkMode: boolean): THREE.Group => {
+  const tableGroup = new THREE.Group();
+  
+  const woodColor = isDarkMode ? 0x3A3A3A : 0x8B4513;
+  const woodMaterial = new THREE.MeshStandardMaterial({ color: woodColor, roughness: 0.7 });
+  
+  // Table top
+  const topGeometry = new THREE.BoxGeometry(1.2, 0.05, 0.8);
+  const topMesh = new THREE.Mesh(topGeometry, woodMaterial);
+  topMesh.position.y = 0.75;
+  tableGroup.add(topMesh);
+  
+  // Legs
+  const legGeometry = new THREE.BoxGeometry(0.06, 0.75, 0.06);
+  const legPositions = [
+    [-0.55, 0.375, -0.35], [0.55, 0.375, -0.35],
+    [-0.55, 0.375, 0.35], [0.55, 0.375, 0.35]
+  ];
+  
+  legPositions.forEach(pos => {
+    const legMesh = new THREE.Mesh(legGeometry, woodMaterial);
+    legMesh.position.set(pos[0], pos[1], pos[2]);
+    legMesh.castShadow = true;
+    tableGroup.add(legMesh);
+  });
+  
+  tableGroup.traverse(child => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+  
+  return tableGroup;
+};
+
+const createSofa = (isDarkMode: boolean): THREE.Group => {
+  const sofaGroup = new THREE.Group();
+  
+  const fabricColor = isDarkMode ? 0x2A2A2A : 0x8B4513;
+  const fabricMaterial = new THREE.MeshStandardMaterial({ color: fabricColor, roughness: 0.8 });
+  
+  // Base
+  const baseGeometry = new THREE.BoxGeometry(2.0, 0.4, 0.8);
+  const baseMesh = new THREE.Mesh(baseGeometry, fabricMaterial);
+  baseMesh.position.y = 0.2;
+  sofaGroup.add(baseMesh);
+  
+  // Backrest
+  const backGeometry = new THREE.BoxGeometry(2.0, 0.6, 0.15);
+  const backMesh = new THREE.Mesh(backGeometry, fabricMaterial);
+  backMesh.position.set(0, 0.7, -0.325);
+  sofaGroup.add(backMesh);
+  
+  // Armrests
+  const armGeometry = new THREE.BoxGeometry(0.15, 0.6, 0.8);
+  const leftArm = new THREE.Mesh(armGeometry, fabricMaterial);
+  leftArm.position.set(-0.925, 0.7, 0);
+  sofaGroup.add(leftArm);
+  
+  const rightArm = new THREE.Mesh(armGeometry, fabricMaterial);
+  rightArm.position.set(0.925, 0.7, 0);
+  sofaGroup.add(rightArm);
+  
+  sofaGroup.traverse(child => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+  
+  return sofaGroup;
+};
+
+const createBed = (isDarkMode: boolean): THREE.Group => {
+  const bedGroup = new THREE.Group();
+  
+  const frameColor = isDarkMode ? 0x4A4A4A : 0x8B4513;
+  const mattressColor = isDarkMode ? 0x5A5A5A : 0xF5F5DC;
+  
+  const frameMaterial = new THREE.MeshStandardMaterial({ color: frameColor, roughness: 0.8 });
+  const mattressMaterial = new THREE.MeshStandardMaterial({ color: mattressColor, roughness: 0.6 });
+  
+  // Bed frame
+  const frameGeometry = new THREE.BoxGeometry(2.1, 0.3, 1.1);
+  const frameMesh = new THREE.Mesh(frameGeometry, frameMaterial);
+  frameMesh.position.y = 0.15;
+  bedGroup.add(frameMesh);
+  
+  // Mattress
+  const mattressGeometry = new THREE.BoxGeometry(2.0, 0.2, 1.0);
+  const mattressMesh = new THREE.Mesh(mattressGeometry, mattressMaterial);
+  mattressMesh.position.y = 0.4;
+  bedGroup.add(mattressMesh);
+  
+  // Headboard
+  const headGeometry = new THREE.BoxGeometry(2.1, 1.0, 0.1);
+  const headMesh = new THREE.Mesh(headGeometry, frameMaterial);
+  headMesh.position.set(0, 0.8, -0.55);
+  bedGroup.add(headMesh);
+  
+  bedGroup.traverse(child => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+  
+  return bedGroup;
+};
+
+const createPlant = (isDarkMode: boolean): THREE.Group => {
+  const plantGroup = new THREE.Group();
+  
+  const potColor = isDarkMode ? 0x2A2A2A : 0x8B4513;
+  const leafColor = isDarkMode ? 0x1A4A1A : 0x228B22;
+  
+  const potMaterial = new THREE.MeshStandardMaterial({ color: potColor, roughness: 0.8 });
+  const leafMaterial = new THREE.MeshStandardMaterial({ color: leafColor, roughness: 0.6 });
+  
+  // Pot
+  const potGeometry = new THREE.CylinderGeometry(0.15, 0.12, 0.3, 16);
+  const potMesh = new THREE.Mesh(potGeometry, potMaterial);
+  potMesh.position.y = 0.15;
+  plantGroup.add(potMesh);
+  
+  // Stem
+  const stemGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.5, 8);
+  const stemMesh = new THREE.Mesh(stemGeometry, leafMaterial);
+  stemMesh.position.y = 0.55;
+  plantGroup.add(stemMesh);
+  
+  // Leaves
+  const leafGeometry = new THREE.SphereGeometry(0.3, 8, 6);
+  const leafMesh = new THREE.Mesh(leafGeometry, leafMaterial);
+  leafMesh.position.y = 0.9;
+  leafMesh.scale.set(1, 0.6, 1);
+  plantGroup.add(leafMesh);
+  
+  plantGroup.traverse(child => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+  
+  return plantGroup;
+};
+
+const createLamp = (isDarkMode: boolean): THREE.Group => {
+  const lampGroup = new THREE.Group();
+  
+  const baseColor = isDarkMode ? 0x2A2A2A : 0x4A4A4A;
+  const shadeColor = isDarkMode ? 0x3A3A3A : 0xF5F5DC;
+  
+  const baseMaterial = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.8 });
+  const shadeMaterial = new THREE.MeshStandardMaterial({ color: shadeColor, roughness: 0.6 });
+  
+  // Base
+  const baseGeometry = new THREE.CylinderGeometry(0.1, 0.15, 0.05, 16);
+  const baseMesh = new THREE.Mesh(baseGeometry, baseMaterial);
+  baseMesh.position.y = 0.025;
+  lampGroup.add(baseMesh);
+  
+  // Pole
+  const poleGeometry = new THREE.CylinderGeometry(0.02, 0.02, 1.0, 8);
+  const poleMesh = new THREE.Mesh(poleGeometry, baseMaterial);
+  poleMesh.position.y = 0.55;
+  lampGroup.add(poleMesh);
+  
+  // Lampshade
+  const shadeGeometry = new THREE.ConeGeometry(0.25, 0.3, 16, 1, true);
+  const shadeMesh = new THREE.Mesh(shadeGeometry, shadeMaterial);
+  shadeMesh.position.y = 1.2;
+  lampGroup.add(shadeMesh);
+  
+  // Light source
+  const light = new THREE.PointLight(0xFFFFAA, 0.5, 3);
+  light.position.y = 1.1;
+  light.castShadow = true;
+  lampGroup.add(light);
+  
+  lampGroup.traverse(child => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+  
+  return lampGroup;
+};
+
+const createKitchenIsland = (isDarkMode: boolean): THREE.Group => {
+  const islandGroup = new THREE.Group();
+  
+  const counterColor = isDarkMode ? 0x2A2A2A : 0x696969;
+  const cabinetColor = isDarkMode ? 0x1A1A1A : 0x8B4513;
+  
+  const counterMaterial = new THREE.MeshStandardMaterial({ color: counterColor, roughness: 0.3 });
+  const cabinetMaterial = new THREE.MeshStandardMaterial({ color: cabinetColor, roughness: 0.8 });
+  
+  // Cabinet base
+  const cabinetGeometry = new THREE.BoxGeometry(2.0, 0.8, 1.0);
+  const cabinetMesh = new THREE.Mesh(cabinetGeometry, cabinetMaterial);
+  cabinetMesh.position.y = 0.4;
+  islandGroup.add(cabinetMesh);
+  
+  // Countertop
+  const counterGeometry = new THREE.BoxGeometry(2.1, 0.05, 1.1);
+  const counterMesh = new THREE.Mesh(counterGeometry, counterMaterial);
+  counterMesh.position.y = 0.825;
+  islandGroup.add(counterMesh);
+  
+  islandGroup.traverse(child => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+  
+  return islandGroup;
+};
+
+const createRefrigerator = (isDarkMode: boolean): THREE.Group => {
+  const fridgeGroup = new THREE.Group();
+  
+  const fridgeColor = isDarkMode ? 0x2A2A2A : 0xF5F5F5;
+  const fridgeMaterial = new THREE.MeshStandardMaterial({ color: fridgeColor, roughness: 0.4, metalness: 0.1 });
+  
+  // Main body
+  const bodyGeometry = new THREE.BoxGeometry(0.6, 1.8, 0.6);
+  const bodyMesh = new THREE.Mesh(bodyGeometry, fridgeMaterial);
+  bodyMesh.position.y = 0.9;
+  fridgeGroup.add(bodyMesh);
+  
+  // Door handles
+  const handleGeometry = new THREE.BoxGeometry(0.02, 0.3, 0.02);
+  const handleMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.8 });
+  
+  const handle1 = new THREE.Mesh(handleGeometry, handleMaterial);
+  handle1.position.set(0.25, 1.3, 0.31);
+  fridgeGroup.add(handle1);
+  
+  const handle2 = new THREE.Mesh(handleGeometry, handleMaterial);
+  handle2.position.set(0.25, 0.6, 0.31);
+  fridgeGroup.add(handle2);
+  
+  fridgeGroup.traverse(child => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+  
+  return fridgeGroup;
+};
+
+const createToilet = (isDarkMode: boolean): THREE.Group => {
+  const toiletGroup = new THREE.Group();
+  
+  const porcelainColor = isDarkMode ? 0xE8E8E8 : 0xFFFFF0;
+  const porcelainMaterial = new THREE.MeshStandardMaterial({ color: porcelainColor, roughness: 0.1 });
+  
+  // Base
+  const baseGeometry = new THREE.BoxGeometry(0.4, 0.4, 0.6);
+  const baseMesh = new THREE.Mesh(baseGeometry, porcelainMaterial);
+  baseMesh.position.y = 0.2;
+  toiletGroup.add(baseMesh);
+  
+  // Tank
+  const tankGeometry = new THREE.BoxGeometry(0.35, 0.5, 0.2);
+  const tankMesh = new THREE.Mesh(tankGeometry, porcelainMaterial);
+  tankMesh.position.set(0, 0.65, -0.2);
+  toiletGroup.add(tankMesh);
+  
+  // Seat
+  const seatGeometry = new THREE.CylinderGeometry(0.18, 0.18, 0.02, 16);
+  const seatMesh = new THREE.Mesh(seatGeometry, porcelainMaterial);
+  seatMesh.position.y = 0.42;
+  toiletGroup.add(seatMesh);
+  
+  toiletGroup.traverse(child => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+  
+  return toiletGroup;
+};
+
+const createSink = (isDarkMode: boolean): THREE.Group => {
+  const sinkGroup = new THREE.Group();
+  
+  const sinkColor = isDarkMode ? 0xC0C0C0 : 0xF5F5F5;
+  const sinkMaterial = new THREE.MeshStandardMaterial({ color: sinkColor, roughness: 0.2, metalness: 0.3 });
+  
+  // Basin
+  const basinGeometry = new THREE.CylinderGeometry(0.25, 0.2, 0.15, 16);
+  const basinMesh = new THREE.Mesh(basinGeometry, sinkMaterial);
+  basinMesh.position.y = 0.075;
+  sinkGroup.add(basinMesh);
+  
+  // Faucet
+  const faucetGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.3, 8);
+  const faucetMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.8 });
+  const faucetMesh = new THREE.Mesh(faucetGeometry, faucetMaterial);
+  faucetMesh.position.set(0, 0.3, -0.2);
+  sinkGroup.add(faucetMesh);
+  
+  sinkGroup.traverse(child => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+  
+  return sinkGroup;
+};
+
+// Function to add furniture to room based on size and layout
+const addRoomFurniture = (
+  wallGroup: THREE.Group,
+  centerX: number,
+  centerZ: number,
+  roomWidth: number,
+  roomDepth: number,
+  roomArea: number,
+  isDarkMode: boolean
+) => {
+  const furnitureSpacing = 1.5; // Minimum distance from walls
+  const minRoomSize = 2.0; // Minimum room dimension to add furniture
+  
+  if (roomWidth < minRoomSize || roomDepth < minRoomSize) return;
+  
+  // Determine room type based on size and shape
+  const aspectRatio = roomWidth / roomDepth;
+  const isSquarish = Math.abs(aspectRatio - 1) < 0.3;
+  
+  // Large rooms (>20m²) - Living room setup
+  if (roomArea > 20) {
+    // Add sofa
+    const sofa = createSofa(isDarkMode);
+    sofa.position.set(centerX, 0, centerZ - roomDepth * 0.2);
+    sofa.name = 'furniture-sofa';
+    wallGroup.add(sofa);
+    
+    // Add coffee table
+    const table = createTable(isDarkMode);
+    table.position.set(centerX, 0, centerZ + roomDepth * 0.1);
+    table.name = 'furniture-table';
+    wallGroup.add(table);
+    
+    // Add chairs
+    const chair1 = createChair(isDarkMode);
+    chair1.position.set(centerX - roomWidth * 0.25, 0, centerZ + roomDepth * 0.25);
+    chair1.rotation.y = Math.PI / 4;
+    chair1.name = 'furniture-chair1';
+    wallGroup.add(chair1);
+    
+    const chair2 = createChair(isDarkMode);
+    chair2.position.set(centerX + roomWidth * 0.25, 0, centerZ + roomDepth * 0.25);
+    chair2.rotation.y = -Math.PI / 4;
+    chair2.name = 'furniture-chair2';
+    wallGroup.add(chair2);
+  }
+  
+  // Medium rooms (12-20m²) - Kitchen setup
+  else if (roomArea > 12 && roomWidth > 3 && roomDepth > 3) {
+    // Add kitchen island
+    const island = createKitchenIsland(isDarkMode);
+    island.position.set(centerX, 0, centerZ);
+    island.name = 'furniture-kitchen-island';
+    wallGroup.add(island);
+    
+    // Add refrigerator in corner
+    const fridge = createRefrigerator(isDarkMode);
+    fridge.position.set(centerX - roomWidth * 0.35, 0, centerZ - roomDepth * 0.35);
+    fridge.name = 'furniture-refrigerator';
+    wallGroup.add(fridge);
+    
+    // Add sink
+    const sink = createSink(isDarkMode);
+    sink.position.set(centerX + roomWidth * 0.3, 0.8, centerZ + roomDepth * 0.3);
+    sink.name = 'furniture-sink';
+    wallGroup.add(sink);
+  }
+  
+  // Medium rooms (8-12m²) - Bedroom setup
+  else if (roomArea > 8) {
+    // Add bed
+    const bed = createBed(isDarkMode);
+    bed.position.set(centerX, 0, centerZ - roomDepth * 0.2);
+    bed.name = 'furniture-bed';
+    wallGroup.add(bed);
+    
+    // Add side table
+    const sideTable = createTable(isDarkMode);
+    sideTable.scale.set(0.6, 1, 0.6); // Smaller side table
+    sideTable.position.set(centerX + roomWidth * 0.3, 0, centerZ - roomDepth * 0.2);
+    sideTable.name = 'furniture-sidetable';
+    wallGroup.add(sideTable);
+  }
+  
+  // Small rooms (4-8m²) - Bathroom setup
+  else if (roomArea > 4 && roomArea <= 8) {
+    // Add toilet
+    const toilet = createToilet(isDarkMode);
+    toilet.position.set(centerX - roomWidth * 0.25, 0, centerZ - roomDepth * 0.25);
+    toilet.name = 'furniture-toilet';
+    wallGroup.add(toilet);
+    
+    // Add sink
+    const sink = createSink(isDarkMode);
+    sink.position.set(centerX + roomWidth * 0.25, 0.8, centerZ + roomDepth * 0.25);
+    sink.name = 'furniture-bathroom-sink';
+    wallGroup.add(sink);
+  }
+  
+  // Always add decorative items if room is big enough
+  if (roomArea > 6) {
+    // Add plants in corners
+    const plant1 = createPlant(isDarkMode);
+    plant1.position.set(centerX - roomWidth * 0.35, 0, centerZ - roomDepth * 0.35);
+    plant1.name = 'furniture-plant1';
+    wallGroup.add(plant1);
+    
+    const plant2 = createPlant(isDarkMode);
+    plant2.position.set(centerX + roomWidth * 0.35, 0, centerZ + roomDepth * 0.35);
+    plant2.name = 'furniture-plant2';
+    wallGroup.add(plant2);
+    
+    // Add floor lamp
+    const lamp = createLamp(isDarkMode);
+    lamp.position.set(centerX - roomWidth * 0.3, 0, centerZ + roomDepth * 0.3);
+    lamp.name = 'furniture-lamp';
+    wallGroup.add(lamp);
+  }
+};
 
 const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   walls,
@@ -2535,8 +3012,8 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     // --- Core Scene Setup ---
     const scene = new THREE.Scene();
     sceneRef.current = scene;
-    scene.background = new THREE.Color(isDarkMode ? '#1A202C' : '#F7FAFC');
-    scene.fog = new THREE.Fog(isDarkMode ? '#1A202C' : '#F7FAFC', 20, 60);
+    scene.background = new THREE.Color(isDarkMode ? 0x000000 : 0xffffff);
+    scene.fog = new THREE.Fog(isDarkMode ? 0x000000 : 0xffffff, 20, 60);
 
     const camera = new THREE.PerspectiveCamera(60, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
     cameraRef.current = camera;
@@ -2620,20 +3097,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     accentLight2.shadow.mapSize.height = 2048;
     scene.add(accentLight2);
 
-    // --- Ground Plane (smaller, positioned below room floor) ---
-    const groundGeometry = new THREE.PlaneGeometry(50, 50);
-    const groundMaterial = new THREE.MeshStandardMaterial({
-      color: isDarkMode ? '#1A202C' : '#F7FAFC', // Match scene background
-      roughness: 1.0,
-      metalness: 0.0,
-      side: THREE.DoubleSide,
-    });
-    const groundPlane = new THREE.Mesh(groundGeometry, groundMaterial);
-    groundPlane.name = 'ground';
-    groundPlane.rotation.x = -Math.PI / 2;
-    groundPlane.position.y = -0.1; // Position below the room floor
-    groundPlane.receiveShadow = true;
-    scene.add(groundPlane);
+
 
     // --- Animation Loop ---
     let animationFrameId: number;
@@ -2673,14 +3137,8 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     const scene = sceneRef.current;
     if (!scene) return;
 
-    scene.background = new THREE.Color(isDarkMode ? '#1A202C' : '#F7FAFC');
-    scene.fog = new THREE.Fog(isDarkMode ? '#1A202C' : '#F7FAFC', 20, 60);
-
-    // Update ground color
-    const ground = scene.getObjectByName('ground') as THREE.Mesh;
-    if (ground && ground.material instanceof THREE.MeshStandardMaterial) {
-      ground.material.color.set(isDarkMode ? '#2D3748' : '#EDF2F7');
-    }
+    scene.background = new THREE.Color(isDarkMode ? 0x000000 : 0xffffff);
+    scene.fog = new THREE.Fog(isDarkMode ? 0x000000 : 0xffffff, 20, 60);
 
     // You can also update light colors here if needed
     const hemisphereLight = scene.children.find(c => c instanceof THREE.HemisphereLight) as THREE.HemisphereLight;
@@ -2702,7 +3160,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     }
 
     if (gridEnabled) {
-      const gridHelper = new THREE.GridHelper(40, 40, '#CBD5E0', '#E2E8F0');
+      const gridHelper = new THREE.GridHelper(40, 40, isDarkMode ? 0x444444 : 0xcccccc, isDarkMode ? 0x222222 : 0xeeeeee);
       gridHelper.name = 'gridHelper';
       scene.add(gridHelper);
     }
@@ -2815,28 +3273,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         const floorSystem = createAdvancedFloorSystem(floorGeometry, floorType, isDarkMode, ccwVertices);
         floorSystem.forEach(mesh => floorGroup.add(mesh));
 
-        // Add room outline for better visual definition
-        const outlineGeometry = new THREE.BufferGeometry();
-        const outlineVertices: number[] = [];
 
-        for (let i = 0; i < ccwVertices.length; i++) {
-          const current = ccwVertices[i];
-          const next = ccwVertices[(i + 1) % ccwVertices.length];
-
-          outlineVertices.push(current.x, 0.02, current.z);
-          outlineVertices.push(next.x, 0.02, next.z);
-        }
-
-        outlineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(outlineVertices, 3));
-
-        const outlineMaterial = new THREE.LineBasicMaterial({
-          color: isDarkMode ? 0x8B9DC3 : 0x6B7280,
-          linewidth: 2
-        });
-
-        const outlineMesh = new THREE.LineSegments(outlineGeometry, outlineMaterial);
-        outlineMesh.name = 'floor-outline';
-        floorGroup.add(outlineMesh);
 
         // Add area display
         const roomArea = calculateRoomArea(orderedVertices); // Use exterior vertices for area
@@ -2949,6 +3386,42 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       return Math.abs(area) / 2;
     };
 
+    // --- Render Furniture and Objects ---
+    const renderFurniture = () => {
+      if (!wallGroup) return;
+      
+      // Clear existing furniture
+      const existingFurniture = wallGroup.children.filter(child => child.name.startsWith('furniture-'));
+      existingFurniture.forEach(furniture => wallGroup.remove(furniture));
+
+      if (currentProcessedWalls.length === 0) return;
+
+      // Get room dimensions for furniture placement
+      const { walls: optimizedWalls } = AdvancedGeometryEngine.optimizeWindowPlacements(currentProcessedWalls);
+      const isValid = isValidFloorplan(optimizedWalls);
+      
+      if (!isValid || optimizedWalls.length < 3) return;
+
+      const orderedVertices = getOrderedVertices(optimizedWalls);
+      if (orderedVertices.length < 3) return;
+
+      // Calculate room center and bounds
+      const centerX = orderedVertices.reduce((sum, v) => sum + v.x, 0) / orderedVertices.length;
+      const centerZ = orderedVertices.reduce((sum, v) => sum + v.z, 0) / orderedVertices.length;
+      
+      const minX = Math.min(...orderedVertices.map(v => v.x));
+      const maxX = Math.max(...orderedVertices.map(v => v.x));
+      const minZ = Math.min(...orderedVertices.map(v => v.z));
+      const maxZ = Math.max(...orderedVertices.map(v => v.z));
+      
+      const roomWidth = maxX - minX;
+      const roomDepth = maxZ - minZ;
+      const roomArea = calculateRoomArea(orderedVertices);
+
+      // Add furniture based on room size and type
+      addRoomFurniture(wallGroup, centerX, centerZ, roomWidth, roomDepth, roomArea, isDarkMode);
+    };
+
     // --- Render Walls ---
     const renderWalls = () => {
       wallGroup.clear();
@@ -2990,7 +3463,10 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         );
 
         // Rotate wall to align with wall direction
-        wallMesh.rotation.y = Math.atan2(wallVector.z, wallVector.x);
+        wallMesh.quaternion.setFromUnitVectors(
+          new THREE.Vector3(1, 0, 0), // BoxGeometry’s local X axis
+          wallVector.clone().normalize() // Desired direction
+        );
 
         // Enable shadows
         wallMesh.castShadow = true;
@@ -3082,6 +3558,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
     renderWalls();
     renderFloor();
+    renderFurniture();
 
     // --- Center camera on the room ---
     if (camera && controls && currentProcessedWalls.length > 0) {

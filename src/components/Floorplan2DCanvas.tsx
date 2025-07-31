@@ -20,6 +20,7 @@ interface Floorplan2DCanvasProps {
   wallHeight?: number;
   wallThickness?: number;
   onWallsChange?: () => void;
+  gridSnapping?: boolean;
 }
 
 // --- Constants ---
@@ -162,7 +163,8 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
   setMode,
   wallHeight = 2.5,
   wallThickness = 0.2,
-  onWallsChange
+  onWallsChange,
+  gridSnapping = true
 }) => {
   const [drawingPoints, setDrawingPoints] = useState<Point[]>([]);
   const [previewPoint, setPreviewPoint] = useState<Point | null>(null);
@@ -245,12 +247,16 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
       }
     }
     
-    // If no snap, just use grid
+    // If no snap, use grid only if grid snapping is enabled
     setSnapPoint(null);
-    return {
-      x: Math.round(worldPos.x / GRID_STEP) * GRID_STEP,
-      z: Math.round(worldPos.z / GRID_STEP) * GRID_STEP,
-    };
+    if (gridSnapping) {
+      return {
+        x: Math.round(worldPos.x / GRID_STEP) * GRID_STEP,
+        z: Math.round(worldPos.z / GRID_STEP) * GRID_STEP,
+      };
+    } else {
+      return worldPos;
+    }
   };
 
   // --- Room Validation & Area Calculation ---
