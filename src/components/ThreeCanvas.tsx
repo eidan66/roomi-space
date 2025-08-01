@@ -754,7 +754,7 @@ const createAdvancedShapeGeometry = (vertices: { x: number; z: number }[]): THRE
 
   // Create geometry with advanced settings
   const geometry = new THREE.ShapeGeometry(shape, 32); // Higher curve segments
-  geometry.rotateX(-Math.PI / 2);
+  geometry.rotateX(Math.PI / 2);
 
   // Enhanced UV mapping with proper scaling
   geometry.computeBoundingBox();
@@ -2875,7 +2875,8 @@ const addRoomFurniture = (
   minX: number,
   maxX: number,
   minZ: number,
-  maxZ: number
+  maxZ: number,
+  polygon: {x:number,z:number}[]
 ) => {
   const furnitureSpacing = 1.5; // Minimum distance from walls
   const objectSpacing = 1.0; // Minimum distance between furniture objects
@@ -2889,6 +2890,18 @@ const addRoomFurniture = (
 
   // Track placed objects to avoid overlap
   const placed: {x:number,z:number,r:number}[] = [];
+
+  // Point-in-polygon using ray-casting
+  const isInside = (x:number, z:number) => {
+    let inside = false;
+    for(let i=0, j=polygon.length-1; i<polygon.length; j=i++){
+      const xi = polygon[i].x, zi = polygon[i].z;
+      const xj = polygon[j].x, zj = polygon[j].z;
+      const intersect = ((zi>z) !== (zj>z)) && (x < (xj-xi)*(z-zi)/(zj-zi)+xi);
+      if(intersect) inside = !inside;
+    }
+    return inside;
+  };
 
   const placeObject = (obj:THREE.Object3D, desiredX:number, desiredZ:number, radius:number=0.5) => {
     let bestX = desiredX, bestZ = desiredZ;
@@ -2904,8 +2917,8 @@ const addRoomFurniture = (
         const testZ = desiredZ + dz;
         const {x, z} = clampPos(testX, testZ);
         
-        // Check if position is valid (within bounds)
-        if(x === testX && z === testZ) {
+        // Check if position inside polygon and within bounds
+        if(x === testX && z === testZ && isInside(x,z)) {
           // Check for conflicts with existing objects
           const hasConflict = placed.some(p => 
             Math.hypot(p.x - x, p.z - z) < (p.r + radius + objectSpacing)
@@ -3069,6 +3082,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const wallGroupRef = useRef<THREE.Group>(new THREE.Group());
+  const polygonRef = useRef<{x:number,z:number}[]>([]);
   const floorGroupRef = useRef<THREE.Group>(new THREE.Group());
   const measurementGroupRef = useRef<THREE.Group>(new THREE.Group());
   
@@ -3255,11 +3269,27 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         const { minX, maxX, minZ, maxZ } = boundsRef.current;
         const margin = 0.5; // Keep furniture 0.5m from walls
         
-        draggedRef.current.position.set(
-          THREE.MathUtils.clamp(intersectionPoint.x, minX + margin, maxX - margin),
-          draggedRef.current.position.y,
-          THREE.MathUtils.clamp(intersectionPoint.z, minZ + margin, maxZ - margin)
-        );
+        let newX = THREE.MathUtils.clamp(intersectionPoint.x, minX + margin, maxX - margin);
+        let newZ = THREE.MathUtils.clamp(intersectionPoint.z, minZ + margin, maxZ - margin);
+
+        const poly = polygonRef.current;
+        if (poly && poly.length >= 3) {
+          // point-in-polygon test
+          const insidePolygon = (() => {
+            let inside = false;
+            for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+              const xi = poly[i].x, zi = poly[i].z;
+              const xj = poly[j].x, zj = poly[j].z;
+              const intersect = ((zi > newZ) !== (zj > newZ)) && (newX < (xj - xi) * (newZ - zi) / (zj - zi) + xi);
+              if (intersect) inside = !inside;
+            }
+            return inside;
+          })();
+          if (!insidePolygon) {
+            return; // skip update if outside
+          }
+        }
+        draggedRef.current.position.set(newX, draggedRef.current.position.y, newZ);
       }
     };
 
@@ -3367,6 +3397,10 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     // Update state with processed walls
     setProcessedWalls(currentProcessedWalls);
 
+    // Store polygon vertices for later collision checks
+    const polygonVerticesCalculated = ensureCounterClockwise(getOrderedVertices(currentProcessedWalls));
+    polygonRef.current = polygonVerticesCalculated;
+
 
 
     // --- Simple Floor Rendering ---
@@ -3379,7 +3413,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         console.log('⚠️ No walls found, creating default floor');
         // Create a default 10x10 floor at origin
         const defaultGeometry = new THREE.PlaneGeometry(10, 10);
-        defaultGeometry.rotateX(-Math.PI / 2);
+        defaultGeometry.rotateX(Math.PI / 2);
         
         const material = new THREE.MeshStandardMaterial({
           color: 0xf0f0f0, // Light gray
@@ -3410,6 +3444,68 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           return;
         }
 
+        // 1️⃣ Attempt accurate polygon-shaped floor that matches wall outline
+        const orderedVertices = ensureCounterClockwise(getOrderedVertices(currentProcessedWalls));
+        if (orderedVertices.length >= 3) {
+          const shape = new THREE.Shape();
+          shape.moveTo(orderedVertices[0].x, orderedVertices[0].z);
+          for (let i = 1; i < orderedVertices.length; i++) {
+            shape.lineTo(orderedVertices[i].x, orderedVertices[i].z);
+          }
+          shape.lineTo(orderedVertices[0].x, orderedVertices[0].z);
+
+          const floorGeometry = new THREE.ShapeGeometry(shape);
+          floorGeometry.rotateX(Math.PI / 2);
+
+          const floorMaterial = new THREE.MeshStandardMaterial({
+            color: floorType === 'wood' ? 0xdeb887 :
+                   floorType === 'tile' ? 0xf5f5f5 :
+                   floorType === 'marble' ? 0xffffff :
+                   floorType === 'concrete' ? 0xd3d3d3 :
+                   floorType === 'carpet' ? 0xcd853f :
+                   0xf0f0f0,
+            roughness: 0.6,
+            metalness: 0.0,
+            side: THREE.DoubleSide
+          });
+
+          const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
+          floorMesh.name = 'floor-shape';
+          floorMesh.position.y = -0.01;
+          floorMesh.receiveShadow = true;
+          floorGroup.add(floorMesh);
+          console.log('✅ Polygon floor created');
+
+          // Add area sprite at center
+          const xs = orderedVertices.map(v => v.x);
+          const zs = orderedVertices.map(v => v.z);
+          const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+          const centerZ = (Math.min(...zs) + Math.max(...zs)) / 2;
+          const roomArea = calculateRoomArea(orderedVertices);
+
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d')!;
+          canvas.width = 512;
+          canvas.height = 128;
+          context.fillStyle = isDarkMode ? '#FFFFFF' : '#000000';
+          context.font = 'bold 48px Arial';
+          context.textAlign = 'center';
+          context.fillText(`${roomArea.toFixed(2)}m²`, 256, 80);
+
+          const texture = new THREE.CanvasTexture(canvas);
+          const spriteMaterial = new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            alphaTest: 0.1
+          });
+          const sprite = new THREE.Sprite(spriteMaterial);
+          sprite.position.set(centerX, 0.1, centerZ);
+          sprite.scale.set(2, 0.5, 1);
+          floorGroup.add(sprite);
+
+          return;
+        }
+
         // Calculate bounds
         const minX = Math.min(...allVertices.map(v => v.x));
         const maxX = Math.max(...allVertices.map(v => v.x));
@@ -3425,7 +3521,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
         // Create simple rectangular floor
         const floorGeometry = new THREE.PlaneGeometry(width, depth);
-        floorGeometry.rotateX(-Math.PI / 2);
+        floorGeometry.rotateX(Math.PI / 2);
 
         // Create visible material with better colors
         const floorMaterial = new THREE.MeshStandardMaterial({
@@ -3479,7 +3575,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         
         // Emergency fallback - always create a floor
         const emergencyGeometry = new THREE.PlaneGeometry(10, 10);
-        emergencyGeometry.rotateX(-Math.PI / 2);
+        emergencyGeometry.rotateX(Math.PI / 2);
         
         const emergencyMaterial = new THREE.MeshStandardMaterial({
           color: 0xf0f0f0, // Light gray instead of red
@@ -3547,7 +3643,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       const roomArea = calculateRoomArea(orderedVertices);
 
       // Add furniture based on room size and type
-      addRoomFurniture(wallGroup, centerX, centerZ, roomWidth, roomDepth, roomArea, isDarkMode, minX, maxX, minZ, maxZ);
+      addRoomFurniture(wallGroup, centerX, centerZ, roomWidth, roomDepth, roomArea, isDarkMode, minX, maxX, minZ, maxZ, orderedVertices);
       
       // Store bounds and draggable objects for furniture dragging
       boundsRef.current = {minX, maxX, minZ, maxZ};
