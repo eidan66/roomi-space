@@ -61,6 +61,7 @@ export default function RoomBuilderPage() {
   // Top toolbar states
   const [roomSize, setRoomSize] = useState<'xs' | 's' | 'm' | 'l' | 'xl'>('m');
   const [activeTool, setActiveTool] = useState<'select' | 'drag' | 'paint' | 'delete' | 'resize'>('select');
+  const [selectedColor, setSelectedColor] = useState<string>('#ffffff');
 
   // Sync delete tool with editMode when in 2D view
   useEffect(() => {
@@ -241,6 +242,8 @@ export default function RoomBuilderPage() {
         setViewMode={setViewMode}
         activeTool={activeTool}
         setActiveTool={setActiveTool}
+        selectedColor={selectedColor}
+        setSelectedColor={setSelectedColor}
         onScreenshot={() => {
           showNotification('Screenshot captured and downloaded!', 'success');
         }}
@@ -627,6 +630,8 @@ export default function RoomBuilderPage() {
               wallMaterial={wallMaterial}
               windowStyle={windowStyle}
               rendererRef={threeRendererRef}
+              activeTool={activeTool}
+              selectedColor={selectedColor}
               onScreenshot={(dataURL) => {
                 // This will be called when screenshot is taken from ThreeCanvas
                 console.log('Screenshot taken from ThreeCanvas');

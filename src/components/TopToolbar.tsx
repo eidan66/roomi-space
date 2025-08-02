@@ -9,6 +9,9 @@ import { EyeOff, Eye, Lock, Unlock, Image as ImageIcon, MousePointer2, Hand, Pai
 
 export type ToolKey = 'select' | 'drag' | 'paint' | 'delete' | 'resize';
 
+import ColorPalette from '@/components/ColorPalette';
+import { DEFAULT_COLORS } from '@/config/colorPalette';
+
 export interface TopToolbarProps {
   isPremium: boolean;
   roomSize: RoomSizeKey;
@@ -20,6 +23,8 @@ export interface TopToolbarProps {
   onScreenshot: () => void;
   onPremiumRedirect: () => void;
   canvasRef?: React.RefObject<HTMLDivElement | null>;
+  selectedColor: string;
+  setSelectedColor: (c: string)=>void;
   threeCanvasRef?: React.RefObject<HTMLDivElement | null>;
   threeRendererRef?: React.RefObject<THREE.WebGLRenderer | null>;
 }
@@ -36,6 +41,8 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
   onPremiumRedirect,
   canvasRef,
   threeCanvasRef,
+  selectedColor,
+  setSelectedColor,
   threeRendererRef,
 }) => {
   const { t } = useTranslation();
@@ -217,6 +224,11 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
       <Button variant="outline" size="icon" onClick={captureScreenshot} title={t('toolbar.screenshot')}>
         <ImageIcon size={18} />
       </Button>
+
+      {/* Color palette (shown only in paint mode) */}
+      {activeTool==='paint' && (
+        <ColorPalette colors={DEFAULT_COLORS} selected={selectedColor} onSelect={setSelectedColor} />
+      )}
     </div>
   );
 };

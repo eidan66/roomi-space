@@ -2497,6 +2497,8 @@ interface ThreeCanvasProps {
   windowStyle?: 'modern' | 'classic' | 'industrial';
   rendererRef?: React.RefObject<THREE.WebGLRenderer | null>;
   onScreenshot?: (dataURL: string) => void;
+  activeTool?: 'select' | 'drag' | 'paint' | 'delete' | 'resize';
+  selectedColor?: string;
 }
 
 // Furniture Creation Functions
@@ -2545,6 +2547,16 @@ const createChair = (isDarkMode: boolean): THREE.Group => {
   return chairGroup;
 };
 
+// Utility to finalize object metadata
+const finalizeObject = (group: THREE.Group, type: string, canPlaceOn: string[] = []) => {
+  group.userData.type = type;
+  group.userData.canPlaceOn = canPlaceOn;
+  // store bounding box height for stacking
+  const box = new THREE.Box3().setFromObject(group);
+  group.userData.height = box.max.y - box.min.y;
+  return group;
+};
+
 const createTable = (isDarkMode: boolean): THREE.Group => {
   const tableGroup = new THREE.Group();
   
@@ -2578,7 +2590,7 @@ const createTable = (isDarkMode: boolean): THREE.Group => {
     }
   });
   
-  return tableGroup;
+  return finalizeObject(tableGroup, 'table');
 };
 
 const createSofa = (isDarkMode: boolean): THREE.Group => {
@@ -2691,7 +2703,7 @@ const createPlant = (isDarkMode: boolean): THREE.Group => {
     }
   });
   
-  return plantGroup;
+  return finalizeObject(plantGroup, 'decor', ['table','nightstand','shelf']);
 };
 
 const createLamp = (isDarkMode: boolean): THREE.Group => {
@@ -3081,9 +3093,15 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   wallMaterial = 'paint',
   windowStyle = 'modern',
   rendererRef,
-  onScreenshot
+  onScreenshot,
+  activeTool = 'select',
+  selectedColor = '#ffffff'
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
+  const activeToolRef = useRef(activeTool);
+  useEffect(()=>{activeToolRef.current = activeTool;},[activeTool]);
+  const colorRef = useRef(selectedColor);
+  useEffect(()=>{colorRef.current = selectedColor;},[selectedColor]);
   const internalRendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -3247,25 +3265,65 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       );
       
       raycaster.setFromCamera(mouse, camera);
+
+      // Handle paint tool
+      if(activeToolRef.current==='paint'){
+        const allTargets = [...wallGroupRef.current.children, ...draggableObjectsRef.current];
+        const phit = raycaster.intersectObjects(allTargets, true)[0];
+        if(phit){
+          let target: THREE.Object3D = phit.object;
+          while(target.parent && !target.userData.type) target = target.parent;
+          if(target.userData.type==='wall' || target.userData.colorable){
+            target.traverse(c=>{
+              if((c as THREE.Mesh).isMesh){
+                const mesh = c as THREE.Mesh;
+                mesh.material = (mesh.material as THREE.Material).clone();
+                (mesh.material as THREE.MeshStandardMaterial).color.set(colorRef.current);
+              }
+            });
+          }
+        }
+        return;
+      }
+
+      // Handle delete tool
+      if(activeToolRef.current==='delete'){
+        const dhit = raycaster.intersectObjects(draggableObjectsRef.current,true)[0];
+        if(dhit){
+          let obj:THREE.Object3D = dhit.object;
+          while(obj.parent && !obj.name?.startsWith('furniture-')) obj = obj.parent;
+          draggableObjectsRef.current = draggableObjectsRef.current.filter(o=>o!==obj);
+          obj.parent?.remove(obj);
+        }
+        return;
+      }
+
+      // Handle resize tool (select)
+      if(activeToolRef.current==='resize'){
+        const rhit = raycaster.intersectObjects(draggableObjectsRef.current,true)[0];
+        if(rhit){
+          selectedObjectRef.current = rhit.object;
+          while(selectedObjectRef.current.parent && !selectedObjectRef.current.name?.startsWith('furniture-'))
+            selectedObjectRef.current = selectedObjectRef.current.parent;
+          // highlight maybe
+        }
+        return;
+      }
+
+      // Default drag tool
       const hits = raycaster.intersectObjects(draggableObjectsRef.current, true);
-      
       if (hits.length > 0) {
-        // Find the furniture group (parent of the hit mesh)
         let furniture = hits[0].object;
         while (furniture.parent && !furniture.name?.startsWith('furniture-')) {
           furniture = furniture.parent;
         }
         if (furniture.name?.startsWith('furniture-')) {
           selectedObjectRef.current = furniture;
-          
-          // Check if user is holding shift for rotation
           if (e.shiftKey) {
             isRotatingRef.current = true;
           } else {
             draggedRef.current = furniture;
           }
-          
-          // Disable orbit controls when manipulating objects
           if (controls) {
             controls.enabled = false;
           }
@@ -3274,6 +3332,14 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      if(activeToolRef.current==='resize'){
+        if(selectedObjectRef.current){
+          const dy = e.movementY || 0;
+          const scaleDelta = 1 - dy*0.01;
+          selectedObjectRef.current.scale.multiplyScalar(scaleDelta);
+        }
+        return;
+      }
       if (!selectedObjectRef.current || !boundsRef.current) return;
       
       const rect = renderer.domElement.getBoundingClientRect();
@@ -3361,8 +3427,34 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     };
 
     const onPointerUp = () => {
-      // Restore original color
+      // --- Stacking logic ---
       if(selectedObjectRef.current){
+        const obj = selectedObjectRef.current as THREE.Group;
+        const canPlaceOn: string[] = obj.userData.canPlaceOn || [];
+        if (canPlaceOn.length) {
+          // raycast straight down to find support object
+          const origin = obj.position.clone();
+          origin.y += 0.05;
+          const down = new THREE.Vector3(0, -1, 0);
+          raycaster.set(origin, down);
+          const hits = raycaster.intersectObjects(draggableObjectsRef.current.filter(o=>o!==obj), true);
+          for (const h of hits) {
+            let target = h.object as THREE.Object3D;
+            while (target.parent && !target.userData.type) target = target.parent;
+            if (target.userData && canPlaceOn.includes(target.userData.type)) {
+              const targetHeight = target.userData.height ?? 1;
+              const objHeight = obj.userData.height ?? 1;
+              obj.position.y = target.position.y + targetHeight/2 + objHeight/2 + 0.01;
+              break;
+            }
+          }
+        } else {
+          // place on floor
+          const objHeight = obj.userData.height ?? 1;
+          obj.position.y = objHeight/2;
+        }
+      
+      // Restore original color
         selectedObjectRef.current.traverse(child=>{
           if((child as THREE.Mesh).isMesh){
             const mesh = child as THREE.Mesh;
@@ -3781,6 +3873,8 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
         const wallMesh = new THREE.Mesh(wallGeometry, wallMaterialMesh);
         wallMesh.name = `wall-${index}`;
+        wallMesh.userData.type='wall';
+        wallMesh.userData.colorable=true;
 
         // Position wall at center point
         wallMesh.position.set(
