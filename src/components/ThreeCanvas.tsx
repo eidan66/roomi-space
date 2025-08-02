@@ -2879,7 +2879,7 @@ const addRoomFurniture = (
   polygon: {x:number,z:number}[]
 ) => {
   const furnitureSpacing = 1.5; // Minimum distance from walls
-  const objectSpacing = 1.0; // Minimum distance between furniture objects
+  const OBJECT_SPACING = 1.0; // Minimum distance between furniture objects
   const minRoomSize = 2.0; // Minimum room dimension to add furniture
 
   // Helper to clamp position inside bounds with margin
@@ -2921,7 +2921,7 @@ const addRoomFurniture = (
         if(x === testX && z === testZ && isInside(x,z)) {
           // Check for conflicts with existing objects
           const hasConflict = placed.some(p => 
-            Math.hypot(p.x - x, p.z - z) < (p.r + radius + objectSpacing)
+            Math.hypot(p.x - x, p.z - z) < (p.r + radius + OBJECT_SPACING)
           );
           
           if(!hasConflict) {
@@ -2937,6 +2937,7 @@ const addRoomFurniture = (
     }
     
     obj.position.set(bestX, obj.position.y, bestZ);
+    obj.userData.radius = radius;
     placed.push({x: bestX, z: bestZ, r: radius});
     wallGroup.add(obj);
   };
@@ -3066,6 +3067,8 @@ const addRoomFurniture = (
   });
 };
 
+const OBJECT_SPACING = 1.0; // Minimum gap between furniture objects
+
 const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   walls,
   objects = [],
@@ -3083,6 +3086,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   const controlsRef = useRef<OrbitControls | null>(null);
   const wallGroupRef = useRef<THREE.Group>(new THREE.Group());
   const polygonRef = useRef<{x:number,z:number}[]>([]);
+  const wallSegmentsRef = useRef<{start:{x:number,z:number},end:{x:number,z:number}}[]>([]);
   const floorGroupRef = useRef<THREE.Group>(new THREE.Group());
   const measurementGroupRef = useRef<THREE.Group>(new THREE.Group());
   
@@ -3261,39 +3265,83 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         const deltaX = e.movementX || 0;
         selectedObjectRef.current.rotation.y += deltaX * 0.01;
       } else if (draggedRef.current) {
-        // Move object
+        // --- Move object ---------------------------------------------------
         raycaster.setFromCamera(mouse, camera);
-        const intersectionPoint = new THREE.Vector3();
-        raycaster.ray.intersectPlane(dragPlane, intersectionPoint);
-        
-        const { minX, maxX, minZ, maxZ } = boundsRef.current;
-        const margin = 0.5; // Keep furniture 0.5m from walls
-        
-        let newX = THREE.MathUtils.clamp(intersectionPoint.x, minX + margin, maxX - margin);
-        let newZ = THREE.MathUtils.clamp(intersectionPoint.z, minZ + margin, maxZ - margin);
+        const hit = new THREE.Vector3();
+        raycaster.ray.intersectPlane(dragPlane, hit);
 
-        const poly = polygonRef.current;
-        if (poly && poly.length >= 3) {
-          // point-in-polygon test
-          const insidePolygon = (() => {
-            let inside = false;
-            for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-              const xi = poly[i].x, zi = poly[i].z;
-              const xj = poly[j].x, zj = poly[j].z;
-              const intersect = ((zi > newZ) !== (zj > newZ)) && (newX < (xj - xi) * (newZ - zi) / (zj - zi) + xi);
-              if (intersect) inside = !inside;
-            }
-            return inside;
-          })();
-          if (!insidePolygon) {
-            return; // skip update if outside
+        let newX = hit.x;
+        let newZ = hit.z;
+        const rObj = draggedRef.current.userData.radius ?? 0.5;
+        const GAP_WALL = 0.15; // extra breathing room
+
+        // --- Room containment (polygon + distance to every wall) -----------
+        const insideRoom = (() => {
+          const poly = polygonRef.current;
+          if (!poly || poly.length < 3) return true;
+          // even-odd rule (ray cast along –Z)
+          let inside = false;
+          for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+            const a = poly[i], b = poly[j];
+            const intersect = ((a.z > newZ) !== (b.z > newZ)) &&
+                              (newX < (b.x - a.x) * (newZ - a.z) / (b.z - a.z) + a.x);
+            if (intersect) inside = !inside;
           }
+          if (!inside) return false;
+          // check clearance from every wall segment
+          return wallSegmentsRef.current.every(seg => {
+            const ax = seg.start.x, az = seg.start.z;
+            const bx = seg.end.x,   bz = seg.end.z;
+            const vx = bx - ax,     vz = bz - az;
+            const lenSq = vx*vx + vz*vz;
+            if (lenSq === 0) return true;
+            const t = Math.max(0, Math.min(1, ((newX - ax) * vx + (newZ - az) * vz) / lenSq));
+            const px = ax + t * vx, pz = az + t * vz;
+            return Math.hypot(newX - px, newZ - pz) >= (rObj + GAP_WALL);
+          });
+        })();
+
+        // --- Object-object clearance --------------------------------------
+        const clearOfOthers = draggableObjectsRef.current.every(o => {
+          if (o === draggedRef.current) return true;
+          const r = (o.userData.radius ?? 0.5) + rObj + OBJECT_SPACING;
+          return Math.hypot(newX - o.position.x, newZ - o.position.z) >= r;
+        });
+
+        const legal = insideRoom && clearOfOthers;
+
+        // --- Visual feedback (clone material once) -------------------------
+        draggedRef.current.traverse((c: THREE.Object3D) => {
+          if ((c as THREE.Mesh).isMesh) {
+            const mesh = c as THREE.Mesh;
+            const mat = mesh.material as THREE.Material;
+            if (!(mat as any).userData._cloned) {
+              mesh.material = mat.clone();
+              (mesh.material as any).userData._cloned = true;
+            }
+            ((mesh.material as THREE.MeshStandardMaterial)).color.set(legal ? 0xffffff : 0xff0000);
+          }
+        });
+
+        if (legal) {
+          draggedRef.current.position.set(newX, draggedRef.current.position.y, newZ);
         }
-        draggedRef.current.position.set(newX, draggedRef.current.position.y, newZ);
+
       }
     };
 
     const onPointerUp = () => {
+      // Restore original color
+      if(selectedObjectRef.current){
+        selectedObjectRef.current.traverse(child=>{
+          if((child as THREE.Mesh).isMesh){
+            const mesh = child as THREE.Mesh;
+            if(mesh.userData.origColor){
+              (mesh.material as THREE.MeshStandardMaterial).color.set(mesh.userData.origColor);
+            }
+          }
+        });
+      }
       draggedRef.current = null;
       selectedObjectRef.current = null;
       isRotatingRef.current = false;
@@ -3353,11 +3401,26 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     }
 
     if (gridEnabled) {
-      const gridHelper = new THREE.GridHelper(40, 40, isDarkMode ? 0x444444 : 0xcccccc, isDarkMode ? 0x222222 : 0xeeeeee);
+      // Determine grid size based on current room bounds
+      let size = 40;
+      let centerX = 0, centerZ = 0;
+      const poly = polygonRef.current;
+      if (poly && poly.length >= 3) {
+        const minX = Math.min(...poly.map(v=>v.x));
+        const maxX = Math.max(...poly.map(v=>v.x));
+        const minZ = Math.min(...poly.map(v=>v.z));
+        const maxZ = Math.max(...poly.map(v=>v.z));
+        size = Math.max(maxX-minX, maxZ-minZ) + 2; // small margin
+        centerX = (minX + maxX)/2;
+        centerZ = (minZ + maxZ)/2;
+      }
+      const divisions = Math.max(1, Math.floor(size));
+      const gridHelper = new THREE.GridHelper(size, divisions, isDarkMode ? 0x444444 : 0xcccccc, isDarkMode ? 0x222222 : 0xeeeeee);
       gridHelper.name = 'gridHelper';
+      gridHelper.position.set(centerX, -0.009, centerZ);
       scene.add(gridHelper);
     }
-  }, [gridEnabled]);
+  }, [gridEnabled, walls]);
 
   // --- Update walls and floor when wall data changes ---
   useEffect(() => {
@@ -3400,6 +3463,12 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     // Store polygon vertices for later collision checks
     const polygonVerticesCalculated = ensureCounterClockwise(getOrderedVertices(currentProcessedWalls));
     polygonRef.current = polygonVerticesCalculated;
+
+    // Extract wall segments for distance calculations
+    wallSegmentsRef.current = currentProcessedWalls.map(w => ({
+      start: { x: w.start.x, z: w.start.z },
+      end: { x: w.end.x, z: w.end.z }
+    }));
 
 
 
