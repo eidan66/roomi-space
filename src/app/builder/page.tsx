@@ -252,11 +252,11 @@ export default function RoomBuilderPage() {
               <Slider value={[wallThickness]} onValueChange={([v]) => setWallThickness(v)} min={0.05} max={0.3} step={0.01} className="w-full" />
             </div>
             <div className="flex items-center justify-between pt-2">
-              <Label className="text-sm">Show Windows</Label>
+              <Label className="text-sm">{t('sidebar.showWindows')}</Label>
               <Switch checked={showWindows} onCheckedChange={setShowWindows} />
             </div>
             <div className="pt-2">
-              <Label className="text-sm mb-2 block">Floor Material</Label>
+              <Label className="text-sm mb-2 block">{t('sidebar.floorMaterial')}</Label>
               <div className="grid grid-cols-3 gap-1 mb-2">
                 <Button
                   variant={floorType === 'wood' ? 'default' : 'outline'}
@@ -264,7 +264,7 @@ export default function RoomBuilderPage() {
                   onClick={() => setFloorType('wood')}
                   className="text-xs"
                 >
-                  🪵 Wood
+                  🪵 {t('material.wood')}
                 </Button>
                 <Button
                   variant={floorType === 'tile' ? 'default' : 'outline'}
@@ -272,7 +272,7 @@ export default function RoomBuilderPage() {
                   onClick={() => setFloorType('tile')}
                   className="text-xs"
                 >
-                  🔲 Tile
+                  🔲 {t('material.tile')}
                 </Button>
                 <Button
                   variant={floorType === 'concrete' ? 'default' : 'outline'}
@@ -280,7 +280,7 @@ export default function RoomBuilderPage() {
                   onClick={() => setFloorType('concrete')}
                   className="text-xs"
                 >
-                  🏗️ Concrete
+                  🏗️ {t('material.concrete')}
                 </Button>
               </div>
               <div className="grid grid-cols-2 gap-1">
@@ -290,7 +290,7 @@ export default function RoomBuilderPage() {
                   onClick={() => setFloorType('marble')}
                   className="text-xs"
                 >
-                  💎 Marble
+                  💎 {t('material.marble')}
                 </Button>
                 <Button
                   variant={floorType === 'carpet' ? 'default' : 'outline'}
@@ -298,13 +298,13 @@ export default function RoomBuilderPage() {
                   onClick={() => setFloorType('carpet')}
                   className="text-xs"
                 >
-                  🧶 Carpet
+                  🧶 {t('material.carpet')}
                 </Button>
               </div>
             </div>
 
             <div className="pt-2">
-              <Label className="text-sm mb-2 block">Wall Material</Label>
+              <Label className="text-sm mb-2 block">{t('sidebar.wallMaterial')}</Label>
               <div className="grid grid-cols-3 gap-1 mb-2">
                 <Button
                   variant={wallMaterial === 'paint' ? 'default' : 'outline'}
@@ -312,7 +312,7 @@ export default function RoomBuilderPage() {
                   onClick={() => setWallMaterial('paint')}
                   className="text-xs"
                 >
-                  🎨 Paint
+                  🎨 {t('material.paint')}
                 </Button>
                 <Button
                   variant={wallMaterial === 'brick' ? 'default' : 'outline'}
@@ -320,7 +320,7 @@ export default function RoomBuilderPage() {
                   onClick={() => setWallMaterial('brick')}
                   className="text-xs"
                 >
-                  🧱 Brick
+                  🧱 {t('material.brick')}
                 </Button>
                 <Button
                   variant={wallMaterial === 'stone' ? 'default' : 'outline'}
@@ -328,7 +328,7 @@ export default function RoomBuilderPage() {
                   onClick={() => setWallMaterial('stone')}
                   className="text-xs"
                 >
-                  🪨 Stone
+                  🪨 {t('material.stone')}
                 </Button>
               </div>
               <div className="grid grid-cols-2 gap-1">
@@ -338,7 +338,7 @@ export default function RoomBuilderPage() {
                   onClick={() => setWallMaterial('wood')}
                   className="text-xs"
                 >
-                  🪵 Wood
+                  🪵 {t('material.wood')}
                 </Button>
                 <Button
                   variant={wallMaterial === 'metal' ? 'default' : 'outline'}
@@ -346,13 +346,13 @@ export default function RoomBuilderPage() {
                   onClick={() => setWallMaterial('metal')}
                   className="text-xs"
                 >
-                  🔩 Metal
+                  🔩 {t('material.metal')}
                 </Button>
               </div>
             </div>
 
             <div className="pt-2">
-              <Label className="text-sm mb-2 block">Window Style</Label>
+              <Label className="text-sm mb-2 block">{t('sidebar.windowStyle')}</Label>
               <div className="grid grid-cols-3 gap-1">
                 <Button
                   variant={windowStyle === 'modern' ? 'default' : 'outline'}
@@ -360,7 +360,7 @@ export default function RoomBuilderPage() {
                   onClick={() => setWindowStyle('modern')}
                   className="text-xs"
                 >
-                  🏢 Modern
+                  🏢 {t('style.modern')}
                 </Button>
                 <Button
                   variant={windowStyle === 'classic' ? 'default' : 'outline'}
@@ -368,7 +368,7 @@ export default function RoomBuilderPage() {
                   onClick={() => setWindowStyle('classic')}
                   className="text-xs"
                 >
-                  🏛️ Classic
+                  🏛️ {t('style.classic')}
                 </Button>
                 <Button
                   variant={windowStyle === 'industrial' ? 'default' : 'outline'}
@@ -376,7 +376,7 @@ export default function RoomBuilderPage() {
                   onClick={() => setWindowStyle('industrial')}
                   className="text-xs"
                 >
-                  🏭 Industrial
+                  🏭 {t('style.industrial')}
                 </Button>
               </div>
             </div>
@@ -387,7 +387,7 @@ export default function RoomBuilderPage() {
               disabled={walls.length === 0}
               className="w-full mt-2"
             >
-              Apply to All Walls
+              {t('sidebar.applyToAllWalls')}
             </Button>
           </CardContent>
         </Card>
@@ -453,7 +453,7 @@ export default function RoomBuilderPage() {
   variant="outline"
   onClick={() => {
     if (walls.length > 0) {
-      showNotification('Advanced geometry processing applied!', 'success');
+      showNotification(t('sidebar.advancedGeometryApplied'), 'success');
     }
   }}
   className="w-full"
@@ -520,7 +520,7 @@ export default function RoomBuilderPage() {
             {!roomMetrics.isValid && walls.length > 0 && (
               <div className="space-y-2">
                 <div className="text-sm text-red-500 font-medium">
-                  ⚠️ Room Issues Found
+                  ⚠️ {t('sidebar.roomIssuesFound')}
                 </div>
                 {roomMetrics.validationErrors.slice(0, 3).map((error, index) => (
                   <div key={index} className="text-xs text-red-400">
@@ -529,7 +529,7 @@ export default function RoomBuilderPage() {
                 ))}
                 {roomMetrics.validationErrors.length > 3 && (
                   <div className="text-xs text-red-300">
-                    +{roomMetrics.validationErrors.length - 3} more issues
+                    +{roomMetrics.validationErrors.length - 3} {t('sidebar.moreIssues')}
                   </div>
                 )}
               </div>
