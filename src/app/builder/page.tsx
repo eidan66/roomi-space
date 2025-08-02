@@ -113,12 +113,12 @@ export default function RoomBuilderPage() {
     if (walls.length === 0) return;
     recordUndo();
     clearWalls();
-    showNotification('Room cleared', 'info');
+    showNotification(t('notifications.roomCleared'), 'info');
   };
 
   const saveRoom = () => {
     if (!isRoomValid) {
-      showNotification('Cannot save an invalid room. Please complete the walls.', 'error');
+      showNotification(t('notifications.cannotSaveInvalid'), 'error');
       return;
     }
 
@@ -129,7 +129,7 @@ export default function RoomBuilderPage() {
       createdAt: new Date().toISOString()
     }));
 
-    showNotification('Room saved successfully!', 'success');
+    showNotification(t('notifications.roomSaved'), 'success');
   };
 
   const loadTemplate = (templateIndex: number) => {
@@ -140,11 +140,11 @@ export default function RoomBuilderPage() {
     if (templateIndex === 1) {
       // Square room template
       generateRectangularRoom(4, 4, wallHeight, wallThickness);
-      showNotification('Loaded Square Room template', 'info');
+      showNotification(t('notifications.loadedSquareTemplate'), 'info');
     } else if (templateIndex === 2) {
       // L-shaped room template
       generateLShapedRoom(6, 6, 3, 3, wallHeight, wallThickness);
-      showNotification('Loaded L-Shaped Room template', 'info');
+              showNotification(t('notifications.loadedLShapedTemplate'), 'info');
     }
   };
 
@@ -165,14 +165,14 @@ export default function RoomBuilderPage() {
     }));
 
     setWalls(updatedWalls);
-    showNotification('Wall properties applied to all walls', 'success');
+    showNotification(t('notifications.wallPropertiesApplied'), 'success');
   };
 
   const handlePresetSelect = (preset: MaterialPreset) => {
     setFloorType(preset.floorType);
     setWallMaterial(preset.wallMaterial);
     setWindowStyle(preset.windowStyle);
-    showNotification(`Applied ${preset.name} preset`, 'success');
+    showNotification(t('notifications.presetApplied', { preset: preset.name }), 'success');
   };
 
   // Load saved room from localStorage on initial render
@@ -183,7 +183,7 @@ export default function RoomBuilderPage() {
         const savedRoom = JSON.parse(savedRoomJson);
         setWalls(savedRoom.walls);
         setRoomName(savedRoom.name);
-        showNotification('Loaded your previously saved room', 'info');
+        showNotification(t('notifications.loadedPreviousRoom'), 'info');
       } catch (error) {
         console.error('Failed to load saved room:', error);
       }

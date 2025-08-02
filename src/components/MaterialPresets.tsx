@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -15,48 +16,48 @@ export interface MaterialPreset {
 
 export const MATERIAL_PRESETS: MaterialPreset[] = [
   {
-    name: 'Modern Minimalist',
-    description: 'Clean lines with concrete floors and modern windows',
+    name: 'modernMinimalist',
+    description: 'modernMinimalist',
     floorType: 'concrete',
     wallMaterial: 'paint',
     windowStyle: 'modern',
     icon: '🏢'
   },
   {
-    name: 'Classic Elegance',
-    description: 'Timeless marble floors with wooden walls',
+    name: 'classicElegance',
+    description: 'classicElegance',
     floorType: 'marble',
     wallMaterial: 'wood',
     windowStyle: 'classic',
     icon: '🏛️'
   },
   {
-    name: 'Industrial Loft',
-    description: 'Raw brick walls with concrete floors',
+    name: 'industrialLoft',
+    description: 'industrialLoft',
     floorType: 'concrete',
     wallMaterial: 'brick',
     windowStyle: 'industrial',
     icon: '🏭'
   },
   {
-    name: 'Cozy Home',
-    description: 'Warm wood floors with painted walls',
+    name: 'cozyHome',
+    description: 'cozyHome',
     floorType: 'wood',
     wallMaterial: 'paint',
     windowStyle: 'classic',
     icon: '🏠'
   },
   {
-    name: 'Luxury Suite',
-    description: 'Premium marble with stone accents',
+    name: 'luxurySuite',
+    description: 'luxurySuite',
     floorType: 'marble',
     wallMaterial: 'stone',
     windowStyle: 'modern',
     icon: '💎'
   },
   {
-    name: 'Office Space',
-    description: 'Professional carpet with modern finishes',
+    name: 'officeSpace',
+    description: 'officeSpace',
     floorType: 'carpet',
     wallMaterial: 'paint',
     windowStyle: 'modern',
@@ -77,6 +78,8 @@ const MaterialPresets: React.FC<MaterialPresetsProps> = ({
   currentWallMaterial,
   currentWindowStyle
 }) => {
+  const { t } = useTranslation();
+  
   const isCurrentPreset = (preset: MaterialPreset) => {
     return preset.floorType === currentFloorType &&
            preset.wallMaterial === currentWallMaterial &&
@@ -86,7 +89,7 @@ const MaterialPresets: React.FC<MaterialPresetsProps> = ({
   return (
     <Card className="border-0 shadow-sm">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg">Material Presets</CardTitle>
+        <CardTitle className="text-lg">{t('materialPresets.title')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
         <div className="grid grid-cols-1 gap-2">
@@ -101,9 +104,9 @@ const MaterialPresets: React.FC<MaterialPresetsProps> = ({
               <div className="flex items-start space-x-3">
                 <span className="text-lg">{preset.icon}</span>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">{preset.name}</div>
+                  <div className="font-medium text-sm">{t(`materialPresets.${preset.name}.name`)}</div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    {preset.description}
+                    {t(`materialPresets.${preset.description}.description`)}
                   </div>
                 </div>
               </div>
