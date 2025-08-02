@@ -148,7 +148,7 @@ const WallComponent: React.FC<{ wall: Wall; isPreview?: boolean }> = ({ wall, is
           textAnchor="middle"
           style={{ userSelect: 'none' }}
         >
-          {`${length.toFixed(2)}m`}
+          {length < 1 ? `${Math.round(length*100)} cm` : `${length.toFixed(2)} m`}
         </text>
       )}
     </g>

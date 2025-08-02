@@ -16,6 +16,7 @@ import { ROOM_SIZES } from '@/config/roomSizes';
 import Floorplan2DCanvas, { Wall } from '@/components/Floorplan2DCanvas';
 import { useAdvancedRoom } from '@/components/AdvancedRoomBuilder';
 import MaterialPresets, { MaterialPreset } from '@/components/MaterialPresets';
+import ModelCategories from '@/components/ModelCategories';
 import RoomQualityAnalyzer from '@/components/RoomQualityAnalyzer';
 import TopToolbar from '@/components/TopToolbar';
 import { AdvancedRoomCalculator } from '@/lib/advanced-room-calculator';
@@ -472,6 +473,8 @@ export default function RoomBuilderPage() {
             </div>
           </CardContent>
         </Card>
+
+        <ModelCategories />
 
         <MaterialPresets
           onPresetSelect={handlePresetSelect}

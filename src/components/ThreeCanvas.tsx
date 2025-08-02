@@ -3099,9 +3099,13 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const activeToolRef = useRef(activeTool);
-  useEffect(()=>{activeToolRef.current = activeTool;},[activeTool]);
+  useEffect(() => {
+    activeToolRef.current = activeTool;
+  }, [activeTool]);
   const colorRef = useRef(selectedColor);
-  useEffect(()=>{colorRef.current = selectedColor;},[selectedColor]);
+  useEffect(() => {
+    colorRef.current = selectedColor;
+  }, [selectedColor]);
   const internalRendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
