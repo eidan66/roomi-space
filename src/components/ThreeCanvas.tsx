@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls';
 import { Wall } from './Floorplan2DCanvas';
 import AdvancedGeometryEngine, { WindowPlacement, TopologyValidation, ConsistencyReport } from './AdvancedGeometryEngine';
 
@@ -3110,6 +3111,8 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
+  const fpControlsRef = useRef<PointerLockControls | null>(null);
+  const clockRef = useRef<THREE.Clock>(new THREE.Clock());
   const wallGroupRef = useRef<THREE.Group>(new THREE.Group());
   const polygonRef = useRef<{x:number,z:number}[]>([]);
   const wallSegmentsRef = useRef<{start:{x:number,z:number},end:{x:number,z:number}}[]>([]);
@@ -3125,6 +3128,10 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
   const [isFloorplanValid, setIsFloorplanValid] = useState(false);
   const [processedWalls, setProcessedWalls] = useState<Wall[]>([]);
+  const [hoverName, setHoverName] = useState<string>('');
+  const [fpMode, setFpMode] = useState(false);
+  const [objUndo, setObjUndo] = useState<THREE.Object3D[][]>([]);
+  const [objRedo, setObjRedo] = useState<THREE.Object3D[][]>([]);
 
   // --- Main setup effect (runs only once) ---
   useEffect(() => {
@@ -3134,8 +3141,18 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     // --- Core Scene Setup ---
     const scene = new THREE.Scene();
     sceneRef.current = scene;
-    scene.background = new THREE.Color(isDarkMode ? 0x000000 : 0xffffff);
-    scene.fog = new THREE.Fog(isDarkMode ? 0x000000 : 0xffffff, 20, 60);
+    
+    // --- Skybox ---
+    try {
+      const tex = new THREE.CubeTextureLoader().setPath('/sky/')
+        .load(['px.jpg','nx.jpg','py.jpg','ny.jpg','pz.jpg','nz.jpg']);
+      scene.background = tex;
+      scene.environment = tex; // PBR reflections
+    } catch (e) {
+      // Fallback to solid color if skybox fails
+      scene.background = new THREE.Color(isDarkMode ? 0x000000 : 0xffffff);
+      scene.fog = new THREE.Fog(isDarkMode ? 0x000000 : 0xffffff, 20, 60);
+    }
 
     const camera = new THREE.PerspectiveCamera(60, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
     cameraRef.current = camera;
@@ -3181,6 +3198,55 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     controls.maxDistance = 50;
     controls.maxPolarAngle = Math.PI / 2 - 0.1;
     controls.target.set(0, 1, 0);
+
+    // --- First-Person Controls ---
+    const fpControls = new PointerLockControls(camera, renderer.domElement);
+    fpControlsRef.current = fpControls;
+    const walkKeys: Record<string, boolean> = { w: false, a: false, s: false, d: false };
+    
+    // Handle pointer lock errors
+    fpControls.addEventListener('error', () => {
+      console.log('Pointer lock failed - user may have denied permission');
+      setFpMode(false);
+      controls.enabled = true;
+    });
+    
+    // Handle pointer lock changes
+    fpControls.addEventListener('lock', () => {
+      console.log('Pointer locked - entering first-person mode');
+    });
+    
+    fpControls.addEventListener('unlock', () => {
+      console.log('Pointer unlocked - exiting first-person mode');
+      setFpMode(false);
+      controls.enabled = true;
+    });
+    
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyF') {
+        setFpMode(prev => {
+          const newMode = !prev;
+          controls.enabled = !newMode;
+          if (newMode) {
+            try {
+              fpControls.lock();
+            } catch (err) {
+              console.log('Failed to lock pointer:', err);
+              setFpMode(false);
+              controls.enabled = true;
+            }
+          } else {
+            fpControls.unlock();
+          }
+          return newMode;
+        });
+      }
+      if (walkKeys.hasOwnProperty(e.key)) walkKeys[e.key] = true;
+    });
+    
+    window.addEventListener('keyup', (e) => {
+      if (walkKeys.hasOwnProperty(e.key)) walkKeys[e.key] = false;
+    });
 
     // --- Add groups to scene ---
     scene.add(wallGroupRef.current);
@@ -3243,7 +3309,19 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     let animationFrameId: number;
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
-      controls.update();
+      
+      // First-person movement
+      if (fpMode && fpControlsRef.current && fpControlsRef.current.isLocked) {
+        const dt = clockRef.current.getDelta();
+        const speed = 3;
+        if (walkKeys.w) fpControlsRef.current.moveForward(speed * dt);
+        if (walkKeys.s) fpControlsRef.current.moveForward(-speed * dt);
+        if (walkKeys.a) fpControlsRef.current.moveRight(-speed * dt);
+        if (walkKeys.d) fpControlsRef.current.moveRight(speed * dt);
+      } else {
+        controls.update();
+      }
+      
       renderer.render(scene, camera);
     };
     animate();
@@ -3270,6 +3348,19 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       
       raycaster.setFromCamera(mouse, camera);
 
+      // HUD hover detection
+      if (!draggedRef.current) {
+        raycaster.setFromCamera(mouse, camera);
+        const hoverHit = raycaster.intersectObjects(draggableObjectsRef.current, true)[0];
+        if (hoverHit) {
+          let obj = hoverHit.object;
+          while (obj.parent && !obj.userData.type) obj = obj.parent;
+          setHoverName(obj.userData.type || obj.name || '');
+        } else {
+          setHoverName('');
+        }
+      }
+
       // Handle paint tool
       if(activeToolRef.current==='paint'){
         const allTargets = [...wallGroupRef.current.children, ...draggableObjectsRef.current];
@@ -3294,6 +3385,11 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       if(activeToolRef.current==='delete'){
         const dhit = raycaster.intersectObjects(draggableObjectsRef.current,true)[0];
         if(dhit){
+          // Push undo before deleting
+          const snapshot = draggableObjectsRef.current.map(o => o.clone());
+          setObjUndo(prev => [snapshot, ...prev]);
+          setObjRedo([]);
+          
           let obj:THREE.Object3D = dhit.object;
           while(obj.parent && !obj.name?.startsWith('furniture-')) obj = obj.parent;
           draggableObjectsRef.current = draggableObjectsRef.current.filter(o=>o!==obj);
@@ -3482,13 +3578,47 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     renderer.domElement.addEventListener('pointerup', onPointerUp);
 
     // --- Cleanup ---
+    // Undo/Redo keyboard shortcuts
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'z') {
+        if (objUndo.length > 0) {
+          const snapshot = draggableObjectsRef.current.map(o => o.clone());
+          setObjRedo(prev => [snapshot, ...prev]);
+          
+          const restore = objUndo[0];
+          draggableObjectsRef.current.forEach(o => scene.remove(o));
+          draggableObjectsRef.current = [...restore];
+          restore.forEach(o => scene.add(o));
+          
+          setObjUndo(prev => prev.slice(1));
+        }
+      }
+      if (e.ctrlKey && e.key === 'y') {
+        if (objRedo.length > 0) {
+          const snapshot = draggableObjectsRef.current.map(o => o.clone());
+          setObjUndo(prev => [snapshot, ...prev]);
+          
+          const restore = objRedo[0];
+          draggableObjectsRef.current.forEach(o => scene.remove(o));
+          draggableObjectsRef.current = [...restore];
+          restore.forEach(o => scene.add(o));
+          
+          setObjRedo(prev => prev.slice(1));
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('keydown', handleKeyDown);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
       renderer.domElement.removeEventListener('pointermove', onPointerMove);
       renderer.domElement.removeEventListener('pointerup', onPointerUp);
       controls.dispose();
+      fpControlsRef.current?.dispose();
       renderer.dispose();
       if (currentMount && renderer.domElement) {
         // Check if the domElement is still a child before removing
@@ -4008,40 +4138,51 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   }, [walls, showWindows, isDarkMode, floorType, wallMaterial, windowStyle]);
 
   return (
-    <div ref={mountRef} className="w-full h-full relative">
-      {/* Status indicators */}
-      {!isFloorplanValid && walls.length > 0 && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-md shadow-lg z-10">
-          Invalid floor plan: Walls must form a closed shape
-        </div>
-      )}
+    <>
+      <div ref={mountRef} className="w-full h-full relative">
+        {/* Status indicators */}
+        {!isFloorplanValid && walls.length > 0 && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-md shadow-lg z-10">
+            Invalid floor plan: Walls must form a closed shape
+          </div>
+        )}
 
-      {isFloorplanValid && walls.length > 0 && (
-        <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-md shadow-lg text-sm z-10">
-          ✓ Valid Room ({walls.length} walls)
-        </div>
-      )}
+        {isFloorplanValid && walls.length > 0 && (
+          <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-md shadow-lg text-sm z-10">
+            ✓ Valid Room ({walls.length} walls)
+          </div>
+        )}
 
-      {/* 3D Controls hint */}
-      <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-2 rounded-md text-sm z-10">
-        <div>🖱️ Left click + drag: Rotate</div>
-        <div>🖱️ Right click + drag: Pan</div>
-        <div>🖱️ Scroll: Zoom</div>
+        {/* 3D Controls hint */}
+        <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-2 rounded-md text-sm z-10">
+          <div>🖱️ Left click + drag: Rotate</div>
+          <div>🖱️ Right click + drag: Pan</div>
+          <div>🖱️ Scroll: Zoom</div>
+          <div>F: First-person mode (click canvas first)</div>
+          <div>Ctrl+Z/Y: Undo/Redo</div>
+        </div>
+
+        {/* Advanced Room Statistics */}
+        {isFloorplanValid && processedWalls.length > 0 && (
+          <div className="absolute bottom-4 right-4 bg-black bg-opacity-50 text-white px-3 py-2 rounded-md text-sm z-10 space-y-1">
+            <div className="font-semibold">Advanced Room Stats</div>
+            <div>Walls: {processedWalls.length}</div>
+            <div>Avg Height: {(processedWalls.reduce((sum, w) => sum + w.height, 0) / processedWalls.length).toFixed(1)}m</div>
+            <div>Perimeter: {processedWalls.reduce((sum, w) => sum + Math.sqrt((w.end.x - w.start.x) ** 2 + (w.end.z - w.start.z) ** 2), 0).toFixed(1)}m</div>
+            <div>Vertices: {getOrderedVertices(processedWalls).length}</div>
+            <div className="text-green-400">✓ Geometry Optimized</div>
+            <div className="text-blue-400">✓ Topology Validated</div>
+          </div>
+        )}
       </div>
-
-      {/* Advanced Room Statistics */}
-      {isFloorplanValid && processedWalls.length > 0 && (
-        <div className="absolute bottom-4 right-4 bg-black bg-opacity-50 text-white px-3 py-2 rounded-md text-sm z-10 space-y-1">
-          <div className="font-semibold">Advanced Room Stats</div>
-          <div>Walls: {processedWalls.length}</div>
-          <div>Avg Height: {(processedWalls.reduce((sum, w) => sum + w.height, 0) / processedWalls.length).toFixed(1)}m</div>
-          <div>Perimeter: {processedWalls.reduce((sum, w) => sum + Math.sqrt((w.end.x - w.start.x) ** 2 + (w.end.z - w.start.z) ** 2), 0).toFixed(1)}m</div>
-          <div>Vertices: {getOrderedVertices(processedWalls).length}</div>
-          <div className="text-green-400">✓ Geometry Optimized</div>
-          <div className="text-blue-400">✓ Topology Validated</div>
-        </div>
-      )}
-    </div>
+      
+      {/* HUD Overlay */}
+      <div className="fixed top-2 left-2 z-50 text-xs bg-black/60 text-white px-2 py-1 rounded">
+        {hoverName && <div>{hoverName}</div>}
+        <div>{`Cam Yaw ${(cameraRef.current?.rotation.y ? cameraRef.current.rotation.y * 57.3 : 0).toFixed(1)}°`}</div>
+        {fpMode && fpControlsRef.current?.isLocked && <div className="text-yellow-300">FP Mode</div>}
+      </div>
+    </>
   );
 };
 

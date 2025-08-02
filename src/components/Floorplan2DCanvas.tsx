@@ -178,6 +178,7 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [isRoomValid, setIsRoomValid] = useState(false);
   const [roomArea, setRoomArea] = useState(0);
+  const [gridEnabled, setGridEnabled] = useState(true);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const lastMousePosRef = useRef<Point>({ x: 0, z: 0 });
@@ -450,6 +451,11 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
         ));
         setSelectedPoint(null);
       }
+      
+      // Grid toggle
+      if (e.key === 'g' || e.key === 'G') {
+        setGridEnabled(prev => !prev);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -528,8 +534,12 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
             <path d={`M ${GRID_STEP * SCALE * 5} 0 L 0 0 0 ${GRID_STEP * SCALE * 5}`} fill="none" stroke="rgba(180, 180, 220, 0.8)" strokeWidth="1"/>
           </pattern>
         </defs>
-        <rect x={viewBox.x} y={viewBox.y} width={viewBox.width} height={viewBox.height} fill="url(#grid)" />
-        <rect x={viewBox.x} y={viewBox.y} width={viewBox.width} height={viewBox.height} fill="url(#grid-major)" />
+        {gridEnabled && (
+          <>
+            <rect x={viewBox.x} y={viewBox.y} width={viewBox.width} height={viewBox.height} fill="url(#grid)" />
+            <rect x={viewBox.x} y={viewBox.y} width={viewBox.width} height={viewBox.height} fill="url(#grid-major)" />
+          </>
+        )}
 
         {/* Room Area Display */}
         {isRoomValid && roomArea > 0 && (
