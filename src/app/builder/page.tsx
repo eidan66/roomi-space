@@ -12,6 +12,7 @@ import { useTheme } from 'next-themes';
 import { useTranslation } from 'react-i18next';
 
 import ThreeCanvas from '@/components/ThreeCanvas';
+import { ROOM_SIZES } from '@/config/roomSizes';
 import Floorplan2DCanvas, { Wall } from '@/components/Floorplan2DCanvas';
 import { useAdvancedRoom } from '@/components/AdvancedRoomBuilder';
 import MaterialPresets, { MaterialPreset } from '@/components/MaterialPresets';
@@ -46,7 +47,7 @@ export default function RoomBuilderPage() {
   const isRoomValid = roomMetrics.isValid;
 
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
-  const [editMode, setEditMode] = useState<'draw' | 'move' | 'idle'>('idle');
+  const [editMode, setEditMode] = useState<'draw' | 'move' | 'delete' | 'idle'>('idle');
 
   const [gridEnabled, setGridEnabled] = useState(true);
   const [gridSnapping, setGridSnapping] = useState(true);
@@ -60,6 +61,32 @@ export default function RoomBuilderPage() {
   // Top toolbar states
   const [roomSize, setRoomSize] = useState<'xs' | 's' | 'm' | 'l' | 'xl'>('m');
   const [activeTool, setActiveTool] = useState<'select' | 'drag' | 'paint' | 'delete' | 'resize'>('select');
+
+  // Sync delete tool with editMode when in 2D view
+  useEffect(() => {
+    if (viewMode === '2d') {
+      if (activeTool === 'delete') {
+        setEditMode('delete');
+      } else if (activeTool === 'drag') {
+        setEditMode('move');
+      } else if (activeTool === 'select') {
+        setEditMode('idle');
+      }
+    }
+  }, [activeTool, viewMode]);
+
+  // Apply room size template when roomSize changes
+  useEffect(() => {
+    const size = ROOM_SIZES.find(s => s.key === roomSize);
+    if (!size) return;
+    // Clear existing and generate new room
+    if (walls.length > 0) {
+      recordUndo();
+    }
+    clearWalls();
+    generateRectangularRoom(size.width, size.length, wallHeight, wallThickness);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomSize]);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
   const isPremium = false; // TODO: replace with real premium check
 

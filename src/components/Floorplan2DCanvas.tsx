@@ -15,8 +15,8 @@ export interface Wall { // Exporting for parent component
 interface Floorplan2DCanvasProps {
   walls: Wall[];
   setWalls: React.Dispatch<React.SetStateAction<Wall[]>>;
-  mode: 'draw' | 'move' | 'idle';
-  setMode: React.Dispatch<React.SetStateAction<'draw' | 'move' | 'idle'>>;
+  mode: 'draw' | 'move' | 'delete' | 'idle';
+  setMode: React.Dispatch<React.SetStateAction<'draw' | 'move' | 'delete' | 'idle'>>;
   wallHeight?: number;
   wallThickness?: number;
   onWallsChange?: () => void;
@@ -347,6 +347,32 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
   };
 
   const handleClick = (e: React.MouseEvent) => {
+    if (mode === 'delete') {
+      const clickPos = getMousePos(e);
+      // Find wall near click
+      let wallToDelete: Wall | null = null;
+      const threshold = 0.25; // meters
+      for (const wall of walls) {
+        const v = { x: wall.end.x - wall.start.x, z: wall.end.z - wall.start.z };
+        const wLen = Math.sqrt(v.x * v.x + v.z * v.z);
+        if (wLen < 0.01) continue;
+        const dir = { x: v.x / wLen, z: v.z / wLen };
+        const toClick = { x: clickPos.x - wall.start.x, z: clickPos.z - wall.start.z };
+        const proj = toClick.x * dir.x + toClick.z * dir.z;
+        if (proj < 0 || proj > wLen) continue;
+        // perpendicular distance
+        const perp = Math.abs(toClick.x * dir.z - toClick.z * dir.x);
+        if (perp < threshold) {
+          wallToDelete = wall;
+          break;
+        }
+      }
+      if (wallToDelete) {
+        setWalls(prev => prev.filter(w => w.id !== wallToDelete!.id));
+        if (onWallsChange) onWallsChange();
+      }
+      return;
+    }
     if (mode !== 'draw') return;
     const pt = getSnappedMousePos(e);
 
