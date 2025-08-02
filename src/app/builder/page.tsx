@@ -193,14 +193,14 @@ export default function RoomBuilderPage() {
   return (
     <div className="h-screen flex flex-col md:flex-row bg-background">
       {/* --- Sidebar --- */}
-      <div className="w-full md:w-80 bg-card border-r border-border overflow-y-auto p-6 space-y-6">
+      <div className="w-full md:w-80 bg-card border-r border-border overflow-y-auto p-4 space-y-4">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden bg-white/90">
             <Image src="/images/roomi-logo-light.jpeg" alt={t('alt.logo')} width={40} height={40} className="w-full h-full object-contain" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">Room Builder</h1>
-            <p className="text-sm text-muted-foreground">Design your space</p>
+            <h1 className="text-xl font-bold text-foreground">{t('builder.title')}</h1>
+            <p className="text-sm text-muted-foreground">{t('builder.tagline')}</p>
           </div>
         </div>
 
@@ -213,27 +213,27 @@ export default function RoomBuilderPage() {
         />
 
         <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3"><CardTitle className="text-lg flex items-center"><View className="w-5 h-5 mr-2" />View Mode</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-lg flex items-center"><View className="w-5 h-5 mr-2" />{t('sidebar.viewMode')}</CardTitle></CardHeader>
           <CardContent>
             <div className="flex space-x-2">
-              <Button variant={viewMode === '2d' ? 'default' : 'outline'} onClick={() => setViewMode('2d')} className="flex-1"><PencilRuler className="w-4 h-4 mr-2" />2D Plan</Button>
-              <Button variant={viewMode === '3d' ? 'default' : 'outline'} onClick={() => setViewMode('3d')} className="flex-1"><Move3d className="w-4 h-4 mr-2" />3D View</Button>
+              <Button variant={viewMode === '2d' ? 'default' : 'outline'} onClick={() => setViewMode('2d')} className="flex-1"><PencilRuler className="w-4 h-4 mr-2" />{t('sidebar.plan2d')}</Button>
+              <Button variant={viewMode === '3d' ? 'default' : 'outline'} onClick={() => setViewMode('3d')} className="flex-1"><Move3d className="w-4 h-4 mr-2" />{t('sidebar.view3d')}</Button>
             </div>
           </CardContent>
         </Card>
 
         {viewMode === '2d' && (
           <Card className="border-0 shadow-sm">
-            <CardHeader className="pb-3"><CardTitle className="text-lg flex items-center"><Square className="w-5 h-5 mr-2" />Drawing Tools</CardTitle></CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="text-lg flex items-center"><Square className="w-5 h-5 mr-2" />{t('sidebar.drawingTools')}</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <Button variant={editMode === 'draw' ? 'secondary' : 'outline'} onClick={() => setEditMode('draw')} className="w-full justify-start"><Building className="w-4 h-4 mr-2" />Draw Walls</Button>
-              <Button variant={editMode === 'move' ? 'secondary' : 'outline'} onClick={() => setEditMode('move')} className="w-full justify-start"><Move className="w-4 h-4 mr-2" />Move Points</Button>
+              <Button variant={editMode === 'draw' ? 'secondary' : 'outline'} onClick={() => setEditMode('draw')} className="w-full justify-start"><Building className="w-4 h-4 mr-2" />{t('sidebar.drawWalls')}</Button>
+              <Button variant={editMode === 'move' ? 'secondary' : 'outline'} onClick={() => setEditMode('move')} className="w-full justify-start"><Move className="w-4 h-4 mr-2" />{t('sidebar.movePoints')}</Button>
               <div className="flex items-center justify-between pt-2">
-                <Label className="text-sm">Show Grid</Label>
+                <Label className="text-sm">{t('sidebar.showGrid')}</Label>
                 <Switch checked={gridEnabled} onCheckedChange={setGridEnabled} />
               </div>
               <div className="flex items-center justify-between pt-2">
-                <Label className="text-sm">Grid Snapping</Label>
+                <Label className="text-sm">{t('sidebar.gridSnapping')}</Label>
                 <Switch checked={gridSnapping} onCheckedChange={setGridSnapping} />
               </div>
             </CardContent>
@@ -241,14 +241,14 @@ export default function RoomBuilderPage() {
         )}
 
         <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3"><CardTitle className="text-lg flex items-center"><Palette className="w-5 h-5 mr-2" />Wall Properties</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-lg flex items-center"><Palette className="w-5 h-5 mr-2" />{t('sidebar.wallProperties')}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label className="text-sm mb-2 block">Height: {wallHeight.toFixed(1)}m</Label>
+              <Label className="text-sm mb-2 block">{t('sidebar.wallHeight')}: {wallHeight.toFixed(1)}m</Label>
               <Slider value={[wallHeight]} onValueChange={([v]) => setWallHeight(v)} min={1} max={4} step={0.1} className="w-full" />
             </div>
             <div>
-              <Label className="text-sm mb-2 block">Thickness: {wallThickness.toFixed(2)}m</Label>
+              <Label className="text-sm mb-2 block">{t('sidebar.wallThickness')}: {wallThickness.toFixed(2)}m</Label>
               <Slider value={[wallThickness]} onValueChange={([v]) => setWallThickness(v)} min={0.05} max={0.3} step={0.01} className="w-full" />
             </div>
             <div className="flex items-center justify-between pt-2">
@@ -393,15 +393,15 @@ export default function RoomBuilderPage() {
         </Card>
 
         <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3"><CardTitle className="text-lg">Templates</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-lg">{t('sidebar.templates')}</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" size="sm" onClick={() => loadTemplate(1)}>
-                <Home className="w-4 h-4 mr-1" />Square
-              </Button>
+  <Home className="w-4 h-4 mr-1" />{t('sidebar.templateSquare')}
+</Button>
               <Button variant="outline" size="sm" onClick={() => loadTemplate(2)}>
-                <Home className="w-4 h-4 mr-1" />L-Shape
-              </Button>
+  <Home className="w-4 h-4 mr-1" />{t('sidebar.templateLShape')}
+</Button>
             </div>
           </CardContent>
         </Card>
@@ -414,68 +414,68 @@ export default function RoomBuilderPage() {
         />
 
         <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3"><CardTitle className="text-lg">Actions</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-lg">{t('sidebar.actions')}</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="flex space-x-2">
               <Button
-                variant="outline"
-                size="sm"
-                onClick={undo}
-                disabled={undoStack.length === 0}
-                className="flex-1"
-                title="Undo last action"
-              >
-                <Undo className="w-4 h-4 mr-1" />Undo
-              </Button>
+  variant="outline"
+  size="sm"
+  onClick={undo}
+  disabled={undoStack.length === 0}
+  className="flex-1"
+  title={t('sidebar.undo')}
+>
+  <Undo className="w-4 h-4 mr-1" />{t('sidebar.undo')}
+</Button>
 
               <Button
-                variant="outline"
-                size="sm"
-                onClick={redo}
-                disabled={redoStack.length === 0}
-                className="flex-1"
-                title="Redo last action"
-              >
-                <Redo className="w-4 h-4 mr-1" />Redo
-              </Button>
+  variant="outline"
+  size="sm"
+  onClick={redo}
+  disabled={redoStack.length === 0}
+  className="flex-1"
+  title={t('sidebar.redo')}
+>
+  <Redo className="w-4 h-4 mr-1" />{t('sidebar.redo')}
+</Button>
             </div>
 
             <Button
-              variant="outline"
-              onClick={clearAll}
-              className="w-full"
-              disabled={walls.length === 0}
-            >
-              <Trash2 className="w-4 h-4 mr-2" />Clear All
-            </Button>
+  variant="outline"
+  onClick={clearAll}
+  className="w-full"
+  disabled={walls.length === 0}
+>
+  <Trash2 className="w-4 h-4 mr-2" />{t('sidebar.clearAll')}
+</Button>
 
             <Button
-              variant="outline"
-              onClick={() => {
-                if (walls.length > 0) {
-                  showNotification('Advanced geometry processing applied!', 'success');
-                }
-              }}
-              className="w-full"
-              disabled={walls.length === 0}
-              title="Apply advanced geometry processing: vertex snapping, angle alignment, topology validation"
-            >
-              ⚡ Optimize Geometry
-            </Button>
+  variant="outline"
+  onClick={() => {
+    if (walls.length > 0) {
+      showNotification('Advanced geometry processing applied!', 'success');
+    }
+  }}
+  className="w-full"
+  disabled={walls.length === 0}
+  title={t('sidebar.optimizeGeometry')}
+>
+  ⚡ {t('sidebar.optimizeGeometry')}
+</Button>
 
             <Button
-              onClick={saveRoom}
-              className="w-full bg-gradient-to-r from-blue-500 to-purple-600"
-              disabled={walls.length === 0 || !isRoomValid}
-            >
-              <Save className="w-4 h-4 mr-2" />Save Room
-            </Button>
+  onClick={saveRoom}
+  className="w-full bg-gradient-to-r from-blue-500 to-purple-600"
+  disabled={walls.length === 0 || !isRoomValid}
+>
+  <Save className="w-4 h-4 mr-2" />{t('sidebar.saveRoom')}
+</Button>
 
             {isRoomValid && walls.length >= 3 && (
               <Link href="/furnish" className="block">
                 <Button className="w-full bg-gradient-to-r from-green-500 to-teal-600">
-                  <Move3d className="w-4 h-4 mr-2" />Start Furnishing<ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
+  <Move3d className="w-4 h-4 mr-2" />{t('sidebar.startFurnishing')}<ArrowRight className="w-4 h-4 ml-2" />
+</Button>
               </Link>
             )}
           </CardContent>
@@ -485,34 +485,34 @@ export default function RoomBuilderPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center">
               <Building className="w-5 h-5 mr-2" />
-              Room Statistics
+              {t('sidebar.roomStatistics')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Walls Built</span>
+              <span className="text-sm text-muted-foreground">{t('sidebar.wallsBuilt')}</span>
               <Badge variant="secondary">{roomMetrics.wallCount}</Badge>
             </div>
             {roomMetrics.isValid && (
               <>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Room Area</span>
+                  <span className="text-sm text-muted-foreground">{t('sidebar.roomArea')}</span>
                   <Badge variant="outline" className="bg-blue-50">{roomMetrics.area.toFixed(2)}m²</Badge>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Usable Area</span>
+                  <span className="text-sm text-muted-foreground">{t('sidebar.usableArea')}</span>
                   <Badge variant="outline" className="bg-blue-100">{roomMetrics.usableArea.toFixed(2)}m²</Badge>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Perimeter</span>
+                  <span className="text-sm text-muted-foreground">{t('sidebar.perimeter')}</span>
                   <Badge variant="outline" className="bg-green-50">{roomMetrics.perimeter.toFixed(2)}m</Badge>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Avg Wall Length</span>
+                  <span className="text-sm text-muted-foreground">{t('sidebar.avgWallLength')}</span>
                   <Badge variant="outline" className="bg-purple-50">{roomMetrics.averageWallLength.toFixed(2)}m</Badge>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Compactness</span>
+                  <span className="text-sm text-muted-foreground">{t('sidebar.compactness')}</span>
                   <Badge variant="outline" className="bg-orange-50">{(roomMetrics.compactness * 100).toFixed(1)}%</Badge>
                 </div>
               </>

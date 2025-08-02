@@ -3315,11 +3315,19 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           if ((c as THREE.Mesh).isMesh) {
             const mesh = c as THREE.Mesh;
             const mat = mesh.material as THREE.Material;
-            if (!(mat as any).userData._cloned) {
+            // Save original color the very first time we touch this mesh
+            if (!mesh.userData.origColor) {
+              mesh.userData.origColor = (mesh.material as THREE.MeshStandardMaterial).color.clone();
+            }
+
+            // Clone the material once so we are not mutating a material that may be shared
+            if (!(mat as any).userData?._cloned) {
               mesh.material = mat.clone();
               (mesh.material as any).userData._cloned = true;
             }
-            ((mesh.material as THREE.MeshStandardMaterial)).color.set(legal ? 0xffffff : 0xff0000);
+
+            // Visual feedback – white if legal, red if illegal
+            (mesh.material as THREE.MeshStandardMaterial).color.set(legal ? 0xffffff : 0xff0000);
           }
         });
 
@@ -3337,7 +3345,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           if((child as THREE.Mesh).isMesh){
             const mesh = child as THREE.Mesh;
             if(mesh.userData.origColor){
-              (mesh.material as THREE.MeshStandardMaterial).color.set(mesh.userData.origColor);
+              (mesh.material as THREE.MeshStandardMaterial).color.copy(mesh.userData.origColor);
             }
           }
         });
