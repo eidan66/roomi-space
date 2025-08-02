@@ -20,7 +20,7 @@ export interface TopToolbarProps {
   setViewMode: (mode: '2d' | '3d') => void;
   activeTool: ToolKey;
   setActiveTool: (tool: ToolKey) => void;
-  onScreenshot: () => void;
+  onScreenshot: (url:string) => void;
   onPremiumRedirect: () => void;
   canvasRef?: React.RefObject<HTMLDivElement | null>;
   selectedColor: string;
@@ -147,14 +147,14 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
         link.click();
         
         // Show success notification
-        onScreenshot();
+        onScreenshot(dataURL);
       } else {
         throw new Error('Failed to capture screenshot - no data URL generated');
       }
     } catch (error) {
       console.error('Screenshot failed:', error);
       // Show error notification
-      onScreenshot();
+      onScreenshot('');
     }
   };
 

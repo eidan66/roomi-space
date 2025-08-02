@@ -89,6 +89,7 @@ export default function RoomBuilderPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomSize]);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+  const [screenshotUrl, setScreenshotUrl] = useState<string>('');
   const isPremium = false; // TODO: replace with real premium check
 
   // Canvas refs for screenshot
@@ -244,8 +245,12 @@ export default function RoomBuilderPage() {
         setActiveTool={setActiveTool}
         selectedColor={selectedColor}
         setSelectedColor={setSelectedColor}
-        onScreenshot={() => {
-          showNotification('Screenshot captured and downloaded!', 'success');
+        onScreenshot={(url)=>{
+          if(url){
+            setScreenshotUrl(url);
+            setShowScreenshotModal(true);
+          }
+          showNotification(t('notifications.screenshotCaptured'), 'success');
         }}
         onPremiumRedirect={() => window.location.href = '/premium'}
         canvasRef={canvas2DRef}
@@ -645,10 +650,28 @@ export default function RoomBuilderPage() {
       {/* Notification Toast */}
       {showScreenshotModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-card p-6 rounded-lg shadow-lg max-w-sm w-full space-y-4">
+          <div className="bg-card p-6 rounded-lg shadow-lg max-w-md w-full space-y-4">
             <h2 className="text-lg font-semibold text-foreground">{t('toolbar.screenshot')}</h2>
-            <p className="text-sm text-muted-foreground">Coming soon — you will be able to share and save your room here.</p>
-            <Button onClick={() => setShowScreenshotModal(false)} className="w-full">OK</Button>
+            {screenshotUrl && (
+              <img src={screenshotUrl} alt="screenshot" className="w-full border border-border rounded" />
+            )}
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={() => {
+                // Save to profile rooms in localStorage
+                const rooms = JSON.parse(localStorage.getItem('profileRooms') || '[]');
+                rooms.push({
+                  id: Date.now(),
+                  name: roomName,
+                  walls,
+                  screenshot: screenshotUrl,
+                  createdAt: new Date().toISOString()
+                });
+                localStorage.setItem('profileRooms', JSON.stringify(rooms));
+                showNotification(t('notifications.roomSaved'), 'success');
+                setShowScreenshotModal(false);
+              }}>{t('sidebar.saveRoom')}</Button>
+              <Button variant="outline" className="flex-1" onClick={()=>setShowScreenshotModal(false)}>Close</Button>
+            </div>
           </div>
         </div>
       )}
