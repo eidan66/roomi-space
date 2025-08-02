@@ -15,6 +15,7 @@ import Floorplan2DCanvas, { Wall } from '@/components/Floorplan2DCanvas';
 import { useAdvancedRoom } from '@/components/AdvancedRoomBuilder';
 import MaterialPresets, { MaterialPreset } from '@/components/MaterialPresets';
 import RoomQualityAnalyzer from '@/components/RoomQualityAnalyzer';
+import TopToolbar from '@/components/TopToolbar';
 import { AdvancedRoomCalculator } from '@/lib/advanced-room-calculator';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -54,6 +55,13 @@ export default function RoomBuilderPage() {
   const [floorType, setFloorType] = useState<'wood' | 'tile' | 'concrete' | 'marble' | 'carpet'>('wood');
   const [wallMaterial, setWallMaterial] = useState<'paint' | 'brick' | 'stone' | 'wood' | 'metal'>('paint');
   const [windowStyle, setWindowStyle] = useState<'modern' | 'classic' | 'industrial'>('modern');
+
+  // Top toolbar states
+  const [roomSize, setRoomSize] = useState<'xs' | 's' | 'm' | 'l' | 'xl'>('m');
+  const [activeTool, setActiveTool] = useState<'select' | 'drag' | 'paint' | 'delete' | 'resize'>('select');
+  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+  const isPremium = false; // TODO: replace with real premium check
+
 
   const [undoStack, setUndoStack] = useState<Wall[][]>([]);
   const [redoStack, setRedoStack] = useState<Wall[][]>([]);
@@ -191,7 +199,20 @@ export default function RoomBuilderPage() {
   }, []);
 
   return (
-    <div className="h-screen flex flex-col md:flex-row bg-background">
+    <div className="h-screen flex flex-col bg-background">
+      <TopToolbar
+        isPremium={false}
+        roomSize={roomSize}
+        setRoomSize={setRoomSize}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        activeTool={activeTool}
+        setActiveTool={setActiveTool}
+        onScreenshot={() => setShowScreenshotModal(true)}
+        onPremiumRedirect={() => window.location.href = '/premium'}
+      />
+
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
       {/* --- Sidebar --- */}
       <div className="w-full md:w-80 bg-card border-r border-border overflow-y-auto p-4 space-y-4">
         <div className="flex items-center space-x-3">
@@ -568,7 +589,18 @@ export default function RoomBuilderPage() {
         )}
       </div>
 
+      </div>
       {/* Notification Toast */}
+      {showScreenshotModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card p-6 rounded-lg shadow-lg max-w-sm w-full space-y-4">
+            <h2 className="text-lg font-semibold text-foreground">{t('toolbar.screenshot')}</h2>
+            <p className="text-sm text-muted-foreground">Coming soon — you will be able to share and save your room here.</p>
+            <Button onClick={() => setShowScreenshotModal(false)} className="w-full">OK</Button>
+          </div>
+        </div>
+      )}
+
       {notification.visible && (
         <div
           className={`fixed bottom-4 right-4 px-4 py-2 rounded-md shadow-lg text-white transition-opacity duration-300 ${notification.type === 'success' ? 'bg-green-500' :

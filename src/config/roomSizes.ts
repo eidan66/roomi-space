@@ -1,7 +1,16 @@
-export const ROOM_SIZES = {
-  XS: { width: 200, length: 200 }, // cm
-  S: { width: 300, length: 300 },
-  M: { width: 400, length: 400 },
-  L: { width: 500, length: 500 },
-  XL: { width: 600, length: 600 },
-};
+export type RoomSizeKey = 'xs' | 's' | 'm' | 'l' | 'xl';
+
+export interface RoomSizeConfig {
+  key: RoomSizeKey;
+  labelKey: string; // i18n key for display
+  width: number; // meters
+  length: number; // meters
+}
+
+export const ROOM_SIZES: RoomSizeConfig[] = [
+  { key: 'xs', labelKey: 'roomSize.xs', width: 5, length: 5 },
+  { key: 's', labelKey: 'roomSize.s', width: 10, length: 5 },
+  { key: 'm', labelKey: 'roomSize.m', width: 12, length: 6 },
+  { key: 'l', labelKey: 'roomSize.l', width: 16, length: 8 },
+  { key: 'xl', labelKey: 'roomSize.xl', width: 24, length: 12 },
+];
