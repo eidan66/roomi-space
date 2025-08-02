@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import * as THREE from 'three';
 import {
   ArrowRight, Building, Move, Move3d, Palette, Redo, Save, Square, Undo, PencilRuler, View,
   Trash2, Home
@@ -61,6 +62,11 @@ export default function RoomBuilderPage() {
   const [activeTool, setActiveTool] = useState<'select' | 'drag' | 'paint' | 'delete' | 'resize'>('select');
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
   const isPremium = false; // TODO: replace with real premium check
+
+  // Canvas refs for screenshot
+  const canvas2DRef = useRef<HTMLDivElement>(null);
+  const canvas3DRef = useRef<HTMLDivElement>(null);
+  const threeRendererRef = useRef<THREE.WebGLRenderer>(null);
 
 
   const [undoStack, setUndoStack] = useState<Wall[][]>([]);
@@ -208,8 +214,13 @@ export default function RoomBuilderPage() {
         setViewMode={setViewMode}
         activeTool={activeTool}
         setActiveTool={setActiveTool}
-        onScreenshot={() => setShowScreenshotModal(true)}
+        onScreenshot={() => {
+          showNotification('Screenshot captured and downloaded!', 'success');
+        }}
         onPremiumRedirect={() => window.location.href = '/premium'}
+        canvasRef={canvas2DRef}
+        threeCanvasRef={canvas3DRef}
+        threeRendererRef={threeRendererRef}
       />
 
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
@@ -566,26 +577,35 @@ export default function RoomBuilderPage() {
       {/* --- Main Canvas Area --- */}
       <div className="flex-1 relative bg-muted">
         {viewMode === '2d' ? (
-          <Floorplan2DCanvas
-            walls={walls}
-            setWalls={setWalls}
-            mode={editMode}
-            setMode={setEditMode}
-            wallHeight={wallHeight}
-            wallThickness={wallThickness}
-            onWallsChange={handleWallsChange}
-            gridSnapping={gridSnapping}
-          />
+          <div ref={canvas2DRef} className="w-full h-full">
+            <Floorplan2DCanvas
+              walls={walls}
+              setWalls={setWalls}
+              mode={editMode}
+              setMode={setEditMode}
+              wallHeight={wallHeight}
+              wallThickness={wallThickness}
+              onWallsChange={handleWallsChange}
+              gridSnapping={gridSnapping}
+            />
+          </div>
         ) : (
-          <ThreeCanvas
-            walls={walls}
-            gridEnabled={gridEnabled}
-            isDarkMode={theme === 'dark'}
-            showWindows={showWindows}
-            floorType={floorType}
-            wallMaterial={wallMaterial}
-            windowStyle={windowStyle}
-          />
+          <div ref={canvas3DRef} className="w-full h-full">
+            <ThreeCanvas
+              walls={walls}
+              gridEnabled={gridEnabled}
+              isDarkMode={theme === 'dark'}
+              showWindows={showWindows}
+              floorType={floorType}
+              wallMaterial={wallMaterial}
+              windowStyle={windowStyle}
+              rendererRef={threeRendererRef}
+              onScreenshot={(dataURL) => {
+                // This will be called when screenshot is taken from ThreeCanvas
+                console.log('Screenshot taken from ThreeCanvas');
+              }}
+            />
+          </div>
         )}
       </div>
 

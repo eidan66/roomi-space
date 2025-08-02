@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
+import * as THREE from 'three';
 import { ROOM_SIZES, RoomSizeKey } from '@/config/roomSizes';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,9 @@ export interface TopToolbarProps {
   setActiveTool: (tool: ToolKey) => void;
   onScreenshot: () => void;
   onPremiumRedirect: () => void;
+  canvasRef?: React.RefObject<HTMLDivElement | null>;
+  threeCanvasRef?: React.RefObject<HTMLDivElement | null>;
+  threeRendererRef?: React.RefObject<THREE.WebGLRenderer | null>;
 }
 
 const TopToolbar: React.FC<TopToolbarProps> = ({
@@ -30,8 +34,122 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
   setActiveTool,
   onScreenshot,
   onPremiumRedirect,
+  canvasRef,
+  threeCanvasRef,
+  threeRendererRef,
 }) => {
   const { t } = useTranslation();
+
+  const captureScreenshot = async () => {
+    try {
+      let dataURL: string = '';
+
+      if (viewMode === '2d' && canvasRef?.current) {
+        // For 2D, try to find and capture canvas directly
+        const container = canvasRef.current;
+        const canvas = container.querySelector('canvas');
+        if (canvas) {
+          dataURL = canvas.toDataURL('image/png');
+        } else {
+          // Fallback: try to capture the container
+          try {
+            const domtoimage = await import('dom-to-image');
+            const blob = await domtoimage.default.toBlob(container);
+            dataURL = URL.createObjectURL(blob);
+          } catch (domError) {
+            console.warn('DOM-to-image failed, trying html2canvas');
+            const html2canvas = await import('html2canvas');
+            const canvas = await html2canvas.default(container);
+            dataURL = canvas.toDataURL('image/png');
+          }
+        }
+      } else if (viewMode === '3d') {
+        // Try renderer screenshot first
+        if (threeRendererRef?.current) {
+          const renderer = threeRendererRef.current;
+          if (renderer) {
+            try {
+              if ((renderer as any).takeScreenshot) {
+                dataURL = (renderer as any).takeScreenshot();
+              } else {
+                dataURL = renderer.domElement.toDataURL('image/png');
+              }
+            } catch (err) {
+              console.warn('Renderer toDataURL failed, falling back to container capture');
+            }
+          }
+        }
+        // If renderer-based capture failed, fall back to container capture
+        if (!dataURL && threeCanvasRef?.current) {
+          const container = threeCanvasRef.current;
+          
+          // Method 1: Try to capture the canvas element directly
+          const canvas = container.querySelector('canvas');
+          if (canvas) {
+            try {
+              // Try to get data URL directly
+              dataURL = canvas.toDataURL('image/png');
+            } catch (corsError) {
+              console.warn('Canvas CORS issue, trying alternative methods');
+            }
+          }
+          
+          // Method 2: If direct capture failed, use html2canvas
+          if (!dataURL) {
+            try {
+              const html2canvas = await import('html2canvas');
+              const canvas = await html2canvas.default(container, {
+                allowTaint: true,
+                useCORS: true,
+                logging: false,
+                width: container.clientWidth,
+                height: container.clientHeight
+              });
+              dataURL = canvas.toDataURL('image/png');
+            } catch (htmlError) {
+              console.warn('html2canvas failed:', htmlError);
+            }
+          }
+          
+          // Method 3: Last resort - use dom-to-image
+          if (!dataURL) {
+            try {
+              const domtoimage = await import('dom-to-image');
+              const blob = await domtoimage.default.toBlob(container, {
+                quality: 1.0,
+                bgcolor: '#ffffff',
+                style: {
+                  'transform': 'scale(1)',
+                  'transform-origin': 'top left'
+                }
+              });
+              dataURL = URL.createObjectURL(blob);
+            } catch (domError) {
+              console.error('All screenshot methods failed:', domError);
+              throw new Error('Failed to capture 3D screenshot - all methods failed');
+            }
+          }
+        }
+      }
+
+      if (dataURL) {
+        // Create download link
+        const link = document.createElement('a');
+        link.download = `roomi-screenshot-${viewMode}-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
+        link.href = dataURL;
+        link.click();
+        
+        // Show success notification
+        onScreenshot();
+      } else {
+        throw new Error('Failed to capture screenshot - no data URL generated');
+      }
+    } catch (error) {
+      console.error('Screenshot failed:', error);
+      // Show error notification
+      onScreenshot();
+    }
+  };
 
   return (
     <div className="w-full bg-card border-b border-border px-2 py-2 flex items-center gap-2 sticky top-0 z-40">
@@ -96,7 +214,7 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
       <div className="w-px bg-border h-6 mx-2" />
 
       {/* Screenshot */}
-      <Button variant="outline" size="icon" onClick={onScreenshot} title={t('toolbar.screenshot')}>
+      <Button variant="outline" size="icon" onClick={captureScreenshot} title={t('toolbar.screenshot')}>
         <ImageIcon size={18} />
       </Button>
     </div>

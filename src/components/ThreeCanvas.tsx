@@ -2495,6 +2495,8 @@ interface ThreeCanvasProps {
   floorType?: 'wood' | 'tile' | 'concrete' | 'marble' | 'carpet';
   wallMaterial?: 'paint' | 'brick' | 'stone' | 'wood' | 'metal';
   windowStyle?: 'modern' | 'classic' | 'industrial';
+  rendererRef?: React.RefObject<THREE.WebGLRenderer | null>;
+  onScreenshot?: (dataURL: string) => void;
 }
 
 // Furniture Creation Functions
@@ -3078,9 +3080,11 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   floorType = 'wood',
   wallMaterial = 'paint',
   windowStyle = 'modern',
+  rendererRef,
+  onScreenshot
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const internalRendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
@@ -3119,9 +3123,27 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: true,
-      logarithmicDepthBuffer: true
+      logarithmicDepthBuffer: true,
+      preserveDrawingBuffer: true // ensure screenshots capture correctly
     });
-    rendererRef.current = renderer;
+    internalRendererRef.current = renderer;
+    if (rendererRef) {
+      rendererRef.current = renderer;
+    }
+
+    // Expose screenshot method
+    if (onScreenshot) {
+      (renderer as any).takeScreenshot = () => {
+        try {
+          // Force a render to ensure everything is up to date
+          renderer.render(scene, camera);
+          return renderer.domElement.toDataURL('image/png');
+        } catch (error) {
+          console.error('Screenshot failed:', error);
+          return null;
+        }
+      };
+    }
     renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
@@ -3769,7 +3791,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
         // Rotate wall to align with wall direction
         wallMesh.quaternion.setFromUnitVectors(
-          new THREE.Vector3(1, 0, 0), // BoxGeometry’s local X axis
+          new THREE.Vector3(1, 0, 0), // BoxGeometry's local X axis
           wallVector.clone().normalize() // Desired direction
         );
 
