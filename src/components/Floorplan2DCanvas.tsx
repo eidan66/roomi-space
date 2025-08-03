@@ -161,7 +161,7 @@ const WallComponent: React.FC<{ wall: Wall; isPreview?: boolean }> = ({
         strokeWidth="1"
         strokeDasharray={isPreview ? '5,5' : 'none'}
       />
-      
+
       {/* Corner markers - blueprint style */}
       <circle
         cx={p1.x}
@@ -179,7 +179,7 @@ const WallComponent: React.FC<{ wall: Wall; isPreview?: boolean }> = ({
         stroke="#1E3A8A"
         strokeWidth="1"
       />
-      
+
       {length >= 0.5 && (
         <text
           x={midX}
@@ -540,14 +540,16 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
   // --- Prevent page scrolling when zooming in 2D canvas ---
   useEffect(() => {
     const svgElement = svgRef.current;
-    if (!svgElement) return;
+    if (!svgElement) {
+      return;
+    }
 
     const handleNativeWheel = (e: WheelEvent) => {
       e.preventDefault();
     };
 
     svgElement.addEventListener('wheel', handleNativeWheel, { passive: false });
-    
+
     return () => {
       svgElement.removeEventListener('wheel', handleNativeWheel);
     };

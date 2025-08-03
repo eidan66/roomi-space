@@ -4128,7 +4128,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     renderer.domElement.addEventListener('pointerdown', onPointerDown);
     renderer.domElement.addEventListener('pointermove', onPointerMove);
     renderer.domElement.addEventListener('pointerup', onPointerUp);
-    
+
     // Prevent page scrolling when zooming in the 3D canvas
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
