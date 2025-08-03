@@ -381,7 +381,9 @@ export default function RoomBuilderPage() {
                     <Switch checked={gridEnabled} onCheckedChange={setGridEnabled} />
                   </div>
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs lg:text-sm">{t('sidebar.gridSnapping')}</Label>
+                    <Label className="text-xs lg:text-sm">
+                      {t('sidebar.gridSnapping')}
+                    </Label>
                     <Switch checked={gridSnapping} onCheckedChange={setGridSnapping} />
                   </div>
                 </div>
@@ -428,7 +430,9 @@ export default function RoomBuilderPage() {
                 <Switch checked={showWindows} onCheckedChange={setShowWindows} />
               </div>
               <div className="pt-2">
-                <Label className="text-xs lg:text-sm mb-2 block">{t('sidebar.floorMaterial')}</Label>
+                <Label className="text-xs lg:text-sm mb-2 block">
+                  {t('sidebar.floorMaterial')}
+                </Label>
                 <div className="grid grid-cols-5 lg:grid-cols-3 gap-1 mb-2">
                   <Button
                     variant={floorType === 'wood' ? 'default' : 'outline'}
@@ -479,7 +483,9 @@ export default function RoomBuilderPage() {
               </div>
 
               <div className="pt-2">
-                <Label className="text-xs lg:text-sm mb-2 block">{t('sidebar.wallMaterial')}</Label>
+                <Label className="text-xs lg:text-sm mb-2 block">
+                  {t('sidebar.wallMaterial')}
+                </Label>
                 <div className="grid grid-cols-5 lg:grid-cols-3 gap-1 mb-2">
                   <Button
                     variant={wallMaterial === 'paint' ? 'default' : 'outline'}
@@ -530,7 +536,9 @@ export default function RoomBuilderPage() {
               </div>
 
               <div className="pt-2">
-                <Label className="text-xs lg:text-sm mb-2 block">{t('sidebar.windowStyle')}</Label>
+                <Label className="text-xs lg:text-sm mb-2 block">
+                  {t('sidebar.windowStyle')}
+                </Label>
                 <div className="grid grid-cols-3 gap-1">
                   <Button
                     variant={windowStyle === 'modern' ? 'default' : 'outline'}
@@ -575,16 +583,28 @@ export default function RoomBuilderPage() {
 
           <Card className="border-0 shadow-sm lg:block hidden">
             <CardHeader className="pb-2 lg:pb-3">
-              <CardTitle className="text-base lg:text-lg">{t('sidebar.templates')}</CardTitle>
+              <CardTitle className="text-base lg:text-lg">
+                {t('sidebar.templates')}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" size="sm" onClick={() => loadTemplate(1)} className="text-xs">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadTemplate(1)}
+                  className="text-xs"
+                >
                   <Home className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />
                   <span className="hidden sm:inline">{t('sidebar.templateSquare')}</span>
                   <span className="sm:hidden">Square</span>
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => loadTemplate(2)} className="text-xs">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadTemplate(2)}
+                  className="text-xs"
+                >
                   <Home className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />
                   <span className="hidden sm:inline">{t('sidebar.templateLShape')}</span>
                   <span className="sm:hidden">L-Shape</span>
@@ -608,7 +628,9 @@ export default function RoomBuilderPage() {
 
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-2 lg:pb-3">
-              <CardTitle className="text-base lg:text-lg">{t('sidebar.actions')}</CardTitle>
+              <CardTitle className="text-base lg:text-lg">
+                {t('sidebar.actions')}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 lg:space-y-3">
               <div className="grid grid-cols-4 lg:grid-cols-2 gap-1 lg:gap-2">
@@ -660,7 +682,9 @@ export default function RoomBuilderPage() {
                   title={t('sidebar.optimizeGeometry')}
                 >
                   <span className="lg:hidden">⚡</span>
-                  <span className="hidden lg:inline">⚡ {t('sidebar.optimizeGeometry')}</span>
+                  <span className="hidden lg:inline">
+                    ⚡ {t('sidebar.optimizeGeometry')}
+                  </span>
                 </Button>
               </div>
 
@@ -676,7 +700,10 @@ export default function RoomBuilderPage() {
 
               {isRoomValid && walls.length >= 3 && (
                 <Link href="/furnish" className="block">
-                  <Button className="w-full bg-gradient-to-r from-green-500 to-teal-600 text-xs lg:text-sm" size="sm">
+                  <Button
+                    className="w-full bg-gradient-to-r from-green-500 to-teal-600 text-xs lg:text-sm"
+                    size="sm"
+                  >
                     <Move3d className="w-3 h-3 lg:w-4 lg:h-4 mr-1 lg:mr-2" />
                     {t('sidebar.startFurnishing')}
                     <ArrowRight className="w-3 h-3 lg:w-4 lg:h-4 ml-1 lg:ml-2" />
@@ -698,7 +725,9 @@ export default function RoomBuilderPage() {
                 <span className="text-xs lg:text-sm text-muted-foreground">
                   {t('sidebar.wallsBuilt')}
                 </span>
-                <Badge variant="secondary" className="text-xs">{roomMetrics.wallCount}</Badge>
+                <Badge variant="secondary" className="text-xs">
+                  {roomMetrics.wallCount}
+                </Badge>
               </div>
               {roomMetrics.isValid && (
                 <>
