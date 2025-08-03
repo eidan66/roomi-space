@@ -180,8 +180,8 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
   setWalls,
   mode,
   setMode,
-  wallHeight = 2.5,
-  wallThickness = 0.2,
+  wallHeight = 2.8,
+  wallThickness = 0.25,
   onWallsChange,
   gridSnapping = true,
 }) => {
@@ -312,6 +312,10 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
 
   const addWallSegment = useCallback(
     (start: Point, end: Point) => {
+      // Restrict to a single closed room
+      if (isValidRoom(walls)) {
+        return; // Room already completed
+      }
       // Don't add walls that are too short
       if (dist(start, end) < 0.1) {
         return;
@@ -326,7 +330,7 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
       };
       setWalls((prevWalls) => [...prevWalls, newWall]);
     },
-    [setWalls, wallHeight, wallThickness],
+    [walls, setWalls, wallHeight, wallThickness],
   );
 
   // --- Mouse Event Handlers ---

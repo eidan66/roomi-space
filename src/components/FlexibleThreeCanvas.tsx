@@ -30,11 +30,11 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
   onRenderingNotes,
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<THREE.Scene>();
-  const rendererRef = useRef<THREE.WebGLRenderer>();
-  const cameraRef = useRef<THREE.PerspectiveCamera>();
-  const controlsRef = useRef<OrbitControls>();
-  const animationIdRef = useRef<number>();
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
+  const animationIdRef = useRef<number | null>(null);
 
   const [renderingQuality, setRenderingQuality] = useState<number>(100);
   const [adaptationInfo, setAdaptationInfo] = useState<string[]>([]);
@@ -253,9 +253,9 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
     } // Skip very short walls
 
     const wallGeometry = new THREE.BoxGeometry(wallLength, wall.height, wall.thickness);
-    const wallMaterial = createWallMaterial(wallMaterial);
+    const wallMaterialMesh = createWallMaterial(wallMaterial);
 
-    const wallMesh = new THREE.Mesh(wallGeometry, wallMaterial);
+    const wallMesh = new THREE.Mesh(wallGeometry, wallMaterialMesh);
     wallMesh.castShadow = true;
     wallMesh.receiveShadow = true;
 

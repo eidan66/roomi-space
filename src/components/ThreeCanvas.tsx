@@ -2055,12 +2055,13 @@ const createTileFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMateria
 };
 
 // Create wall materials
-const createWallMaterial = (
+// Create two-sided wall materials (interior vs exterior)
+const createWallMaterials = (
   materialType: 'paint' | 'brick' | 'stone' | 'wood' | 'metal',
   isDarkMode: boolean,
-): THREE.MeshStandardMaterial => {
-  // Simplified materials for better compatibility
-  const colors = {
+): [THREE.MeshStandardMaterial, THREE.MeshStandardMaterial] => {
+  // Interior colour scheme
+  const interiorColors = {
     paint: isDarkMode ? 0x4a5568 : 0xe2e8f0,
     brick: isDarkMode ? 0x8b4513 : 0xcd853f,
     stone: isDarkMode ? 0x696969 : 0xa9a9a9,
@@ -2068,33 +2069,27 @@ const createWallMaterial = (
     metal: isDarkMode ? 0x2f4f4f : 0xc0c0c0,
   };
 
-  const material = new THREE.MeshStandardMaterial({
-    color: colors[materialType],
+  // Exterior is deliberately muted / neutral so focus stays on interior
+  const exteriorColor = isDarkMode ? 0x2d3748 : 0xcbd5e0;
+
+  const interiorMat = new THREE.MeshStandardMaterial({
+    color: interiorColors[materialType],
     roughness: materialType === 'metal' ? 0.2 : 0.8,
     metalness: materialType === 'metal' ? 0.8 : 0.1,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
   });
 
-  return material;
+  const exteriorMat = new THREE.MeshStandardMaterial({
+    color: exteriorColor,
+    roughness: 1.0,
+    metalness: 0.0,
+    side: THREE.DoubleSide,  // Show both sides for debugging
+  });
 
-  // Original complex materials (commented out for debugging)
-  /*
-  switch (materialType) {
-    case 'paint':
-      return createPaintWallMaterial(isDarkMode);
-    case 'brick':
-      return createBrickWallMaterial(isDarkMode);
-    case 'stone':
-      return createStoneWallMaterial(isDarkMode);
-    case 'wood':
-      return createWoodWallMaterial(isDarkMode);
-    case 'metal':
-      return createMetalWallMaterial(isDarkMode);
-    default:
-      return createPaintWallMaterial(isDarkMode);
-  }
-  */
+  return [interiorMat, exteriorMat];
 };
+
+
 
 // Create paint wall material
 const createPaintWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial =>
@@ -2329,6 +2324,7 @@ const createModernWindow = (
     color: 0x2c3e50,
     roughness: 0.3,
     metalness: 0.7,
+    side: THREE.DoubleSide,
   });
 
   // Thin frame around the glass
@@ -2826,6 +2822,9 @@ interface ThreeCanvasProps {
   onScreenshot?: (dataURL: string) => void;
   activeTool?: 'select' | 'drag' | 'paint' | 'delete' | 'resize';
   selectedColor?: string;
+  selectedObjectId?: string | null;
+  onObjectSelect?: (objectId: string | null) => void;
+  onObjectMove?: (objectId: string, newPosition: { x: number; y: number; z: number }) => void;
 }
 
 // Furniture Creation Functions
@@ -3674,7 +3673,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     const walkKeys: Record<string, boolean> = { w: false, a: false, s: false, d: false };
 
     // Handle pointer lock errors
-    fpControls.addEventListener('error', () => {
+    fpControls.addEventListener('error' as any, () => {
       console.log('Pointer lock failed - user may have denied permission');
       setFpMode(false);
       controls.enabled = true;
@@ -3857,13 +3856,37 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
             target = target.parent;
           }
           if (target.userData.type === 'wall' || target.userData.colorable) {
-            target.traverse((c) => {
-              if ((c as THREE.Mesh).isMesh) {
-                const mesh = c as THREE.Mesh;
-                mesh.material = (mesh.material as THREE.Material).clone();
-                (mesh.material as THREE.MeshStandardMaterial).color.set(colorRef.current);
+                      target.traverse((c) => {
+            if ((c as THREE.Mesh).isMesh) {
+              const mesh = c as THREE.Mesh;
+
+              // Handle array of materials (like walls with interior/exterior)
+              if (Array.isArray(mesh.material)) {
+                mesh.material = mesh.material.map((mat, index) => {
+                  if (mat && typeof mat.clone === 'function') {
+                    const clonedMat = mat.clone();
+                    // Only paint interior material (index 0), leave exterior (index 1) unchanged
+                    if (index === 0 && 'color' in clonedMat) {
+                      (clonedMat as THREE.MeshStandardMaterial).color.set(
+                        colorRef.current,
+                      );
+                    }
+                    return clonedMat;
+                  }
+                  return mat;
+                });
               }
-            });
+              // Handle single material
+              else if (mesh.material && typeof mesh.material.clone === 'function') {
+                mesh.material = mesh.material.clone();
+                if ('color' in mesh.material) {
+                  (mesh.material as THREE.MeshStandardMaterial).color.set(
+                    colorRef.current,
+                  );
+                }
+              }
+            }
+          });
           }
         }
         return;
@@ -4602,17 +4625,28 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           return;
         } // Skip very short walls
 
-        // Create wall geometry
+        // Prepare dual-material geometry
+        const [interiorMat, exteriorMat] = createWallMaterials(wallMaterial, isDarkMode);
+        // BoxGeometry default groups: 0 right,1 left,2 top,3 bottom,4 front,5 back
+        // We map interior (room side) to group 4, exterior to group 5
         const wallGeometry = new THREE.BoxGeometry(
           wallLength,
           wall.height,
           wall.thickness,
         );
+        // Ensure groups for custom materials
+        wallGeometry.groups.forEach((g, idx) => {
+          if (idx === 4) {
+            g.materialIndex = 0; // interior front
+          } else if (idx === 5) {
+            g.materialIndex = 1; // exterior back
+          } else {
+            g.materialIndex = 0; // reuse interior for ends/top/bottom
+          }
+        });
 
-        // Enhanced wall material with selected material type
-        const wallMaterialMesh = createWallMaterial(wallMaterial, isDarkMode);
+        const wallMesh = new THREE.Mesh(wallGeometry, [interiorMat, exteriorMat]);
 
-        const wallMesh = new THREE.Mesh(wallGeometry, wallMaterialMesh);
         wallMesh.name = `wall-${index}`;
         wallMesh.userData.type = 'wall';
         wallMesh.userData.colorable = true;

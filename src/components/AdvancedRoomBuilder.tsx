@@ -164,7 +164,11 @@ export class RoomGeometry {
       }
 
       previousPoint = currentPoint;
-      currentPoint = nextPoint;
+      if (nextPoint) {
+        currentPoint = nextPoint;
+      } else {
+        break;
+      }
     }
 
     return orderedVertices;

@@ -60,8 +60,8 @@ export default function RoomBuilderPage() {
   const [gridEnabled, setGridEnabled] = useState(true);
   const [gridSnapping, setGridSnapping] = useState(true);
   const [showWindows, setShowWindows] = useState(true);
-  const [wallHeight, setWallHeight] = useState(2.5);
-  const [wallThickness, setWallThickness] = useState(0.2);
+  const [wallHeight, setWallHeight] = useState(2.8);
+  const [wallThickness, setWallThickness] = useState(0.25);
   const [floorType, setFloorType] = useState<
     'wood' | 'tile' | 'concrete' | 'marble' | 'carpet'
   >('wood');
@@ -394,9 +394,9 @@ export default function RoomBuilderPage() {
                 <Slider
                   value={[wallHeight]}
                   onValueChange={([v]) => setWallHeight(v)}
-                  min={1}
-                  max={4}
-                  step={0.1}
+                  min={2.8}
+                  max={3}
+                  step={0.05}
                   className="w-full"
                 />
               </div>
@@ -407,8 +407,8 @@ export default function RoomBuilderPage() {
                 <Slider
                   value={[wallThickness]}
                   onValueChange={([v]) => setWallThickness(v)}
-                  min={0.05}
-                  max={0.3}
+                  min={0.1}
+                  max={0.25}
                   step={0.01}
                   className="w-full"
                 />

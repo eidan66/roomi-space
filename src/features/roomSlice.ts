@@ -1,6 +1,10 @@
 import { PayloadAction, createSlice } from '@reduxjs/toolkit';
 
-import { AdvancedRoomCalculator, RoomMetrics } from '../lib/advanced-room-calculator';
+import {
+  AdvancedRoomCalculator,
+  RoomMetrics,
+  Wall,
+} from '../lib/advanced-room-calculator';
 
 // Re-export types from calculator for consistency
 export type { Point, Wall, RoomMetrics } from '../lib/advanced-room-calculator';

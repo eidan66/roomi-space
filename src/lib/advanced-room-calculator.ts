@@ -63,6 +63,12 @@ export class AdvancedRoomCalculator {
   private static readonly MAX_WALL_LENGTH = 50;
   private static readonly MIN_ANGLE = 15; // degrees
   private static readonly MAX_ANGLE = 345; // degrees
+  // Added constraints for Roomi requirements
+  private static readonly MIN_WALL_HEIGHT = 2.8;
+  private static readonly MAX_WALL_HEIGHT = 3.0;
+  private static readonly MIN_WALL_THICKNESS = 0.1;
+  private static readonly MAX_WALL_THICKNESS = 0.25;
+  private static readonly MAX_ROOM_AREA = 35; // m²
 
   /**
    * Calculate comprehensive room metrics
@@ -92,6 +98,12 @@ export class AdvancedRoomCalculator {
     if (area <= 0) {
       validationErrors.push('Invalid room area calculated');
     }
+    // Room size constraint
+    if (area - this.MAX_ROOM_AREA > this.PRECISION) {
+      validationErrors.push(
+        `Room area exceeds maximum allowed (${area.toFixed(2)}m² > ${this.MAX_ROOM_AREA}m²)`,
+      );
+    }
 
     // Calculate advanced metrics
     const compactness = this.calculateCompactness(area, perimeter);
@@ -118,8 +130,22 @@ export class AdvancedRoomCalculator {
       if (length > this.MAX_WALL_LENGTH) {
         validationErrors.push(`Wall ${index + 1} is too long (${length.toFixed(2)}m)`);
       }
+        });
+    
+    // Validate wall heights and thicknesses
+    walls.forEach((wall, index) => {
+      if (wall.height < this.MIN_WALL_HEIGHT || wall.height > this.MAX_WALL_HEIGHT) {
+        validationErrors.push(
+          `Wall ${index + 1} height (${wall.height.toFixed(2)}m) must be between ${this.MIN_WALL_HEIGHT}m and ${this.MAX_WALL_HEIGHT}m`,
+        );
+      }
+      if (wall.thickness < this.MIN_WALL_THICKNESS || wall.thickness > this.MAX_WALL_THICKNESS) {
+        validationErrors.push(
+          `Wall ${index + 1} thickness (${wall.thickness.toFixed(2)}m) must be between ${this.MIN_WALL_THICKNESS}m and ${this.MAX_WALL_THICKNESS}m`,
+        );
+      }
     });
-
+    
     // Calculate interior angles
     const interiorAngles = this.calculateInteriorAngles(vertices);
     const averageAngle =
