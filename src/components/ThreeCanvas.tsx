@@ -2083,13 +2083,11 @@ const createWallMaterials = (
     color: exteriorColor,
     roughness: 1.0,
     metalness: 0.0,
-    side: THREE.DoubleSide,  // Show both sides for debugging
+    side: THREE.DoubleSide, // Show both sides for debugging
   });
 
   return [interiorMat, exteriorMat];
 };
-
-
 
 // Create paint wall material
 const createPaintWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial =>
@@ -2824,7 +2822,10 @@ interface ThreeCanvasProps {
   selectedColor?: string;
   selectedObjectId?: string | null;
   onObjectSelect?: (objectId: string | null) => void;
-  onObjectMove?: (objectId: string, newPosition: { x: number; y: number; z: number }) => void;
+  onObjectMove?: (
+    objectId: string,
+    newPosition: { x: number; y: number; z: number },
+  ) => void;
 }
 
 // Furniture Creation Functions
@@ -3856,37 +3857,37 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
             target = target.parent;
           }
           if (target.userData.type === 'wall' || target.userData.colorable) {
-                      target.traverse((c) => {
-            if ((c as THREE.Mesh).isMesh) {
-              const mesh = c as THREE.Mesh;
+            target.traverse((c) => {
+              if ((c as THREE.Mesh).isMesh) {
+                const mesh = c as THREE.Mesh;
 
-              // Handle array of materials (like walls with interior/exterior)
-              if (Array.isArray(mesh.material)) {
-                mesh.material = mesh.material.map((mat, index) => {
-                  if (mat && typeof mat.clone === 'function') {
-                    const clonedMat = mat.clone();
-                    // Only paint interior material (index 0), leave exterior (index 1) unchanged
-                    if (index === 0 && 'color' in clonedMat) {
-                      (clonedMat as THREE.MeshStandardMaterial).color.set(
-                        colorRef.current,
-                      );
+                // Handle array of materials (like walls with interior/exterior)
+                if (Array.isArray(mesh.material)) {
+                  mesh.material = mesh.material.map((mat, index) => {
+                    if (mat && typeof mat.clone === 'function') {
+                      const clonedMat = mat.clone();
+                      // Only paint interior material (index 0), leave exterior (index 1) unchanged
+                      if (index === 0 && 'color' in clonedMat) {
+                        (clonedMat as THREE.MeshStandardMaterial).color.set(
+                          colorRef.current,
+                        );
+                      }
+                      return clonedMat;
                     }
-                    return clonedMat;
+                    return mat;
+                  });
+                }
+                // Handle single material
+                else if (mesh.material && typeof mesh.material.clone === 'function') {
+                  mesh.material = mesh.material.clone();
+                  if ('color' in mesh.material) {
+                    (mesh.material as THREE.MeshStandardMaterial).color.set(
+                      colorRef.current,
+                    );
                   }
-                  return mat;
-                });
-              }
-              // Handle single material
-              else if (mesh.material && typeof mesh.material.clone === 'function') {
-                mesh.material = mesh.material.clone();
-                if ('color' in mesh.material) {
-                  (mesh.material as THREE.MeshStandardMaterial).color.set(
-                    colorRef.current,
-                  );
                 }
               }
-            }
-          });
+            });
           }
         }
         return;

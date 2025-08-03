@@ -130,8 +130,8 @@ export class AdvancedRoomCalculator {
       if (length > this.MAX_WALL_LENGTH) {
         validationErrors.push(`Wall ${index + 1} is too long (${length.toFixed(2)}m)`);
       }
-        });
-    
+    });
+
     // Validate wall heights and thicknesses
     walls.forEach((wall, index) => {
       if (wall.height < this.MIN_WALL_HEIGHT || wall.height > this.MAX_WALL_HEIGHT) {
@@ -139,13 +139,16 @@ export class AdvancedRoomCalculator {
           `Wall ${index + 1} height (${wall.height.toFixed(2)}m) must be between ${this.MIN_WALL_HEIGHT}m and ${this.MAX_WALL_HEIGHT}m`,
         );
       }
-      if (wall.thickness < this.MIN_WALL_THICKNESS || wall.thickness > this.MAX_WALL_THICKNESS) {
+      if (
+        wall.thickness < this.MIN_WALL_THICKNESS ||
+        wall.thickness > this.MAX_WALL_THICKNESS
+      ) {
         validationErrors.push(
           `Wall ${index + 1} thickness (${wall.thickness.toFixed(2)}m) must be between ${this.MIN_WALL_THICKNESS}m and ${this.MAX_WALL_THICKNESS}m`,
         );
       }
     });
-    
+
     // Calculate interior angles
     const interiorAngles = this.calculateInteriorAngles(vertices);
     const averageAngle =

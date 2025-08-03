@@ -3,8 +3,8 @@ import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { addWall, removeWall, toggleAdvancedMetrics } from '../features/roomSlice';
-import { Wall } from '../lib/advanced-room-calculator';
 import { RootState } from '../features/store';
+import { Wall } from '../lib/advanced-room-calculator';
 
 import { AdvancedRoomMetrics } from './AdvancedRoomMetrics';
 import RoomQualityAnalyzer from './RoomQualityAnalyzer';
