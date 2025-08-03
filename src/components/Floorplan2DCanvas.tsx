@@ -149,6 +149,9 @@ const WallComponent: React.FC<{ wall: Wall; isPreview?: boolean }> = ({
   const midX = (p1.x + p2.x) / 2;
   const midY = (p1.y + p2.y) / 2;
 
+  // Corner marker size
+  const cornerSize = 3;
+
   return (
     <g className={isPreview ? 'opacity-60' : ''}>
       <polygon
@@ -158,6 +161,25 @@ const WallComponent: React.FC<{ wall: Wall; isPreview?: boolean }> = ({
         strokeWidth="1"
         strokeDasharray={isPreview ? '5,5' : 'none'}
       />
+      
+      {/* Corner markers - blueprint style */}
+      <circle
+        cx={p1.x}
+        cy={p1.y}
+        r={cornerSize}
+        fill="#1E40AF"
+        stroke="#1E3A8A"
+        strokeWidth="1"
+      />
+      <circle
+        cx={p2.x}
+        cy={p2.y}
+        r={cornerSize}
+        fill="#1E40AF"
+        stroke="#1E3A8A"
+        strokeWidth="1"
+      />
+      
       {length >= 0.5 && (
         <text
           x={midX}
