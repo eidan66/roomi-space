@@ -1,4 +1,5 @@
 import { configureStore, createSlice } from '@reduxjs/toolkit';
+
 import roomReducer from './roomSlice';
 
 interface SettingsState {

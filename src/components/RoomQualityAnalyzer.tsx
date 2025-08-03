@@ -1,10 +1,13 @@
 'use client';
 
 import React from 'react';
+
 import { useTranslation } from 'react-i18next';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+
 import { RoomMetrics } from '../lib/advanced-room-calculator';
 
 interface RoomQualityAnalyzerProps {
@@ -19,11 +22,9 @@ interface QualityMetric {
   status: 'excellent' | 'good' | 'fair' | 'poor';
 }
 
-const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
-  metrics
-}) => {
+const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({ metrics }) => {
   const { t } = useTranslation();
-  
+
   // Safety check to prevent errors if metrics is undefined
   if (!metrics) {
     return (
@@ -44,13 +45,24 @@ const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
     const qualityMetrics: QualityMetric[] = [];
 
     // 1. Shape Quality (based on compactness and convexity)
-    const shapeScore = Math.min(100, (metrics.compactness * 50) + (metrics.convexity * 50));
+    const shapeScore = Math.min(100, metrics.compactness * 50 + metrics.convexity * 50);
     qualityMetrics.push({
       name: t('qualityMetrics.shapeQuality.name'),
       score: shapeScore,
       maxScore: 100,
       description: t('qualityMetrics.shapeQuality.description'),
-      status: shapeScore >= 80 ? 'excellent' : shapeScore >= 60 ? 'good' : shapeScore >= 40 ? 'fair' : 'poor'
+      status: (() => {
+        if (shapeScore >= 80) {
+          return 'excellent';
+        }
+        if (shapeScore >= 60) {
+          return 'good';
+        }
+        if (shapeScore >= 40) {
+          return 'fair';
+        }
+        return 'poor';
+      })(),
     });
 
     // 2. Geometric Regularity (rectangularity for 4-wall rooms)
@@ -60,17 +72,34 @@ const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
     } else {
       // For non-rectangular rooms, use angle consistency
       const idealAngle = (2 * Math.PI) / metrics.wallCount;
-      const angleVariance = metrics.interiorAngles.reduce((sum, angle) => 
-        sum + Math.abs(angle - idealAngle), 0) / metrics.wallCount;
-      regularityScore = Math.max(0, 100 - (angleVariance * 100));
+      const angleVariance =
+        metrics.interiorAngles.reduce(
+          (sum, angle) => sum + Math.abs(angle - idealAngle),
+          0,
+        ) / metrics.wallCount;
+      regularityScore = Math.max(0, 100 - angleVariance * 100);
     }
-    
+
     qualityMetrics.push({
       name: t('qualityMetrics.regularity.name'),
       score: regularityScore,
       maxScore: 100,
-      description: metrics.wallCount === 4 ? t('qualityMetrics.regularity.description') : t('qualityMetrics.regularity.descriptionAlt'),
-      status: regularityScore >= 80 ? 'excellent' : regularityScore >= 60 ? 'good' : regularityScore >= 40 ? 'fair' : 'poor'
+      description:
+        metrics.wallCount === 4
+          ? t('qualityMetrics.regularity.description')
+          : t('qualityMetrics.regularity.descriptionAlt'),
+      status: (() => {
+        if (regularityScore >= 80) {
+          return 'excellent';
+        }
+        if (regularityScore >= 60) {
+          return 'good';
+        }
+        if (regularityScore >= 40) {
+          return 'fair';
+        }
+        return 'poor';
+      })(),
     });
 
     // 3. Size Appropriateness
@@ -80,7 +109,18 @@ const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
       score: sizeScore,
       maxScore: 100,
       description: t('qualityMetrics.sizeQuality.description'),
-      status: sizeScore >= 80 ? 'excellent' : sizeScore >= 60 ? 'good' : sizeScore >= 40 ? 'fair' : 'poor'
+      status: (() => {
+        if (sizeScore >= 80) {
+          return 'excellent';
+        }
+        if (sizeScore >= 60) {
+          return 'good';
+        }
+        if (sizeScore >= 40) {
+          return 'fair';
+        }
+        return 'poor';
+      })(),
     });
 
     // 4. Construction Feasibility
@@ -90,7 +130,18 @@ const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
       score: constructionScore,
       maxScore: 100,
       description: t('qualityMetrics.construction.description'),
-      status: constructionScore >= 80 ? 'excellent' : constructionScore >= 60 ? 'good' : constructionScore >= 40 ? 'fair' : 'poor'
+      status: (() => {
+        if (constructionScore >= 80) {
+          return 'excellent';
+        }
+        if (constructionScore >= 60) {
+          return 'good';
+        }
+        if (constructionScore >= 40) {
+          return 'fair';
+        }
+        return 'poor';
+      })(),
     });
 
     // 5. Space Efficiency
@@ -100,14 +151,27 @@ const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
       score: Math.min(100, efficiencyScore),
       maxScore: 100,
       description: t('qualityMetrics.efficiency.description'),
-      status: efficiencyScore >= 80 ? 'excellent' : efficiencyScore >= 60 ? 'good' : efficiencyScore >= 40 ? 'fair' : 'poor'
+      status: (() => {
+        if (efficiencyScore >= 80) {
+          return 'excellent';
+        }
+        if (efficiencyScore >= 60) {
+          return 'good';
+        }
+        if (efficiencyScore >= 40) {
+          return 'fair';
+        }
+        return 'poor';
+      })(),
     });
 
     return qualityMetrics;
   };
 
   const analyzeSizeQuality = (): number => {
-    if (metrics.area === 0) return 0;
+    if (metrics.area === 0) {
+      return 0;
+    }
 
     let score = 50; // Base score
 
@@ -130,8 +194,11 @@ const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
     }
 
     // Aspect ratio penalty
-    if (metrics.aspectRatio > 3) score -= 20;
-    else if (metrics.aspectRatio > 2) score -= 10;
+    if (metrics.aspectRatio > 3) {
+      score -= 20;
+    } else if (metrics.aspectRatio > 2) {
+      score -= 10;
+    }
 
     // Compactness bonus
     score += metrics.compactness * 20;
@@ -140,27 +207,29 @@ const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
   };
 
   const analyzeConstructionFeasibility = (): number => {
-    if (!metrics.isValid) return 0;
+    if (!metrics.isValid) {
+      return 0;
+    }
 
     let score = 100;
 
     // Penalize very short walls (< 1m)
-    const shortWalls = metrics.wallLengths.filter(length => length < 1).length;
+    const shortWalls = metrics.wallLengths.filter((length) => length < 1).length;
     score -= shortWalls * 15;
 
     // Penalize very long walls (> 10m) without support
-    const longWalls = metrics.wallLengths.filter(length => length > 10).length;
+    const longWalls = metrics.wallLengths.filter((length) => length > 10).length;
     score -= longWalls * 10;
 
     // Check for extreme angles
-    const extremeAngles = metrics.interiorAngles.filter(angle => {
+    const extremeAngles = metrics.interiorAngles.filter((angle) => {
       const degrees = (angle * 180) / Math.PI;
       return degrees < 30 || degrees > 330;
     }).length;
     score -= extremeAngles * 20;
 
     // Bonus for regular angles (multiples of 15 degrees)
-    const regularAngles = metrics.interiorAngles.filter(angle => {
+    const regularAngles = metrics.interiorAngles.filter((angle) => {
       const degrees = (angle * 180) / Math.PI;
       return degrees % 15 < 2 || degrees % 15 > 13;
     }).length;
@@ -170,24 +239,40 @@ const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
   };
 
   const qualityMetrics = analyzeRoomQuality();
-  const overallScore = qualityMetrics.reduce((sum, metric) => sum + metric.score, 0) / qualityMetrics.length;
+  const overallScore =
+    qualityMetrics.reduce((sum, metric) => sum + metric.score, 0) / qualityMetrics.length;
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'excellent': return 'bg-green-500';
-      case 'good': return 'bg-blue-500';
-      case 'fair': return 'bg-yellow-500';
-      case 'poor': return 'bg-red-500';
-      default: return 'bg-gray-500';
+      case 'excellent':
+        return 'bg-green-500';
+      case 'good':
+        return 'bg-blue-500';
+      case 'fair':
+        return 'bg-yellow-500';
+      case 'poor':
+        return 'bg-red-500';
+      default:
+        return 'bg-gray-500';
     }
   };
 
   const getOverallGrade = (score: number): string => {
-    if (score >= 90) return 'A+';
-    if (score >= 80) return 'A';
-    if (score >= 70) return 'B';
-    if (score >= 60) return 'C';
-    if (score >= 50) return 'D';
+    if (score >= 90) {
+      return 'A+';
+    }
+    if (score >= 80) {
+      return 'A';
+    }
+    if (score >= 70) {
+      return 'B';
+    }
+    if (score >= 60) {
+      return 'C';
+    }
+    if (score >= 50) {
+      return 'D';
+    }
     return 'F';
   };
 
@@ -211,7 +296,23 @@ const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center justify-between">
           {t('roomQuality.title')}
-          <Badge variant="outline" className={`${getStatusColor(overallScore >= 80 ? 'excellent' : overallScore >= 60 ? 'good' : overallScore >= 40 ? 'fair' : 'poor')} text-white`}>
+          <Badge
+            variant="outline"
+            className={`${getStatusColor(
+              (() => {
+                if (overallScore >= 80) {
+                  return 'excellent';
+                }
+                if (overallScore >= 60) {
+                  return 'good';
+                }
+                if (overallScore >= 40) {
+                  return 'fair';
+                }
+                return 'poor';
+              })(),
+            )} text-white`}
+          >
             {getOverallGrade(overallScore)}
           </Badge>
         </CardTitle>
@@ -222,7 +323,10 @@ const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
             <div key={index} className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">{metric.name}</span>
-                <Badge variant="outline" className={`${getStatusColor(metric.status)} text-white text-xs`}>
+                <Badge
+                  variant="outline"
+                  className={`${getStatusColor(metric.status)} text-white text-xs`}
+                >
                   {metric.score.toFixed(0)}/100
                 </Badge>
               </div>
@@ -231,11 +335,13 @@ const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
             </div>
           ))}
         </div>
-        
+
         {/* Show validation errors if any */}
         {metrics.validationErrors.length > 0 && (
           <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <h4 className="text-sm font-semibold text-red-800 mb-2">{t('roomQuality.issuesFound')}</h4>
+            <h4 className="text-sm font-semibold text-red-800 mb-2">
+              {t('roomQuality.issuesFound')}
+            </h4>
             <ul className="text-xs text-red-700 space-y-1">
               {metrics.validationErrors.map((error, index) => (
                 <li key={index} className="flex items-start gap-1">
@@ -246,7 +352,7 @@ const RoomQualityAnalyzer: React.FC<RoomQualityAnalyzerProps> = ({
             </ul>
           </div>
         )}
-        
+
         <div className="pt-2 border-t">
           <div className="flex justify-between items-center">
             <span className="text-sm font-semibold">{t('roomQuality.overallScore')}</span>

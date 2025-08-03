@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+
 import { AdvancedRoomCalculator, Wall } from '../lib/advanced-room-calculator';
+
 import { AdvancedRoomMetrics } from './AdvancedRoomMetrics';
 
 export const RoomCalculatorDemo: React.FC = () => {
@@ -23,18 +25,66 @@ export const RoomCalculatorDemo: React.FC = () => {
     ],
     triangle: [
       { id: '1', start: { x: 0, z: 0 }, end: { x: 4, z: 0 }, height: 3, thickness: 0.2 },
-      { id: '2', start: { x: 4, z: 0 }, end: { x: 2, z: 3.5 }, height: 3, thickness: 0.2 },
-      { id: '3', start: { x: 2, z: 3.5 }, end: { x: 0, z: 0 }, height: 3, thickness: 0.2 },
+      {
+        id: '2',
+        start: { x: 4, z: 0 },
+        end: { x: 2, z: 3.5 },
+        height: 3,
+        thickness: 0.2,
+      },
+      {
+        id: '3',
+        start: { x: 2, z: 3.5 },
+        end: { x: 0, z: 0 },
+        height: 3,
+        thickness: 0.2,
+      },
     ],
     octagon: [
       { id: '1', start: { x: 2, z: 0 }, end: { x: 4, z: 0 }, height: 3, thickness: 0.2 },
-      { id: '2', start: { x: 4, z: 0 }, end: { x: 5.4, z: 1.4 }, height: 3, thickness: 0.2 },
-      { id: '3', start: { x: 5.4, z: 1.4 }, end: { x: 5.4, z: 3.6 }, height: 3, thickness: 0.2 },
-      { id: '4', start: { x: 5.4, z: 3.6 }, end: { x: 4, z: 5 }, height: 3, thickness: 0.2 },
+      {
+        id: '2',
+        start: { x: 4, z: 0 },
+        end: { x: 5.4, z: 1.4 },
+        height: 3,
+        thickness: 0.2,
+      },
+      {
+        id: '3',
+        start: { x: 5.4, z: 1.4 },
+        end: { x: 5.4, z: 3.6 },
+        height: 3,
+        thickness: 0.2,
+      },
+      {
+        id: '4',
+        start: { x: 5.4, z: 3.6 },
+        end: { x: 4, z: 5 },
+        height: 3,
+        thickness: 0.2,
+      },
       { id: '5', start: { x: 4, z: 5 }, end: { x: 2, z: 5 }, height: 3, thickness: 0.2 },
-      { id: '6', start: { x: 2, z: 5 }, end: { x: 0.6, z: 3.6 }, height: 3, thickness: 0.2 },
-      { id: '7', start: { x: 0.6, z: 3.6 }, end: { x: 0.6, z: 1.4 }, height: 3, thickness: 0.2 },
-      { id: '8', start: { x: 0.6, z: 1.4 }, end: { x: 2, z: 0 }, height: 3, thickness: 0.2 },
+      {
+        id: '6',
+        start: { x: 2, z: 5 },
+        end: { x: 0.6, z: 3.6 },
+        height: 3,
+        thickness: 0.2,
+      },
+      {
+        id: '7',
+        start: { x: 0.6, z: 3.6 },
+        end: { x: 0.6, z: 1.4 },
+        height: 3,
+        thickness: 0.2,
+      },
+      {
+        id: '8',
+        start: { x: 0.6, z: 1.4 },
+        end: { x: 2, z: 0 },
+        height: 3,
+        thickness: 0.2,
+      },
     ],
     irregular: [
       { id: '1', start: { x: 0, z: 0 }, end: { x: 5, z: 0 }, height: 3, thickness: 0.2 },
@@ -98,11 +148,16 @@ export const RoomCalculatorDemo: React.FC = () => {
             {/* Grid */}
             <defs>
               <pattern id="grid" width="1" height="1" patternUnits="userSpaceOnUse">
-                <path d="M 1 0 L 0 0 0 1" fill="none" stroke="#f0f0f0" strokeWidth="0.02"/>
+                <path
+                  d="M 1 0 L 0 0 0 1"
+                  fill="none"
+                  stroke="#f0f0f0"
+                  strokeWidth="0.02"
+                />
               </pattern>
             </defs>
             <rect width="8" height="7" fill="url(#grid)" />
-            
+
             {/* Walls */}
             {currentWalls.map((wall, index) => (
               <g key={wall.id}>
@@ -128,7 +183,7 @@ export const RoomCalculatorDemo: React.FC = () => {
                 </text>
               </g>
             ))}
-            
+
             {/* Centroid */}
             <circle
               cx={metrics.centroid.x}
@@ -156,9 +211,7 @@ export const RoomCalculatorDemo: React.FC = () => {
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-xl font-semibold mb-4">Raw Calculation Data</h2>
         <div className="bg-gray-50 rounded-lg p-4 overflow-auto">
-          <pre className="text-sm text-gray-700">
-            {JSON.stringify(metrics, null, 2)}
-          </pre>
+          <pre className="text-sm text-gray-700">{JSON.stringify(metrics, null, 2)}</pre>
         </div>
       </div>
     </div>

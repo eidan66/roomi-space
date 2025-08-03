@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { AdaptiveRenderingOptions } from '../lib/adaptive-3d-renderer';
 
 interface AdaptiveRenderingSettingsProps {
@@ -10,28 +11,26 @@ interface AdaptiveRenderingSettingsProps {
 export const AdaptiveRenderingSettings: React.FC<AdaptiveRenderingSettingsProps> = ({
   options,
   onChange,
-  onReset
+  onReset,
 }) => {
   const handleToggle = (key: keyof AdaptiveRenderingOptions) => {
     onChange({
       ...options,
-      [key]: !options[key]
+      [key]: !options[key],
     });
   };
 
   const handleSliderChange = (key: keyof AdaptiveRenderingOptions, value: number) => {
     onChange({
       ...options,
-      [key]: value
+      [key]: value,
     });
   };
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-800">
-          3D Rendering Settings
-        </h3>
+        <h3 className="text-lg font-semibold text-gray-800">3D Rendering Settings</h3>
         <button
           onClick={onReset}
           className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded transition-colors"
@@ -44,7 +43,7 @@ export const AdaptiveRenderingSettings: React.FC<AdaptiveRenderingSettingsProps>
         {/* Tolerance Settings */}
         <div className="border-b pb-4">
           <h4 className="font-medium text-gray-700 mb-3">Tolerance Settings</h4>
-          
+
           <div className="space-y-3">
             <div>
               <label className="block text-sm text-gray-600 mb-1">
@@ -56,7 +55,9 @@ export const AdaptiveRenderingSettings: React.FC<AdaptiveRenderingSettingsProps>
                 max="0.5"
                 step="0.01"
                 value={options.vertexSnapTolerance}
-                onChange={(e) => handleSliderChange('vertexSnapTolerance', parseFloat(e.target.value))}
+                onChange={(e) =>
+                  handleSliderChange('vertexSnapTolerance', parseFloat(e.target.value))
+                }
                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
               />
               <div className="text-xs text-gray-500 mt-1">
@@ -74,7 +75,9 @@ export const AdaptiveRenderingSettings: React.FC<AdaptiveRenderingSettingsProps>
                 max="15"
                 step="1"
                 value={options.angleSnapTolerance}
-                onChange={(e) => handleSliderChange('angleSnapTolerance', parseFloat(e.target.value))}
+                onChange={(e) =>
+                  handleSliderChange('angleSnapTolerance', parseFloat(e.target.value))
+                }
                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
               />
               <div className="text-xs text-gray-500 mt-1">
@@ -92,7 +95,9 @@ export const AdaptiveRenderingSettings: React.FC<AdaptiveRenderingSettingsProps>
                 max="1.0"
                 step="0.1"
                 value={options.minWallLength}
-                onChange={(e) => handleSliderChange('minWallLength', parseFloat(e.target.value))}
+                onChange={(e) =>
+                  handleSliderChange('minWallLength', parseFloat(e.target.value))
+                }
                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
               />
               <div className="text-xs text-gray-500 mt-1">
@@ -105,7 +110,7 @@ export const AdaptiveRenderingSettings: React.FC<AdaptiveRenderingSettingsProps>
         {/* Adaptive Behavior */}
         <div className="border-b pb-4">
           <h4 className="font-medium text-gray-700 mb-3">Adaptive Behavior</h4>
-          
+
           <div className="space-y-3">
             <label className="flex items-center space-x-3">
               <input
@@ -163,7 +168,7 @@ export const AdaptiveRenderingSettings: React.FC<AdaptiveRenderingSettingsProps>
         {/* Visual Quality */}
         <div>
           <h4 className="font-medium text-gray-700 mb-3">Visual Quality</h4>
-          
+
           <div className="space-y-3">
             <label className="flex items-center space-x-3">
               <input
@@ -207,48 +212,54 @@ export const AdaptiveRenderingSettings: React.FC<AdaptiveRenderingSettingsProps>
         <h4 className="font-medium text-gray-700 mb-3">Quick Presets</h4>
         <div className="grid grid-cols-3 gap-2">
           <button
-            onClick={() => onChange({
-              vertexSnapTolerance: 0.05,
-              angleSnapTolerance: 2,
-              minWallLength: 0.1,
-              allowDimensionAdjustment: false,
-              preserveDesignIntent: true,
-              autoFixTopology: false,
-              smoothTransitions: false,
-              optimizeForRendering: false,
-            })}
+            onClick={() =>
+              onChange({
+                vertexSnapTolerance: 0.05,
+                angleSnapTolerance: 2,
+                minWallLength: 0.1,
+                allowDimensionAdjustment: false,
+                preserveDesignIntent: true,
+                autoFixTopology: false,
+                smoothTransitions: false,
+                optimizeForRendering: false,
+              })
+            }
             className="px-3 py-2 text-sm bg-blue-100 hover:bg-blue-200 text-blue-800 rounded transition-colors"
           >
             Strict Mode
           </button>
-          
+
           <button
-            onClick={() => onChange({
-              vertexSnapTolerance: 0.1,
-              angleSnapTolerance: 5,
-              minWallLength: 0.2,
-              allowDimensionAdjustment: true,
-              preserveDesignIntent: true,
-              autoFixTopology: true,
-              smoothTransitions: true,
-              optimizeForRendering: true,
-            })}
+            onClick={() =>
+              onChange({
+                vertexSnapTolerance: 0.1,
+                angleSnapTolerance: 5,
+                minWallLength: 0.2,
+                allowDimensionAdjustment: true,
+                preserveDesignIntent: true,
+                autoFixTopology: true,
+                smoothTransitions: true,
+                optimizeForRendering: true,
+              })
+            }
             className="px-3 py-2 text-sm bg-green-100 hover:bg-green-200 text-green-800 rounded transition-colors"
           >
             Balanced
           </button>
-          
+
           <button
-            onClick={() => onChange({
-              vertexSnapTolerance: 0.3,
-              angleSnapTolerance: 10,
-              minWallLength: 0.5,
-              allowDimensionAdjustment: true,
-              preserveDesignIntent: false,
-              autoFixTopology: true,
-              smoothTransitions: true,
-              optimizeForRendering: true,
-            })}
+            onClick={() =>
+              onChange({
+                vertexSnapTolerance: 0.3,
+                angleSnapTolerance: 10,
+                minWallLength: 0.5,
+                allowDimensionAdjustment: true,
+                preserveDesignIntent: false,
+                autoFixTopology: true,
+                smoothTransitions: true,
+                optimizeForRendering: true,
+              })
+            }
             className="px-3 py-2 text-sm bg-orange-100 hover:bg-orange-200 text-orange-800 rounded transition-colors"
           >
             Flexible
@@ -261,10 +272,12 @@ export const AdaptiveRenderingSettings: React.FC<AdaptiveRenderingSettingsProps>
         <h4 className="font-medium text-gray-700 mb-2">How It Works</h4>
         <div className="text-sm text-gray-600 space-y-2">
           <p>
-            <strong>Strict Mode:</strong> Minimal adjustments, preserves exact 2D dimensions
+            <strong>Strict Mode:</strong> Minimal adjustments, preserves exact 2D
+            dimensions
           </p>
           <p>
-            <strong>Balanced:</strong> Smart adjustments for better 3D while preserving design intent
+            <strong>Balanced:</strong> Smart adjustments for better 3D while preserving
+            design intent
           </p>
           <p>
             <strong>Flexible:</strong> Maximum adaptability for optimal 3D rendering

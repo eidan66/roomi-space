@@ -1,7 +1,9 @@
 'use client';
 
 import React from 'react';
+
 import { useTranslation } from 'react-i18next';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -21,7 +23,7 @@ export const MATERIAL_PRESETS: MaterialPreset[] = [
     floorType: 'concrete',
     wallMaterial: 'paint',
     windowStyle: 'modern',
-    icon: '🏢'
+    icon: '🏢',
   },
   {
     name: 'classicElegance',
@@ -29,7 +31,7 @@ export const MATERIAL_PRESETS: MaterialPreset[] = [
     floorType: 'marble',
     wallMaterial: 'wood',
     windowStyle: 'classic',
-    icon: '🏛️'
+    icon: '🏛️',
   },
   {
     name: 'industrialLoft',
@@ -37,7 +39,7 @@ export const MATERIAL_PRESETS: MaterialPreset[] = [
     floorType: 'concrete',
     wallMaterial: 'brick',
     windowStyle: 'industrial',
-    icon: '🏭'
+    icon: '🏭',
   },
   {
     name: 'cozyHome',
@@ -45,7 +47,7 @@ export const MATERIAL_PRESETS: MaterialPreset[] = [
     floorType: 'wood',
     wallMaterial: 'paint',
     windowStyle: 'classic',
-    icon: '🏠'
+    icon: '🏠',
   },
   {
     name: 'luxurySuite',
@@ -53,7 +55,7 @@ export const MATERIAL_PRESETS: MaterialPreset[] = [
     floorType: 'marble',
     wallMaterial: 'stone',
     windowStyle: 'modern',
-    icon: '💎'
+    icon: '💎',
   },
   {
     name: 'officeSpace',
@@ -61,8 +63,8 @@ export const MATERIAL_PRESETS: MaterialPreset[] = [
     floorType: 'carpet',
     wallMaterial: 'paint',
     windowStyle: 'modern',
-    icon: '🏢'
-  }
+    icon: '🏢',
+  },
 ];
 
 interface MaterialPresetsProps {
@@ -76,15 +78,14 @@ const MaterialPresets: React.FC<MaterialPresetsProps> = ({
   onPresetSelect,
   currentFloorType,
   currentWallMaterial,
-  currentWindowStyle
+  currentWindowStyle,
 }) => {
   const { t } = useTranslation();
-  
-  const isCurrentPreset = (preset: MaterialPreset) => {
-    return preset.floorType === currentFloorType &&
-           preset.wallMaterial === currentWallMaterial &&
-           preset.windowStyle === currentWindowStyle;
-  };
+
+  const isCurrentPreset = (preset: MaterialPreset) =>
+    preset.floorType === currentFloorType &&
+    preset.wallMaterial === currentWallMaterial &&
+    preset.windowStyle === currentWindowStyle;
 
   return (
     <Card className="border-0 shadow-sm">
@@ -104,7 +105,9 @@ const MaterialPresets: React.FC<MaterialPresetsProps> = ({
               <div className="flex items-start space-x-3">
                 <span className="text-lg">{preset.icon}</span>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">{t(`materialPresets.${preset.name}.name`)}</div>
+                  <div className="font-medium text-sm">
+                    {t(`materialPresets.${preset.name}.name`)}
+                  </div>
                   <div className="text-xs text-muted-foreground mt-1">
                     {t(`materialPresets.${preset.description}.description`)}
                   </div>

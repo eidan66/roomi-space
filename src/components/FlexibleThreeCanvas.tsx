@@ -1,8 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
+
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+
+import {
+  Adaptive3DRenderer,
+  AdaptiveRenderingOptions,
+} from '../lib/adaptive-3d-renderer';
+
 import { Wall } from './Floorplan2DCanvas';
-import { Adaptive3DRenderer, AdaptiveRenderingOptions } from '../lib/adaptive-3d-renderer';
 
 interface FlexibleThreeCanvasProps {
   walls: Wall[];
@@ -21,7 +27,7 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
   windowStyle,
   showWindows,
   adaptiveOptions = {},
-  onRenderingNotes
+  onRenderingNotes,
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene>();
@@ -29,12 +35,14 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
   const cameraRef = useRef<THREE.PerspectiveCamera>();
   const controlsRef = useRef<OrbitControls>();
   const animationIdRef = useRef<number>();
-  
+
   const [renderingQuality, setRenderingQuality] = useState<number>(100);
   const [adaptationInfo, setAdaptationInfo] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!mountRef.current) return;
+    if (!mountRef.current) {
+      return;
+    }
 
     // Initialize Three.js scene
     const scene = new THREE.Scene();
@@ -46,7 +54,7 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
       75,
       mountRef.current.clientWidth / mountRef.current.clientHeight,
       0.1,
-      1000
+      1000,
     );
     cameraRef.current = camera;
 
@@ -86,8 +94,10 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
 
     // Handle resize
     const handleResize = () => {
-      if (!mountRef.current) return;
-      
+      if (!mountRef.current) {
+        return;
+      }
+
       camera.aspect = mountRef.current.clientWidth / mountRef.current.clientHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
@@ -109,37 +119,42 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
 
   // Update scene when walls change
   useEffect(() => {
-    if (!sceneRef.current || !cameraRef.current) return;
+    if (!sceneRef.current || !cameraRef.current) {
+      return;
+    }
 
     // Clear existing geometry
     const objectsToRemove = sceneRef.current.children.filter(
-      child => child.userData.isRoomGeometry
+      (child) => child.userData.isRoomGeometry,
     );
-    objectsToRemove.forEach(obj => sceneRef.current!.remove(obj));
+    objectsToRemove.forEach((obj) => sceneRef.current!.remove(obj));
 
-    if (walls.length === 0) return;
+    if (walls.length === 0) {
+      return;
+    }
 
     // Use adaptive renderer to prepare walls for 3D
-    const { optimizedWalls, renderingNotes, qualityScore } = 
+    const { optimizedWalls, renderingNotes, qualityScore } =
       Adaptive3DRenderer.createRenderingOptimizedWalls(walls, adaptiveOptions);
 
     setRenderingQuality(qualityScore);
     setAdaptationInfo(renderingNotes);
-    
+
     if (onRenderingNotes) {
       onRenderingNotes(renderingNotes);
     }
 
     // Create room geometry with optimized walls
     createRoomGeometry(optimizedWalls);
-    
+
     // Position camera appropriately
     positionCamera(optimizedWalls);
-
   }, [walls, floorType, wallMaterial, windowStyle, showWindows, adaptiveOptions]);
 
   const createRoomGeometry = (optimizedWalls: Wall[]) => {
-    if (!sceneRef.current) return;
+    if (!sceneRef.current) {
+      return;
+    }
 
     const roomGroup = new THREE.Group();
     roomGroup.userData.isRoomGeometry = true;
@@ -154,7 +169,7 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
     }
 
     // Create walls
-    optimizedWalls.forEach(wall => {
+    optimizedWalls.forEach((wall) => {
       const wallMesh = createWallMesh(wall);
       if (wallMesh) {
         roomGroup.add(wallMesh);
@@ -173,16 +188,18 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
   };
 
   const createFloorGeometry = (walls: Wall[]): THREE.BufferGeometry | null => {
-    if (walls.length < 3) return null;
+    if (walls.length < 3) {
+      return null;
+    }
 
     // Extract vertices from walls
     const vertices: { x: number; z: number }[] = [];
     const vertexMap = new Map<string, { x: number; z: number }>();
 
-    walls.forEach(wall => {
+    walls.forEach((wall) => {
       const startKey = `${wall.start.x.toFixed(3)},${wall.start.z.toFixed(3)}`;
       const endKey = `${wall.end.x.toFixed(3)},${wall.end.z.toFixed(3)}`;
-      
+
       if (!vertexMap.has(startKey)) {
         vertexMap.set(startKey, wall.start);
       }
@@ -193,8 +210,10 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
 
     // Order vertices to form a polygon (simplified approach)
     const orderedVertices = Array.from(vertexMap.values());
-    
-    if (orderedVertices.length < 3) return null;
+
+    if (orderedVertices.length < 3) {
+      return null;
+    }
 
     // Create geometry using triangulation
     const geometry = new THREE.BufferGeometry();
@@ -225,11 +244,13 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
     const wallVector = new THREE.Vector3(
       wall.end.x - wall.start.x,
       0,
-      wall.end.z - wall.start.z
+      wall.end.z - wall.start.z,
     );
     const wallLength = wallVector.length();
 
-    if (wallLength < 0.01) return null; // Skip very short walls
+    if (wallLength < 0.01) {
+      return null;
+    } // Skip very short walls
 
     const wallGeometry = new THREE.BoxGeometry(wallLength, wall.height, wall.thickness);
     const wallMaterial = createWallMaterial(wallMaterial);
@@ -251,17 +272,18 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
 
   const createWindowMesh = (wall: Wall): THREE.Mesh | null => {
     const wallLength = Math.sqrt(
-      Math.pow(wall.end.x - wall.start.x, 2) + 
-      Math.pow(wall.end.z - wall.start.z, 2)
+      Math.pow(wall.end.x - wall.start.x, 2) + Math.pow(wall.end.z - wall.start.z, 2),
     );
 
     // Only add windows to walls longer than 2m
-    if (wallLength < 2) return null;
+    if (wallLength < 2) {
+      return null;
+    }
 
     const windowWidth = Math.min(1.2, wallLength * 0.6);
     const windowHeight = 1.2;
     const windowGeometry = new THREE.PlaneGeometry(windowWidth, windowHeight);
-    
+
     const windowMaterial = new THREE.MeshPhysicalMaterial({
       color: 0x87ceeb,
       transparent: true,
@@ -285,7 +307,7 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
 
   const createFloorMaterial = (type: string): THREE.Material => {
     const material = new THREE.MeshLambertMaterial();
-    
+
     switch (type) {
       case 'wood':
         material.color.setHex(0xdeb887);
@@ -305,13 +327,13 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
       default:
         material.color.setHex(0xf5f5dc);
     }
-    
+
     return material;
   };
 
   const createWallMaterial = (type: string): THREE.Material => {
     const material = new THREE.MeshLambertMaterial();
-    
+
     switch (type) {
       case 'paint':
         material.color.setHex(0xffffff);
@@ -331,17 +353,22 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
       default:
         material.color.setHex(0xffffff);
     }
-    
+
     return material;
   };
 
   const positionCamera = (walls: Wall[]) => {
-    if (!cameraRef.current || walls.length === 0) return;
+    if (!cameraRef.current || walls.length === 0) {
+      return;
+    }
 
     // Calculate room bounds
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    
-    walls.forEach(wall => {
+    let minX = Infinity,
+      maxX = -Infinity,
+      minZ = Infinity,
+      maxZ = -Infinity;
+
+    walls.forEach((wall) => {
       minX = Math.min(minX, wall.start.x, wall.end.x);
       maxX = Math.max(maxX, wall.start.x, wall.end.x);
       minZ = Math.min(minZ, wall.start.z, wall.end.z);
@@ -353,15 +380,15 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
     const roomWidth = maxX - minX;
     const roomDepth = maxZ - minZ;
     const maxDimension = Math.max(roomWidth, roomDepth);
-    
+
     // Position camera at a good viewing angle
     const distance = Math.max(10, maxDimension * 1.5);
     cameraRef.current.position.set(
       centerX + distance * 0.7,
       distance * 0.8,
-      centerZ + distance * 0.7
+      centerZ + distance * 0.7,
     );
-    
+
     if (controlsRef.current) {
       controlsRef.current.target.set(centerX, 0, centerZ);
       controlsRef.current.update();
@@ -371,16 +398,22 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
   return (
     <div className="relative w-full h-full">
       <div ref={mountRef} className="w-full h-full" />
-      
+
       {/* Rendering Quality Indicator */}
       <div className="absolute top-4 right-4 bg-black bg-opacity-50 text-white p-2 rounded text-sm">
         <div className="flex items-center gap-2">
           <span>3D Quality:</span>
-          <div className={`px-2 py-1 rounded text-xs ${
-            renderingQuality >= 90 ? 'bg-green-600' :
-            renderingQuality >= 70 ? 'bg-yellow-600' :
-            'bg-red-600'
-          }`}>
+          <div
+            className={`px-2 py-1 rounded text-xs ${(() => {
+              if (renderingQuality >= 90) {
+                return 'bg-green-600';
+              }
+              if (renderingQuality >= 70) {
+                return 'bg-yellow-600';
+              }
+              return 'bg-red-600';
+            })()}`}
+          >
             {renderingQuality}/100
           </div>
         </div>
@@ -392,7 +425,9 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
           <div className="font-semibold mb-1">3D Adaptations:</div>
           <ul className="space-y-1">
             {adaptationInfo.slice(0, 3).map((info, index) => (
-              <li key={index} className="opacity-80">• {info}</li>
+              <li key={index} className="opacity-80">
+                • {info}
+              </li>
             ))}
             {adaptationInfo.length > 3 && (
               <li className="opacity-60">... and {adaptationInfo.length - 3} more</li>

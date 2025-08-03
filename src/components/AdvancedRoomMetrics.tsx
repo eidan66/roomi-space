@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { RoomMetrics } from '../lib/advanced-room-calculator';
 
 interface AdvancedRoomMetricsProps {
@@ -10,21 +11,24 @@ export const AdvancedRoomMetrics: React.FC<AdvancedRoomMetricsProps> = ({
   metrics,
   showAdvanced = false,
 }) => {
-  const formatNumber = (value: number, decimals: number = 2): string => {
-    return value.toFixed(decimals);
-  };
+  const formatNumber = (value: number, decimals: number = 2): string =>
+    value.toFixed(decimals);
 
-  const formatPercentage = (value: number): string => {
-    return `${(value * 100).toFixed(1)}%`;
-  };
+  const formatPercentage = (value: number): string => `${(value * 100).toFixed(1)}%`;
 
-  const formatAngle = (radians: number): string => {
-    return `${((radians * 180) / Math.PI).toFixed(1)}°`;
-  };
+  const formatAngle = (radians: number): string =>
+    `${((radians * 180) / Math.PI).toFixed(1)}°`;
 
-  const getQualityColor = (value: number, thresholds: { good: number; fair: number }): string => {
-    if (value >= thresholds.good) return 'text-green-600';
-    if (value >= thresholds.fair) return 'text-yellow-600';
+  const getQualityColor = (
+    value: number,
+    thresholds: { good: number; fair: number },
+  ): string => {
+    if (value >= thresholds.good) {
+      return 'text-green-600';
+    }
+    if (value >= thresholds.fair) {
+      return 'text-yellow-600';
+    }
     return 'text-red-600';
   };
 
@@ -41,9 +45,7 @@ export const AdvancedRoomMetrics: React.FC<AdvancedRoomMetricsProps> = ({
         <h3 className="text-lg font-semibold text-gray-800 mb-2">Room Analysis</h3>
         <div className="flex items-center gap-4">
           {getValidationStatus()}
-          <span className="text-sm text-gray-600">
-            {metrics.wallCount} walls
-          </span>
+          <span className="text-sm text-gray-600">{metrics.wallCount} walls</span>
         </div>
       </div>
 
@@ -58,7 +60,7 @@ export const AdvancedRoomMetrics: React.FC<AdvancedRoomMetricsProps> = ({
             Usable: {formatNumber(metrics.usableArea)}m²
           </p>
         </div>
-        
+
         <div className="bg-green-50 p-4 rounded-lg">
           <h4 className="font-semibold text-green-800 mb-2">Perimeter</h4>
           <p className="text-2xl font-bold text-green-900">
@@ -94,12 +96,14 @@ export const AdvancedRoomMetrics: React.FC<AdvancedRoomMetricsProps> = ({
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Compactness</span>
-                  <span className={`font-semibold ${getQualityColor(metrics.compactness, { good: 0.7, fair: 0.5 })}`}>
+                  <span
+                    className={`font-semibold ${getQualityColor(metrics.compactness, { good: 0.7, fair: 0.5 })}`}
+                  >
                     {formatPercentage(metrics.compactness)}
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
+                  <div
                     className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${Math.min(100, metrics.compactness * 100)}%` }}
                   />
@@ -109,12 +113,14 @@ export const AdvancedRoomMetrics: React.FC<AdvancedRoomMetricsProps> = ({
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Convexity</span>
-                  <span className={`font-semibold ${getQualityColor(metrics.convexity, { good: 0.8, fair: 0.6 })}`}>
+                  <span
+                    className={`font-semibold ${getQualityColor(metrics.convexity, { good: 0.8, fair: 0.6 })}`}
+                  >
                     {formatPercentage(metrics.convexity)}
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
+                  <div
                     className="bg-green-500 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${Math.min(100, metrics.convexity * 100)}%` }}
                   />
@@ -125,12 +131,14 @@ export const AdvancedRoomMetrics: React.FC<AdvancedRoomMetricsProps> = ({
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-600">Rectangularity</span>
-                    <span className={`font-semibold ${getQualityColor(metrics.rectangularity, { good: 0.8, fair: 0.6 })}`}>
+                    <span
+                      className={`font-semibold ${getQualityColor(metrics.rectangularity, { good: 0.8, fair: 0.6 })}`}
+                    >
                       {formatPercentage(metrics.rectangularity)}
                     </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
+                    <div
                       className="bg-purple-500 h-2 rounded-full transition-all duration-300"
                       style={{ width: `${Math.min(100, metrics.rectangularity * 100)}%` }}
                     />
@@ -156,33 +164,41 @@ export const AdvancedRoomMetrics: React.FC<AdvancedRoomMetricsProps> = ({
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Shortest Wall:</span>
-                  <span className="font-medium">{formatNumber(metrics.shortestWall)}m</span>
+                  <span className="font-medium">
+                    {formatNumber(metrics.shortestWall)}m
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Longest Wall:</span>
-                  <span className="font-medium">{formatNumber(metrics.longestWall)}m</span>
+                  <span className="font-medium">
+                    {formatNumber(metrics.longestWall)}m
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Average Angle:</span>
                   <span className="font-medium">{formatAngle(metrics.averageAngle)}</span>
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Bounding Box:</span>
                   <span className="font-medium">
-                    {formatNumber(metrics.boundingBox.width)}×{formatNumber(metrics.boundingBox.height)}m
+                    {formatNumber(metrics.boundingBox.width)}×
+                    {formatNumber(metrics.boundingBox.height)}m
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Wall/Floor Ratio:</span>
-                  <span className="font-medium">{formatPercentage(metrics.wallToFloorRatio)}</span>
+                  <span className="font-medium">
+                    {formatPercentage(metrics.wallToFloorRatio)}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Centroid:</span>
                   <span className="font-medium">
-                    ({formatNumber(metrics.centroid.x, 1)}, {formatNumber(metrics.centroid.z, 1)})
+                    ({formatNumber(metrics.centroid.x, 1)},{' '}
+                    {formatNumber(metrics.centroid.z, 1)})
                   </span>
                 </div>
               </div>
@@ -199,10 +215,10 @@ export const AdvancedRoomMetrics: React.FC<AdvancedRoomMetricsProps> = ({
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{formatNumber(length)}m</span>
                     <div className="w-16 bg-gray-200 rounded-full h-1">
-                      <div 
+                      <div
                         className="bg-blue-400 h-1 rounded-full"
-                        style={{ 
-                          width: `${Math.min(100, (length / metrics.longestWall) * 100)}%` 
+                        style={{
+                          width: `${Math.min(100, (length / metrics.longestWall) * 100)}%`,
                         }}
                       />
                     </div>

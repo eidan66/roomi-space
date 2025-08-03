@@ -8,20 +8,18 @@ export interface ColorPaletteProps {
   onSelect: (hex: string) => void;
 }
 
-const ColorPalette: React.FC<ColorPaletteProps> = ({ colors, selected, onSelect }) => {
-  return (
-    <div className="flex flex-wrap gap-1 p-2 bg-card border border-border rounded-md">
-      {colors.map(c => (
-        <button
-          key={c}
-          onClick={() => onSelect(c)}
-          className={`w-6 h-6 rounded-sm border-2 ${selected === c ? 'border-primary' : 'border-transparent'}`}
-          style={{ backgroundColor: c }}
-          title={c}
-        />
-      ))}
-    </div>
-  );
-};
+const ColorPalette: React.FC<ColorPaletteProps> = ({ colors, selected, onSelect }) => (
+  <div className="flex flex-wrap gap-1 p-2 bg-card border border-border rounded-md">
+    {colors.map((c) => (
+      <button
+        key={c}
+        onClick={() => onSelect(c)}
+        className={`w-6 h-6 rounded-sm border-2 ${selected === c ? 'border-primary' : 'border-transparent'}`}
+        style={{ backgroundColor: c }}
+        title={c}
+      />
+    ))}
+  </div>
+);
 
 export default ColorPalette;

@@ -1,49 +1,56 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import * as THREE from 'three';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
 import {
-  ArrowRight, Building, Move, Move3d, Palette, Redo, Save, Square, Undo, PencilRuler, View,
-  Trash2, Home
+  ArrowRight,
+  Building,
+  Home,
+  Move,
+  Move3d,
+  Palette,
+  PencilRuler,
+  Redo,
+  Save,
+  Square,
+  Trash2,
+  Undo,
+  View,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { useTranslation } from 'react-i18next';
+import * as THREE from 'three';
 
-import ThreeCanvas from '@/components/ThreeCanvas';
-import { ROOM_SIZES } from '@/config/roomSizes';
-import Floorplan2DCanvas, { Wall } from '@/components/Floorplan2DCanvas';
 import { useAdvancedRoom } from '@/components/AdvancedRoomBuilder';
+import Floorplan2DCanvas, { Wall } from '@/components/Floorplan2DCanvas';
 import MaterialPresets, { MaterialPreset } from '@/components/MaterialPresets';
 import ModelCategories from '@/components/ModelCategories';
 import RoomQualityAnalyzer from '@/components/RoomQualityAnalyzer';
+import ThreeCanvas from '@/components/ThreeCanvas';
 import TopToolbar from '@/components/TopToolbar';
-import { AdvancedRoomCalculator } from '@/lib/advanced-room-calculator';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { ROOM_SIZES } from '@/config/roomSizes';
+import { AdvancedRoomCalculator } from '@/lib/advanced-room-calculator';
 
 // Room templates are now generated dynamically using the advanced room builder
 
 export default function RoomBuilderPage() {
   const { t } = useTranslation();
-  const {
-    walls,
-    setWalls,
-    roomStats,
-    clearWalls,
-    generateRectangularRoom,
-    generateLShapedRoom
-  } = useAdvancedRoom([]);
+  const { walls, setWalls, clearWalls, generateRectangularRoom, generateLShapedRoom } =
+    useAdvancedRoom([]);
 
   // Calculate advanced metrics using the new calculator
-  const roomMetrics = useMemo(() => {
-    return AdvancedRoomCalculator.calculateRoomMetrics(walls);
-  }, [walls]);
+  const roomMetrics = useMemo(
+    () => AdvancedRoomCalculator.calculateRoomMetrics(walls),
+    [walls],
+  );
 
   const isRoomValid = roomMetrics.isValid;
 
@@ -55,13 +62,21 @@ export default function RoomBuilderPage() {
   const [showWindows, setShowWindows] = useState(true);
   const [wallHeight, setWallHeight] = useState(2.5);
   const [wallThickness, setWallThickness] = useState(0.2);
-  const [floorType, setFloorType] = useState<'wood' | 'tile' | 'concrete' | 'marble' | 'carpet'>('wood');
-  const [wallMaterial, setWallMaterial] = useState<'paint' | 'brick' | 'stone' | 'wood' | 'metal'>('paint');
-  const [windowStyle, setWindowStyle] = useState<'modern' | 'classic' | 'industrial'>('modern');
+  const [floorType, setFloorType] = useState<
+    'wood' | 'tile' | 'concrete' | 'marble' | 'carpet'
+  >('wood');
+  const [wallMaterial, setWallMaterial] = useState<
+    'paint' | 'brick' | 'stone' | 'wood' | 'metal'
+  >('paint');
+  const [windowStyle, setWindowStyle] = useState<'modern' | 'classic' | 'industrial'>(
+    'modern',
+  );
 
   // Top toolbar states
   const [roomSize, setRoomSize] = useState<'xs' | 's' | 'm' | 'l' | 'xl'>('m');
-  const [activeTool, setActiveTool] = useState<'select' | 'drag' | 'paint' | 'delete' | 'resize'>('select');
+  const [activeTool, setActiveTool] = useState<
+    'select' | 'drag' | 'paint' | 'delete' | 'resize'
+  >('select');
   const [selectedColor, setSelectedColor] = useState<string>('#ffffff');
 
   // Sync delete tool with editMode when in 2D view
@@ -79,32 +94,31 @@ export default function RoomBuilderPage() {
 
   // Apply room size template when roomSize changes
   useEffect(() => {
-    const size = ROOM_SIZES.find(s => s.key === roomSize);
-    if (!size) return;
+    const size = ROOM_SIZES.find((s) => s.key === roomSize);
+    if (!size) {
+      return;
+    }
     // Clear existing and generate new room
     if (walls.length > 0) {
       recordUndo();
     }
     clearWalls();
     generateRectangularRoom(size.width, size.length, wallHeight, wallThickness);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomSize]);
+
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
   const [screenshotUrl, setScreenshotUrl] = useState<string>('');
-  const isPremium = false; // TODO: replace with real premium check
 
   // Canvas refs for screenshot
   const canvas2DRef = useRef<HTMLDivElement>(null);
   const canvas3DRef = useRef<HTMLDivElement>(null);
   const threeRendererRef = useRef<THREE.WebGLRenderer>(null);
 
-
   const [undoStack, setUndoStack] = useState<Wall[][]>([]);
   const [redoStack, setRedoStack] = useState<Wall[][]>([]);
   const [roomName, setRoomName] = useState('My Dream Room');
   const { theme } = useTheme();
-
-
 
   // Notification state
   const [notification, setNotification] = useState<{
@@ -114,32 +128,35 @@ export default function RoomBuilderPage() {
   }>({
     message: '',
     type: 'info',
-    visible: false
+    visible: false,
   });
 
-  const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  const showNotification = (
+    message: string,
+    type: 'success' | 'error' | 'info' = 'info',
+  ) => {
     setNotification({
       message,
       type,
-      visible: true
+      visible: true,
     });
 
     // Auto-hide after 3 seconds
     setTimeout(() => {
-      setNotification(prev => ({ ...prev, visible: false }));
+      setNotification((prev) => ({ ...prev, visible: false }));
     }, 3000);
   };
 
   const recordUndo = useCallback(() => {
-    setUndoStack(prev => [...prev, walls]);
+    setUndoStack((prev) => [...prev, walls]);
     setRedoStack([]);
   }, [walls]);
 
   const undo = () => {
     if (undoStack.length > 0) {
       const previousState = undoStack[undoStack.length - 1];
-      setRedoStack(prev => [walls, ...prev]);
-      setUndoStack(prev => prev.slice(0, -1));
+      setRedoStack((prev) => [walls, ...prev]);
+      setUndoStack((prev) => prev.slice(0, -1));
       setWalls(previousState);
     }
   };
@@ -147,14 +164,16 @@ export default function RoomBuilderPage() {
   const redo = () => {
     if (redoStack.length > 0) {
       const nextState = redoStack[0];
-      setUndoStack(prev => [...prev, walls]);
-      setRedoStack(prev => prev.slice(1));
+      setUndoStack((prev) => [...prev, walls]);
+      setRedoStack((prev) => prev.slice(1));
       setWalls(nextState);
     }
   };
 
   const clearAll = () => {
-    if (walls.length === 0) return;
+    if (walls.length === 0) {
+      return;
+    }
     recordUndo();
     clearWalls();
     showNotification(t('notifications.roomCleared'), 'info');
@@ -167,11 +186,14 @@ export default function RoomBuilderPage() {
     }
 
     // Here you would typically save to a database or localStorage
-    localStorage.setItem('savedRoom', JSON.stringify({
-      name: roomName,
-      walls,
-      createdAt: new Date().toISOString()
-    }));
+    localStorage.setItem(
+      'savedRoom',
+      JSON.stringify({
+        name: roomName,
+        walls,
+        createdAt: new Date().toISOString(),
+      }),
+    );
 
     showNotification(t('notifications.roomSaved'), 'success');
   };
@@ -188,7 +210,7 @@ export default function RoomBuilderPage() {
     } else if (templateIndex === 2) {
       // L-shaped room template
       generateLShapedRoom(6, 6, 3, 3, wallHeight, wallThickness);
-              showNotification(t('notifications.loadedLShapedTemplate'), 'info');
+      showNotification(t('notifications.loadedLShapedTemplate'), 'info');
     }
   };
 
@@ -199,13 +221,15 @@ export default function RoomBuilderPage() {
 
   // Apply wall properties to all walls
   const applyWallProperties = () => {
-    if (walls.length === 0) return;
+    if (walls.length === 0) {
+      return;
+    }
 
     recordUndo();
-    const updatedWalls = walls.map(wall => ({
+    const updatedWalls = walls.map((wall) => ({
       ...wall,
       height: wallHeight,
-      thickness: wallThickness
+      thickness: wallThickness,
     }));
 
     setWalls(updatedWalls);
@@ -216,7 +240,10 @@ export default function RoomBuilderPage() {
     setFloorType(preset.floorType);
     setWallMaterial(preset.wallMaterial);
     setWindowStyle(preset.windowStyle);
-    showNotification(t('notifications.presetApplied', { preset: preset.name }), 'success');
+    showNotification(
+      t('notifications.presetApplied', { preset: preset.name }),
+      'success',
+    );
   };
 
   // Load saved room from localStorage on initial render
@@ -232,7 +259,7 @@ export default function RoomBuilderPage() {
         console.error('Failed to load saved room:', error);
       }
     }
-  }, []);
+  }, [setWalls, t]);
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -246,434 +273,551 @@ export default function RoomBuilderPage() {
         setActiveTool={setActiveTool}
         selectedColor={selectedColor}
         setSelectedColor={setSelectedColor}
-        onScreenshot={(url)=>{
-          if(url){
+        onScreenshot={(url) => {
+          if (url) {
             setScreenshotUrl(url);
             setShowScreenshotModal(true);
           }
           showNotification(t('notifications.screenshotCaptured'), 'success');
         }}
-        onPremiumRedirect={() => window.location.href = '/premium'}
+        onPremiumRedirect={() => (window.location.href = '/premium')}
         canvasRef={canvas2DRef}
         threeCanvasRef={canvas3DRef}
         threeRendererRef={threeRendererRef}
       />
 
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-      {/* --- Sidebar --- */}
-      <div className="w-full md:w-80 bg-card border-r border-border overflow-y-auto p-4 space-y-4">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden bg-white/90">
-            <Image src="/images/roomi-logo-light.jpeg" alt={t('alt.logo')} width={40} height={40} className="w-full h-full object-contain" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-foreground">{t('builder.title')}</h1>
-            <p className="text-sm text-muted-foreground">{t('builder.tagline')}</p>
-          </div>
-        </div>
-
-        <input
-          type="text"
-          value={roomName}
-          onChange={(e) => setRoomName(e.target.value)}
-          className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-          placeholder={t('room.placeholder')}
-        />
-
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3"><CardTitle className="text-lg flex items-center"><View className="w-5 h-5 mr-2" />{t('sidebar.viewMode')}</CardTitle></CardHeader>
-          <CardContent>
-            <div className="flex space-x-2">
-              <Button variant={viewMode === '2d' ? 'default' : 'outline'} onClick={() => setViewMode('2d')} className="flex-1"><PencilRuler className="w-4 h-4 mr-2" />{t('sidebar.plan2d')}</Button>
-              <Button variant={viewMode === '3d' ? 'default' : 'outline'} onClick={() => setViewMode('3d')} className="flex-1"><Move3d className="w-4 h-4 mr-2" />{t('sidebar.view3d')}</Button>
+        {/* --- Sidebar --- */}
+        <div className="w-full md:w-80 bg-card border-r border-border overflow-y-auto p-4 space-y-4">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden bg-white/90">
+              <Image
+                src="/images/roomi-logo-light.jpeg"
+                alt={t('alt.logo')}
+                width={40}
+                height={40}
+                className="w-full h-full object-contain"
+              />
             </div>
-          </CardContent>
-        </Card>
+            <div>
+              <h1 className="text-xl font-bold text-foreground">{t('builder.title')}</h1>
+              <p className="text-sm text-muted-foreground">{t('builder.tagline')}</p>
+            </div>
+          </div>
 
-        {viewMode === '2d' && (
+          <input
+            type="text"
+            value={roomName}
+            onChange={(e) => setRoomName(e.target.value)}
+            className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder={t('room.placeholder')}
+          />
+
           <Card className="border-0 shadow-sm">
-            <CardHeader className="pb-3"><CardTitle className="text-lg flex items-center"><Square className="w-5 h-5 mr-2" />{t('sidebar.drawingTools')}</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <Button variant={editMode === 'draw' ? 'secondary' : 'outline'} onClick={() => setEditMode('draw')} className="w-full justify-start"><Building className="w-4 h-4 mr-2" />{t('sidebar.drawWalls')}</Button>
-              <Button variant={editMode === 'move' ? 'secondary' : 'outline'} onClick={() => setEditMode('move')} className="w-full justify-start"><Move className="w-4 h-4 mr-2" />{t('sidebar.movePoints')}</Button>
-              <div className="flex items-center justify-between pt-2">
-                <Label className="text-sm">{t('sidebar.showGrid')}</Label>
-                <Switch checked={gridEnabled} onCheckedChange={setGridEnabled} />
-              </div>
-              <div className="flex items-center justify-between pt-2">
-                <Label className="text-sm">{t('sidebar.gridSnapping')}</Label>
-                <Switch checked={gridSnapping} onCheckedChange={setGridSnapping} />
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center">
+                <View className="w-5 h-5 mr-2" />
+                {t('sidebar.viewMode')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex space-x-2">
+                <Button
+                  variant={viewMode === '2d' ? 'default' : 'outline'}
+                  onClick={() => setViewMode('2d')}
+                  className="flex-1"
+                >
+                  <PencilRuler className="w-4 h-4 mr-2" />
+                  {t('sidebar.plan2d')}
+                </Button>
+                <Button
+                  variant={viewMode === '3d' ? 'default' : 'outline'}
+                  onClick={() => setViewMode('3d')}
+                  className="flex-1"
+                >
+                  <Move3d className="w-4 h-4 mr-2" />
+                  {t('sidebar.view3d')}
+                </Button>
               </div>
             </CardContent>
           </Card>
-        )}
 
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3"><CardTitle className="text-lg flex items-center"><Palette className="w-5 h-5 mr-2" />{t('sidebar.wallProperties')}</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label className="text-sm mb-2 block">{t('sidebar.wallHeight')}: {wallHeight.toFixed(1)}m</Label>
-              <Slider value={[wallHeight]} onValueChange={([v]) => setWallHeight(v)} min={1} max={4} step={0.1} className="w-full" />
-            </div>
-            <div>
-              <Label className="text-sm mb-2 block">{t('sidebar.wallThickness')}: {wallThickness.toFixed(2)}m</Label>
-              <Slider value={[wallThickness]} onValueChange={([v]) => setWallThickness(v)} min={0.05} max={0.3} step={0.01} className="w-full" />
-            </div>
-            <div className="flex items-center justify-between pt-2">
-              <Label className="text-sm">{t('sidebar.showWindows')}</Label>
-              <Switch checked={showWindows} onCheckedChange={setShowWindows} />
-            </div>
-            <div className="pt-2">
-              <Label className="text-sm mb-2 block">{t('sidebar.floorMaterial')}</Label>
-              <div className="grid grid-cols-3 gap-1 mb-2">
+          {viewMode === '2d' && (
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center">
+                  <Square className="w-5 h-5 mr-2" />
+                  {t('sidebar.drawingTools')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
                 <Button
-                  variant={floorType === 'wood' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setFloorType('wood')}
-                  className="text-xs"
+                  variant={editMode === 'draw' ? 'secondary' : 'outline'}
+                  onClick={() => setEditMode('draw')}
+                  className="w-full justify-start"
                 >
-                  🪵 {t('material.wood')}
+                  <Building className="w-4 h-4 mr-2" />
+                  {t('sidebar.drawWalls')}
                 </Button>
                 <Button
-                  variant={floorType === 'tile' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setFloorType('tile')}
-                  className="text-xs"
+                  variant={editMode === 'move' ? 'secondary' : 'outline'}
+                  onClick={() => setEditMode('move')}
+                  className="w-full justify-start"
                 >
-                  🔲 {t('material.tile')}
+                  <Move className="w-4 h-4 mr-2" />
+                  {t('sidebar.movePoints')}
                 </Button>
-                <Button
-                  variant={floorType === 'concrete' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setFloorType('concrete')}
-                  className="text-xs"
-                >
-                  🏗️ {t('material.concrete')}
-                </Button>
+                <div className="flex items-center justify-between pt-2">
+                  <Label className="text-sm">{t('sidebar.showGrid')}</Label>
+                  <Switch checked={gridEnabled} onCheckedChange={setGridEnabled} />
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                  <Label className="text-sm">{t('sidebar.gridSnapping')}</Label>
+                  <Switch checked={gridSnapping} onCheckedChange={setGridSnapping} />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center">
+                <Palette className="w-5 h-5 mr-2" />
+                {t('sidebar.wallProperties')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-sm mb-2 block">
+                  {t('sidebar.wallHeight')}: {wallHeight.toFixed(1)}m
+                </Label>
+                <Slider
+                  value={[wallHeight]}
+                  onValueChange={([v]) => setWallHeight(v)}
+                  min={1}
+                  max={4}
+                  step={0.1}
+                  className="w-full"
+                />
               </div>
-              <div className="grid grid-cols-2 gap-1">
-                <Button
-                  variant={floorType === 'marble' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setFloorType('marble')}
-                  className="text-xs"
-                >
-                  💎 {t('material.marble')}
-                </Button>
-                <Button
-                  variant={floorType === 'carpet' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setFloorType('carpet')}
-                  className="text-xs"
-                >
-                  🧶 {t('material.carpet')}
-                </Button>
+              <div>
+                <Label className="text-sm mb-2 block">
+                  {t('sidebar.wallThickness')}: {wallThickness.toFixed(2)}m
+                </Label>
+                <Slider
+                  value={[wallThickness]}
+                  onValueChange={([v]) => setWallThickness(v)}
+                  min={0.05}
+                  max={0.3}
+                  step={0.01}
+                  className="w-full"
+                />
               </div>
-            </div>
-
-            <div className="pt-2">
-              <Label className="text-sm mb-2 block">{t('sidebar.wallMaterial')}</Label>
-              <div className="grid grid-cols-3 gap-1 mb-2">
-                <Button
-                  variant={wallMaterial === 'paint' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setWallMaterial('paint')}
-                  className="text-xs"
-                >
-                  🎨 {t('material.paint')}
-                </Button>
-                <Button
-                  variant={wallMaterial === 'brick' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setWallMaterial('brick')}
-                  className="text-xs"
-                >
-                  🧱 {t('material.brick')}
-                </Button>
-                <Button
-                  variant={wallMaterial === 'stone' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setWallMaterial('stone')}
-                  className="text-xs"
-                >
-                  🪨 {t('material.stone')}
-                </Button>
+              <div className="flex items-center justify-between pt-2">
+                <Label className="text-sm">{t('sidebar.showWindows')}</Label>
+                <Switch checked={showWindows} onCheckedChange={setShowWindows} />
               </div>
-              <div className="grid grid-cols-2 gap-1">
-                <Button
-                  variant={wallMaterial === 'wood' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setWallMaterial('wood')}
-                  className="text-xs"
-                >
-                  🪵 {t('material.wood')}
-                </Button>
-                <Button
-                  variant={wallMaterial === 'metal' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setWallMaterial('metal')}
-                  className="text-xs"
-                >
-                  🔩 {t('material.metal')}
-                </Button>
+              <div className="pt-2">
+                <Label className="text-sm mb-2 block">{t('sidebar.floorMaterial')}</Label>
+                <div className="grid grid-cols-3 gap-1 mb-2">
+                  <Button
+                    variant={floorType === 'wood' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setFloorType('wood')}
+                    className="text-xs"
+                  >
+                    🪵 {t('material.wood')}
+                  </Button>
+                  <Button
+                    variant={floorType === 'tile' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setFloorType('tile')}
+                    className="text-xs"
+                  >
+                    🔲 {t('material.tile')}
+                  </Button>
+                  <Button
+                    variant={floorType === 'concrete' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setFloorType('concrete')}
+                    className="text-xs"
+                  >
+                    🏗️ {t('material.concrete')}
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  <Button
+                    variant={floorType === 'marble' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setFloorType('marble')}
+                    className="text-xs"
+                  >
+                    💎 {t('material.marble')}
+                  </Button>
+                  <Button
+                    variant={floorType === 'carpet' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setFloorType('carpet')}
+                    className="text-xs"
+                  >
+                    🧶 {t('material.carpet')}
+                  </Button>
+                </div>
               </div>
-            </div>
 
-            <div className="pt-2">
-              <Label className="text-sm mb-2 block">{t('sidebar.windowStyle')}</Label>
-              <div className="grid grid-cols-3 gap-1">
-                <Button
-                  variant={windowStyle === 'modern' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setWindowStyle('modern')}
-                  className="text-xs"
-                >
-                  🏢 {t('style.modern')}
-                </Button>
-                <Button
-                  variant={windowStyle === 'classic' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setWindowStyle('classic')}
-                  className="text-xs"
-                >
-                  🏛️ {t('style.classic')}
-                </Button>
-                <Button
-                  variant={windowStyle === 'industrial' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setWindowStyle('industrial')}
-                  className="text-xs"
-                >
-                  🏭 {t('style.industrial')}
-                </Button>
+              <div className="pt-2">
+                <Label className="text-sm mb-2 block">{t('sidebar.wallMaterial')}</Label>
+                <div className="grid grid-cols-3 gap-1 mb-2">
+                  <Button
+                    variant={wallMaterial === 'paint' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setWallMaterial('paint')}
+                    className="text-xs"
+                  >
+                    🎨 {t('material.paint')}
+                  </Button>
+                  <Button
+                    variant={wallMaterial === 'brick' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setWallMaterial('brick')}
+                    className="text-xs"
+                  >
+                    🧱 {t('material.brick')}
+                  </Button>
+                  <Button
+                    variant={wallMaterial === 'stone' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setWallMaterial('stone')}
+                    className="text-xs"
+                  >
+                    🪨 {t('material.stone')}
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  <Button
+                    variant={wallMaterial === 'wood' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setWallMaterial('wood')}
+                    className="text-xs"
+                  >
+                    🪵 {t('material.wood')}
+                  </Button>
+                  <Button
+                    variant={wallMaterial === 'metal' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setWallMaterial('metal')}
+                    className="text-xs"
+                  >
+                    🔩 {t('material.metal')}
+                  </Button>
+                </div>
               </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={applyWallProperties}
-              disabled={walls.length === 0}
-              className="w-full mt-2"
-            >
-              {t('sidebar.applyToAllWalls')}
-            </Button>
-          </CardContent>
-        </Card>
 
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3"><CardTitle className="text-lg">{t('sidebar.templates')}</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" size="sm" onClick={() => loadTemplate(1)}>
-  <Home className="w-4 h-4 mr-1" />{t('sidebar.templateSquare')}
-</Button>
-              <Button variant="outline" size="sm" onClick={() => loadTemplate(2)}>
-  <Home className="w-4 h-4 mr-1" />{t('sidebar.templateLShape')}
-</Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <ModelCategories />
-
-        <MaterialPresets
-          onPresetSelect={handlePresetSelect}
-          currentFloorType={floorType}
-          currentWallMaterial={wallMaterial}
-          currentWindowStyle={windowStyle}
-        />
-
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3"><CardTitle className="text-lg">{t('sidebar.actions')}</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex space-x-2">
+              <div className="pt-2">
+                <Label className="text-sm mb-2 block">{t('sidebar.windowStyle')}</Label>
+                <div className="grid grid-cols-3 gap-1">
+                  <Button
+                    variant={windowStyle === 'modern' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setWindowStyle('modern')}
+                    className="text-xs"
+                  >
+                    🏢 {t('style.modern')}
+                  </Button>
+                  <Button
+                    variant={windowStyle === 'classic' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setWindowStyle('classic')}
+                    className="text-xs"
+                  >
+                    🏛️ {t('style.classic')}
+                  </Button>
+                  <Button
+                    variant={windowStyle === 'industrial' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setWindowStyle('industrial')}
+                    className="text-xs"
+                  >
+                    🏭 {t('style.industrial')}
+                  </Button>
+                </div>
+              </div>
               <Button
-  variant="outline"
-  size="sm"
-  onClick={undo}
-  disabled={undoStack.length === 0}
-  className="flex-1"
-  title={t('sidebar.undo')}
->
-  <Undo className="w-4 h-4 mr-1" />{t('sidebar.undo')}
-</Button>
+                variant="outline"
+                size="sm"
+                onClick={applyWallProperties}
+                disabled={walls.length === 0}
+                className="w-full mt-2"
+              >
+                {t('sidebar.applyToAllWalls')}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">{t('sidebar.templates')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" size="sm" onClick={() => loadTemplate(1)}>
+                  <Home className="w-4 h-4 mr-1" />
+                  {t('sidebar.templateSquare')}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => loadTemplate(2)}>
+                  <Home className="w-4 h-4 mr-1" />
+                  {t('sidebar.templateLShape')}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <ModelCategories />
+
+          <MaterialPresets
+            onPresetSelect={handlePresetSelect}
+            currentFloorType={floorType}
+            currentWallMaterial={wallMaterial}
+            currentWindowStyle={windowStyle}
+          />
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">{t('sidebar.actions')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={undo}
+                  disabled={undoStack.length === 0}
+                  className="flex-1"
+                  title={t('sidebar.undo')}
+                >
+                  <Undo className="w-4 h-4 mr-1" />
+                  {t('sidebar.undo')}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={redo}
+                  disabled={redoStack.length === 0}
+                  className="flex-1"
+                  title={t('sidebar.redo')}
+                >
+                  <Redo className="w-4 h-4 mr-1" />
+                  {t('sidebar.redo')}
+                </Button>
+              </div>
 
               <Button
-  variant="outline"
-  size="sm"
-  onClick={redo}
-  disabled={redoStack.length === 0}
-  className="flex-1"
-  title={t('sidebar.redo')}
->
-  <Redo className="w-4 h-4 mr-1" />{t('sidebar.redo')}
-</Button>
-            </div>
+                variant="outline"
+                onClick={clearAll}
+                className="w-full"
+                disabled={walls.length === 0}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {t('sidebar.clearAll')}
+              </Button>
 
-            <Button
-  variant="outline"
-  onClick={clearAll}
-  className="w-full"
-  disabled={walls.length === 0}
->
-  <Trash2 className="w-4 h-4 mr-2" />{t('sidebar.clearAll')}
-</Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (walls.length > 0) {
+                    showNotification(t('sidebar.advancedGeometryApplied'), 'success');
+                  }
+                }}
+                className="w-full"
+                disabled={walls.length === 0}
+                title={t('sidebar.optimizeGeometry')}
+              >
+                ⚡ {t('sidebar.optimizeGeometry')}
+              </Button>
 
-            <Button
-  variant="outline"
-  onClick={() => {
-    if (walls.length > 0) {
-      showNotification(t('sidebar.advancedGeometryApplied'), 'success');
-    }
-  }}
-  className="w-full"
-  disabled={walls.length === 0}
-  title={t('sidebar.optimizeGeometry')}
->
-  ⚡ {t('sidebar.optimizeGeometry')}
-</Button>
+              <Button
+                onClick={saveRoom}
+                className="w-full bg-gradient-to-r from-blue-500 to-purple-600"
+                disabled={walls.length === 0 || !isRoomValid}
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {t('sidebar.saveRoom')}
+              </Button>
 
-            <Button
-  onClick={saveRoom}
-  className="w-full bg-gradient-to-r from-blue-500 to-purple-600"
-  disabled={walls.length === 0 || !isRoomValid}
->
-  <Save className="w-4 h-4 mr-2" />{t('sidebar.saveRoom')}
-</Button>
+              {isRoomValid && walls.length >= 3 && (
+                <Link href="/furnish" className="block">
+                  <Button className="w-full bg-gradient-to-r from-green-500 to-teal-600">
+                    <Move3d className="w-4 h-4 mr-2" />
+                    {t('sidebar.startFurnishing')}
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </Link>
+              )}
+            </CardContent>
+          </Card>
 
-            {isRoomValid && walls.length >= 3 && (
-              <Link href="/furnish" className="block">
-                <Button className="w-full bg-gradient-to-r from-green-500 to-teal-600">
-  <Move3d className="w-4 h-4 mr-2" />{t('sidebar.startFurnishing')}<ArrowRight className="w-4 h-4 ml-2" />
-</Button>
-              </Link>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center">
-              <Building className="w-5 h-5 mr-2" />
-              {t('sidebar.roomStatistics')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">{t('sidebar.wallsBuilt')}</span>
-              <Badge variant="secondary">{roomMetrics.wallCount}</Badge>
-            </div>
-            {roomMetrics.isValid && (
-              <>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">{t('sidebar.roomArea')}</span>
-                  <Badge variant="outline" className="bg-blue-50">{roomMetrics.area.toFixed(2)}m²</Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">{t('sidebar.usableArea')}</span>
-                  <Badge variant="outline" className="bg-blue-100">{roomMetrics.usableArea.toFixed(2)}m²</Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">{t('sidebar.perimeter')}</span>
-                  <Badge variant="outline" className="bg-green-50">{roomMetrics.perimeter.toFixed(2)}m</Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">{t('sidebar.avgWallLength')}</span>
-                  <Badge variant="outline" className="bg-purple-50">{roomMetrics.averageWallLength.toFixed(2)}m</Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">{t('sidebar.compactness')}</span>
-                  <Badge variant="outline" className="bg-orange-50">{(roomMetrics.compactness * 100).toFixed(1)}%</Badge>
-                </div>
-              </>
-            )}
-            {!roomMetrics.isValid && walls.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-sm text-red-500 font-medium">
-                  ⚠️ {t('sidebar.roomIssuesFound')}
-                </div>
-                {roomMetrics.validationErrors.slice(0, 3).map((error, index) => (
-                  <div key={index} className="text-xs text-red-400">
-                    • {error}
-                  </div>
-                ))}
-                {roomMetrics.validationErrors.length > 3 && (
-                  <div className="text-xs text-red-300">
-                    +{roomMetrics.validationErrors.length - 3} {t('sidebar.moreIssues')}
-                  </div>
-                )}
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center">
+                <Building className="w-5 h-5 mr-2" />
+                {t('sidebar.roomStatistics')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">
+                  {t('sidebar.wallsBuilt')}
+                </span>
+                <Badge variant="secondary">{roomMetrics.wallCount}</Badge>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              {roomMetrics.isValid && (
+                <>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      {t('sidebar.roomArea')}
+                    </span>
+                    <Badge variant="outline" className="bg-blue-50">
+                      {roomMetrics.area.toFixed(2)}m²
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      {t('sidebar.usableArea')}
+                    </span>
+                    <Badge variant="outline" className="bg-blue-100">
+                      {roomMetrics.usableArea.toFixed(2)}m²
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      {t('sidebar.perimeter')}
+                    </span>
+                    <Badge variant="outline" className="bg-green-50">
+                      {roomMetrics.perimeter.toFixed(2)}m
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      {t('sidebar.avgWallLength')}
+                    </span>
+                    <Badge variant="outline" className="bg-purple-50">
+                      {roomMetrics.averageWallLength.toFixed(2)}m
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      {t('sidebar.compactness')}
+                    </span>
+                    <Badge variant="outline" className="bg-orange-50">
+                      {(roomMetrics.compactness * 100).toFixed(1)}%
+                    </Badge>
+                  </div>
+                </>
+              )}
+              {!roomMetrics.isValid && walls.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-sm text-red-500 font-medium">
+                    ⚠️ {t('sidebar.roomIssuesFound')}
+                  </div>
+                  {roomMetrics.validationErrors.slice(0, 3).map((error, index) => (
+                    <div key={index} className="text-xs text-red-400">
+                      • {error}
+                    </div>
+                  ))}
+                  {roomMetrics.validationErrors.length > 3 && (
+                    <div className="text-xs text-red-300">
+                      +{roomMetrics.validationErrors.length - 3} {t('sidebar.moreIssues')}
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-        <RoomQualityAnalyzer
-          metrics={roomMetrics}
-        />
-      </div>
+          <RoomQualityAnalyzer metrics={roomMetrics} />
+        </div>
 
-      {/* --- Main Canvas Area --- */}
-      <div className="flex-1 relative bg-muted">
-        {viewMode === '2d' ? (
-          <div ref={canvas2DRef} className="w-full h-full">
-            <Floorplan2DCanvas
-              walls={walls}
-              setWalls={setWalls}
-              mode={editMode}
-              setMode={setEditMode}
-              wallHeight={wallHeight}
-              wallThickness={wallThickness}
-              onWallsChange={handleWallsChange}
-              gridSnapping={gridSnapping}
-            />
-          </div>
-        ) : (
-          <div ref={canvas3DRef} className="w-full h-full">
-            <ThreeCanvas
-              walls={walls}
-              gridEnabled={gridEnabled}
-              isDarkMode={theme === 'dark'}
-              showWindows={showWindows}
-              floorType={floorType}
-              wallMaterial={wallMaterial}
-              windowStyle={windowStyle}
-              rendererRef={threeRendererRef}
-              activeTool={activeTool}
-              selectedColor={selectedColor}
-              onScreenshot={(dataURL) => {
-                // This will be called when screenshot is taken from ThreeCanvas
-                console.log('Screenshot taken from ThreeCanvas');
-              }}
-            />
-          </div>
-        )}
-      </div>
-
+        {/* --- Main Canvas Area --- */}
+        <div className="flex-1 relative bg-muted">
+          {viewMode === '2d' ? (
+            <div ref={canvas2DRef} className="w-full h-full">
+              <Floorplan2DCanvas
+                walls={walls}
+                setWalls={setWalls}
+                mode={editMode}
+                setMode={setEditMode}
+                wallHeight={wallHeight}
+                wallThickness={wallThickness}
+                onWallsChange={handleWallsChange}
+                gridSnapping={gridSnapping}
+              />
+            </div>
+          ) : (
+            <div ref={canvas3DRef} className="w-full h-full">
+              <ThreeCanvas
+                walls={walls}
+                gridEnabled={gridEnabled}
+                isDarkMode={theme === 'dark'}
+                showWindows={showWindows}
+                floorType={floorType}
+                wallMaterial={wallMaterial}
+                windowStyle={windowStyle}
+                rendererRef={threeRendererRef}
+                activeTool={activeTool}
+                selectedColor={selectedColor}
+                onScreenshot={() => {
+                  // This will be called when screenshot is taken from ThreeCanvas
+                  console.log('Screenshot taken from ThreeCanvas');
+                }}
+              />
+            </div>
+          )}
+        </div>
       </div>
       {/* Notification Toast */}
       {showScreenshotModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-card p-6 rounded-lg shadow-lg max-w-md w-full space-y-4">
-            <h2 className="text-lg font-semibold text-foreground">{t('toolbar.screenshot')}</h2>
+            <h2 className="text-lg font-semibold text-foreground">
+              {t('toolbar.screenshot')}
+            </h2>
             {screenshotUrl && (
-              <img src={screenshotUrl} alt="screenshot" className="w-full border border-border rounded" />
+              <Image
+                src={screenshotUrl}
+                alt="screenshot"
+                width={400}
+                height={300}
+                className="w-full border border-border rounded"
+              />
             )}
             <div className="flex gap-2">
-              <Button className="flex-1" onClick={() => {
-                // Save to profile rooms in localStorage
-                const rooms = JSON.parse(localStorage.getItem('profileRooms') || '[]');
-                rooms.push({
-                  id: Date.now(),
-                  name: roomName,
-                  walls,
-                  screenshot: screenshotUrl,
-                  createdAt: new Date().toISOString()
-                });
-                localStorage.setItem('profileRooms', JSON.stringify(rooms));
-                showNotification(t('notifications.roomSaved'), 'success');
-                setShowScreenshotModal(false);
-              }}>{t('sidebar.saveRoom')}</Button>
-              <Button variant="outline" className="flex-1" onClick={()=>setShowScreenshotModal(false)}>Close</Button>
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  // Save to profile rooms in localStorage
+                  const rooms = JSON.parse(localStorage.getItem('profileRooms') || '[]');
+                  rooms.push({
+                    id: Date.now(),
+                    name: roomName,
+                    walls,
+                    screenshot: screenshotUrl,
+                    createdAt: new Date().toISOString(),
+                  });
+                  localStorage.setItem('profileRooms', JSON.stringify(rooms));
+                  showNotification(t('notifications.roomSaved'), 'success');
+                  setShowScreenshotModal(false);
+                }}
+              >
+                {t('sidebar.saveRoom')}
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowScreenshotModal(false)}
+              >
+                Close
+              </Button>
             </div>
           </div>
         </div>
@@ -681,10 +825,16 @@ export default function RoomBuilderPage() {
 
       {notification.visible && (
         <div
-          className={`fixed bottom-4 right-4 px-4 py-2 rounded-md shadow-lg text-white transition-opacity duration-300 ${notification.type === 'success' ? 'bg-green-500' :
-            notification.type === 'error' ? 'bg-red-500' :
-              'bg-blue-500'
-            }`}
+          className={`fixed bottom-4 right-4 px-4 py-2 rounded-md shadow-lg text-white transition-opacity duration-300 ${(() => {
+            switch (notification.type) {
+              case 'success':
+                return 'bg-green-500';
+              case 'error':
+                return 'bg-red-500';
+              default:
+                return 'bg-blue-500';
+            }
+          })()}`}
         >
           {notification.message}
         </div>
@@ -692,4 +842,3 @@ export default function RoomBuilderPage() {
     </div>
   );
 }
-

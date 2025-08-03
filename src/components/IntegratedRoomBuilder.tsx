@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { RootState } from '../store';
+
+import { useDispatch, useSelector } from 'react-redux';
+
 import { addWall, removeWall, toggleAdvancedMetrics } from '../features/roomSlice';
+import { Wall } from '../lib/advanced-room-calculator';
+import { RootState } from '../store';
+
 import { AdvancedRoomMetrics } from './AdvancedRoomMetrics';
 import RoomQualityAnalyzer from './RoomQualityAnalyzer';
-import { Wall } from '../lib/advanced-room-calculator';
 
 /**
  * Example of how to integrate the Advanced Room Calculator
@@ -12,33 +15,95 @@ import { Wall } from '../lib/advanced-room-calculator';
  */
 export const IntegratedRoomBuilder: React.FC = () => {
   const dispatch = useDispatch();
-  const { walls, metrics, showAdvancedMetrics } = useSelector((state: RootState) => state.room);
+  const { walls, metrics, showAdvancedMetrics } = useSelector(
+    (state: RootState) => state.room,
+  );
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
 
   // Example: Add a simple rectangular room
   const addRectangularRoom = () => {
     const roomWalls: Wall[] = [
-      { id: 'wall-1', start: { x: 0, z: 0 }, end: { x: 6, z: 0 }, height: 3, thickness: 0.2 },
-      { id: 'wall-2', start: { x: 6, z: 0 }, end: { x: 6, z: 4 }, height: 3, thickness: 0.2 },
-      { id: 'wall-3', start: { x: 6, z: 4 }, end: { x: 0, z: 4 }, height: 3, thickness: 0.2 },
-      { id: 'wall-4', start: { x: 0, z: 4 }, end: { x: 0, z: 0 }, height: 3, thickness: 0.2 },
+      {
+        id: 'wall-1',
+        start: { x: 0, z: 0 },
+        end: { x: 6, z: 0 },
+        height: 3,
+        thickness: 0.2,
+      },
+      {
+        id: 'wall-2',
+        start: { x: 6, z: 0 },
+        end: { x: 6, z: 4 },
+        height: 3,
+        thickness: 0.2,
+      },
+      {
+        id: 'wall-3',
+        start: { x: 6, z: 4 },
+        end: { x: 0, z: 4 },
+        height: 3,
+        thickness: 0.2,
+      },
+      {
+        id: 'wall-4',
+        start: { x: 0, z: 4 },
+        end: { x: 0, z: 0 },
+        height: 3,
+        thickness: 0.2,
+      },
     ];
 
-    roomWalls.forEach(wall => dispatch(addWall(wall)));
+    roomWalls.forEach((wall) => dispatch(addWall(wall)));
   };
 
   // Example: Add an L-shaped room
   const addLShapedRoom = () => {
     const roomWalls: Wall[] = [
-      { id: 'wall-1', start: { x: 0, z: 0 }, end: { x: 6, z: 0 }, height: 3, thickness: 0.2 },
-      { id: 'wall-2', start: { x: 6, z: 0 }, end: { x: 6, z: 3 }, height: 3, thickness: 0.2 },
-      { id: 'wall-3', start: { x: 6, z: 3 }, end: { x: 3, z: 3 }, height: 3, thickness: 0.2 },
-      { id: 'wall-4', start: { x: 3, z: 3 }, end: { x: 3, z: 6 }, height: 3, thickness: 0.2 },
-      { id: 'wall-5', start: { x: 3, z: 6 }, end: { x: 0, z: 6 }, height: 3, thickness: 0.2 },
-      { id: 'wall-6', start: { x: 0, z: 6 }, end: { x: 0, z: 0 }, height: 3, thickness: 0.2 },
+      {
+        id: 'wall-1',
+        start: { x: 0, z: 0 },
+        end: { x: 6, z: 0 },
+        height: 3,
+        thickness: 0.2,
+      },
+      {
+        id: 'wall-2',
+        start: { x: 6, z: 0 },
+        end: { x: 6, z: 3 },
+        height: 3,
+        thickness: 0.2,
+      },
+      {
+        id: 'wall-3',
+        start: { x: 6, z: 3 },
+        end: { x: 3, z: 3 },
+        height: 3,
+        thickness: 0.2,
+      },
+      {
+        id: 'wall-4',
+        start: { x: 3, z: 3 },
+        end: { x: 3, z: 6 },
+        height: 3,
+        thickness: 0.2,
+      },
+      {
+        id: 'wall-5',
+        start: { x: 3, z: 6 },
+        end: { x: 0, z: 6 },
+        height: 3,
+        thickness: 0.2,
+      },
+      {
+        id: 'wall-6',
+        start: { x: 0, z: 6 },
+        end: { x: 0, z: 0 },
+        height: 3,
+        thickness: 0.2,
+      },
     ];
 
-    roomWalls.forEach(wall => dispatch(addWall(wall)));
+    roomWalls.forEach((wall) => dispatch(addWall(wall)));
   };
 
   const handleRemoveWall = (wallId: string) => {
@@ -49,18 +114,22 @@ export const IntegratedRoomBuilder: React.FC = () => {
   };
 
   const getQualityColor = (isValid: boolean, area: number): string => {
-    if (!isValid) return 'text-red-600';
-    if (area < 6) return 'text-yellow-600';
-    if (area > 100) return 'text-orange-600';
+    if (!isValid) {
+      return 'text-red-600';
+    }
+    if (area < 6) {
+      return 'text-yellow-600';
+    }
+    if (area > 100) {
+      return 'text-orange-600';
+    }
     return 'text-green-600';
   };
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Advanced Room Builder
-        </h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Advanced Room Builder</h1>
         <p className="text-gray-600">
           Build rooms with comprehensive analysis and validation
         </p>
@@ -99,7 +168,9 @@ export const IntegratedRoomBuilder: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-md p-4">
           <h3 className="font-semibold text-gray-700 mb-2">Room Status</h3>
-          <p className={`text-2xl font-bold ${getQualityColor(metrics.isValid, metrics.area)}`}>
+          <p
+            className={`text-2xl font-bold ${getQualityColor(metrics.isValid, metrics.area)}`}
+          >
             {metrics.isValid ? '✓ Valid' : '✗ Invalid'}
           </p>
           <p className="text-sm text-gray-600">
@@ -109,9 +180,7 @@ export const IntegratedRoomBuilder: React.FC = () => {
 
         <div className="bg-white rounded-lg shadow-md p-4">
           <h3 className="font-semibold text-gray-700 mb-2">Area</h3>
-          <p className="text-2xl font-bold text-blue-600">
-            {metrics.area.toFixed(1)}m²
-          </p>
+          <p className="text-2xl font-bold text-blue-600">{metrics.area.toFixed(1)}m²</p>
           <p className="text-sm text-gray-600">
             {metrics.usableArea.toFixed(1)}m² usable
           </p>
@@ -122,16 +191,12 @@ export const IntegratedRoomBuilder: React.FC = () => {
           <p className="text-2xl font-bold text-green-600">
             {(metrics.compactness * 100).toFixed(0)}%
           </p>
-          <p className="text-sm text-gray-600">
-            Compactness score
-          </p>
+          <p className="text-sm text-gray-600">Compactness score</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-4">
           <h3 className="font-semibold text-gray-700 mb-2">Walls</h3>
-          <p className="text-2xl font-bold text-purple-600">
-            {metrics.wallCount}
-          </p>
+          <p className="text-2xl font-bold text-purple-600">{metrics.wallCount}</p>
           <p className="text-sm text-gray-600">
             Avg: {metrics.averageWallLength.toFixed(1)}m
           </p>
@@ -145,11 +210,11 @@ export const IntegratedRoomBuilder: React.FC = () => {
           <div className="space-y-2">
             {walls.map((wall, index) => {
               const length = Math.sqrt(
-                Math.pow(wall.end.x - wall.start.x, 2) + 
-                Math.pow(wall.end.z - wall.start.z, 2)
+                Math.pow(wall.end.x - wall.start.x, 2) +
+                  Math.pow(wall.end.z - wall.start.z, 2),
               );
               const isSelected = selectedWallId === wall.id;
-              
+
               return (
                 <div
                   key={wall.id}
@@ -216,7 +281,8 @@ export const IntegratedRoomBuilder: React.FC = () => {
           </ul>
           <div className="mt-4 p-3 bg-red-100 rounded-lg">
             <p className="text-sm text-red-800">
-              <strong>Tip:</strong> Fix these issues to ensure your room design is valid and constructible.
+              <strong>Tip:</strong> Fix these issues to ensure your room design is valid
+              and constructible.
             </p>
           </div>
         </div>
@@ -224,7 +290,9 @@ export const IntegratedRoomBuilder: React.FC = () => {
 
       {/* Usage Instructions */}
       <div className="bg-gray-50 rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">How to Use Advanced Room Calculator</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          How to Use Advanced Room Calculator
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <h3 className="font-semibold text-gray-800 mb-2">Key Features</h3>
@@ -240,11 +308,21 @@ export const IntegratedRoomBuilder: React.FC = () => {
           <div>
             <h3 className="font-semibold text-gray-800 mb-2">Quality Metrics</h3>
             <ul className="space-y-1 text-sm text-gray-700">
-              <li>• <strong>Compactness:</strong> How close to a circle (efficiency)</li>
-              <li>• <strong>Convexity:</strong> How convex the shape is</li>
-              <li>• <strong>Rectangularity:</strong> How close to a rectangle</li>
-              <li>• <strong>Aspect Ratio:</strong> Width to height proportion</li>
-              <li>• <strong>Wall-to-Floor Ratio:</strong> Space efficiency</li>
+              <li>
+                • <strong>Compactness:</strong> How close to a circle (efficiency)
+              </li>
+              <li>
+                • <strong>Convexity:</strong> How convex the shape is
+              </li>
+              <li>
+                • <strong>Rectangularity:</strong> How close to a rectangle
+              </li>
+              <li>
+                • <strong>Aspect Ratio:</strong> Width to height proportion
+              </li>
+              <li>
+                • <strong>Wall-to-Floor Ratio:</strong> Space efficiency
+              </li>
             </ul>
           </div>
         </div>

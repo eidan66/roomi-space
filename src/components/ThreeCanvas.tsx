@@ -1,17 +1,23 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls';
+
+import AdvancedGeometryEngine, { WindowPlacement } from './AdvancedGeometryEngine';
 import { Wall } from './Floorplan2DCanvas';
-import AdvancedGeometryEngine, { WindowPlacement, TopologyValidation, ConsistencyReport } from './AdvancedGeometryEngine';
 
 // --- Advanced geometry helper functions ---
 
 // Ensure vertices are in counter-clockwise order for proper face orientation
-const ensureCounterClockwise = (vertices: { x: number; z: number }[]): { x: number; z: number }[] => {
-  if (vertices.length < 3) return vertices;
+const ensureCounterClockwise = (
+  vertices: { x: number; z: number }[],
+): { x: number; z: number }[] => {
+  if (vertices.length < 3) {
+    return vertices;
+  }
 
   // Calculate signed area to determine winding order
   let signedArea = 0;
@@ -25,7 +31,9 @@ const ensureCounterClockwise = (vertices: { x: number; z: number }[]): { x: numb
 };
 
 // Create floor geometry using manual triangulation
-const createManualFloorGeometry = (vertices: { x: number; z: number }[]): THREE.BufferGeometry => {
+const createManualFloorGeometry = (
+  vertices: { x: number; z: number }[],
+): THREE.BufferGeometry => {
   const geometry = new THREE.BufferGeometry();
 
   // Simple ear-clipping algorithm for polygon triangulation
@@ -37,8 +45,11 @@ const createManualFloorGeometry = (vertices: { x: number; z: number }[]): THREE.
   const uvs: number[] = [];
 
   // Calculate bounding box for UV mapping
-  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  vertices.forEach(v => {
+  let minX = Infinity,
+    maxX = -Infinity,
+    minZ = Infinity,
+    maxZ = -Infinity;
+  vertices.forEach((v) => {
     minX = Math.min(minX, v.x);
     maxX = Math.max(maxX, v.x);
     minZ = Math.min(minZ, v.z);
@@ -49,14 +60,14 @@ const createManualFloorGeometry = (vertices: { x: number; z: number }[]): THREE.
   const height = maxZ - minZ;
 
   // Add vertices
-  vertices.forEach(v => {
+  vertices.forEach((v) => {
     positions.push(v.x, 0, v.z);
     normals.push(0, 1, 0); // Floor normal points up
     uvs.push((v.x - minX) / width, (v.z - minZ) / height);
   });
 
   // Add triangle indices
-  triangles.forEach(triangle => {
+  triangles.forEach((triangle) => {
     indices.push(triangle[0], triangle[1], triangle[2]);
   });
 
@@ -70,8 +81,12 @@ const createManualFloorGeometry = (vertices: { x: number; z: number }[]): THREE.
 
 // Simple ear-clipping triangulation
 const triangulatePolygon = (vertices: { x: number; z: number }[]): number[][] => {
-  if (vertices.length < 3) return [];
-  if (vertices.length === 3) return [[0, 1, 2]];
+  if (vertices.length < 3) {
+    return [];
+  }
+  if (vertices.length === 3) {
+    return [[0, 1, 2]];
+  }
 
   const triangles: number[][] = [];
   const remaining = vertices.map((_, i) => i);
@@ -110,18 +125,28 @@ const triangulatePolygon = (vertices: { x: number; z: number }[]): number[][] =>
 };
 
 // Check if a vertex forms an ear (convex vertex with no other vertices inside the triangle)
-const isEar = (vertices: { x: number; z: number }[], prev: number, curr: number, next: number, remaining: number[]): boolean => {
+const isEar = (
+  vertices: { x: number; z: number }[],
+  prev: number,
+  curr: number,
+  next: number,
+  remaining: number[],
+): boolean => {
   const a = vertices[prev];
   const b = vertices[curr];
   const c = vertices[next];
 
   // Check if the angle is convex
   const cross = (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
-  if (cross <= 0) return false; // Not convex
+  if (cross <= 0) {
+    return false;
+  } // Not convex
 
   // Check if any other vertex is inside the triangle
   for (const idx of remaining) {
-    if (idx === prev || idx === curr || idx === next) continue;
+    if (idx === prev || idx === curr || idx === next) {
+      continue;
+    }
 
     const p = vertices[idx];
     if (pointInTriangle(p, a, b, c)) {
@@ -133,9 +158,16 @@ const isEar = (vertices: { x: number; z: number }[], prev: number, curr: number,
 };
 
 // Check if a point is inside a triangle
-const pointInTriangle = (p: { x: number; z: number }, a: { x: number; z: number }, b: { x: number; z: number }, c: { x: number; z: number }): boolean => {
+const pointInTriangle = (
+  p: { x: number; z: number },
+  a: { x: number; z: number },
+  b: { x: number; z: number },
+  c: { x: number; z: number },
+): boolean => {
   const denom = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z);
-  if (Math.abs(denom) < 1e-10) return false;
+  if (Math.abs(denom) < 1e-10) {
+    return false;
+  }
 
   const alpha = ((b.z - c.z) * (p.x - c.x) + (c.x - b.x) * (p.z - c.z)) / denom;
   const beta = ((c.z - a.z) * (p.x - c.x) + (a.x - c.x) * (p.z - c.z)) / denom;
@@ -145,10 +177,15 @@ const pointInTriangle = (p: { x: number; z: number }, a: { x: number; z: number 
 };
 
 const getOrderedVertices = (walls: Wall[]): { x: number; z: number }[] => {
-  if (walls.length === 0) return [];
+  if (walls.length === 0) {
+    return [];
+  }
 
   // Create a graph of connected points with better precision handling
-  const connections = new Map<string, { point: { x: number; z: number }; neighbors: { x: number; z: number }[] }>();
+  const connections = new Map<
+    string,
+    { point: { x: number; z: number }; neighbors: { x: number; z: number }[] }
+  >();
   const PRECISION = 0.001; // 1mm precision
 
   // Helper to create consistent keys
@@ -159,7 +196,7 @@ const getOrderedVertices = (walls: Wall[]): { x: number; z: number }[] => {
   };
 
   // Build the connection graph
-  walls.forEach(wall => {
+  walls.forEach((wall) => {
     const startKey = createKey(wall.start);
     const endKey = createKey(wall.end);
 
@@ -180,8 +217,12 @@ const getOrderedVertices = (walls: Wall[]): { x: number; z: number }[] => {
   let minZ = Infinity;
 
   for (const [_, data] of connections.entries()) {
-    if (data.neighbors.length === 2) { // Valid connection point
-      if (data.point.x < minX || (Math.abs(data.point.x - minX) < PRECISION && data.point.z < minZ)) {
+    if (data.neighbors.length === 2) {
+      // Valid connection point
+      if (
+        data.point.x < minX ||
+        (Math.abs(data.point.x - minX) < PRECISION && data.point.z < minZ)
+      ) {
         minX = data.point.x;
         minZ = data.point.z;
         startPoint = data.point;
@@ -192,7 +233,9 @@ const getOrderedVertices = (walls: Wall[]): { x: number; z: number }[] => {
   if (!startPoint) {
     // Fallback to any point
     const firstEntry = connections.entries().next().value;
-    if (!firstEntry) return [];
+    if (!firstEntry) {
+      return [];
+    }
     startPoint = firstEntry[1].point;
   }
 
@@ -218,12 +261,15 @@ const getOrderedVertices = (walls: Wall[]): { x: number; z: number }[] => {
     }
 
     const currentData = connections.get(currentKey);
-    if (!currentData || currentData.neighbors.length !== 2) break;
+    if (!currentData || currentData.neighbors.length !== 2) {
+      break;
+    }
 
     // Find the next neighbor (not the previous one)
     let nextPoint: { x: number; z: number } | null = null;
     for (const neighbor of currentData.neighbors) {
-      const isSameAsPrevious = previousPoint &&
+      const isSameAsPrevious =
+        previousPoint &&
         Math.abs(neighbor.x - previousPoint.x) < PRECISION &&
         Math.abs(neighbor.z - previousPoint.z) < PRECISION;
 
@@ -234,7 +280,9 @@ const getOrderedVertices = (walls: Wall[]): { x: number; z: number }[] => {
     }
 
     previousPoint = currentPoint;
-    if (!nextPoint) break; // Break if nextPoint is null to avoid infinite loop
+    if (!nextPoint) {
+      break;
+    } // Break if nextPoint is null to avoid infinite loop
     currentPoint = nextPoint;
   }
 
@@ -243,7 +291,9 @@ const getOrderedVertices = (walls: Wall[]): { x: number; z: number }[] => {
 
 // Check if a floor plan is valid (closed shape)
 const isValidFloorplan = (walls: Wall[]): boolean => {
-  if (walls.length < 3) return false;
+  if (walls.length < 3) {
+    return false;
+  }
 
   // Build a graph of connections with better precision handling
   const connections = new Map<string, Set<string>>();
@@ -255,12 +305,16 @@ const isValidFloorplan = (walls: Wall[]): boolean => {
     return `${x.toFixed(3)},${z.toFixed(3)}`;
   };
 
-  walls.forEach(wall => {
+  walls.forEach((wall) => {
     const startKey = createKey(wall.start);
     const endKey = createKey(wall.end);
 
-    if (!connections.has(startKey)) connections.set(startKey, new Set());
-    if (!connections.has(endKey)) connections.set(endKey, new Set());
+    if (!connections.has(startKey)) {
+      connections.set(startKey, new Set());
+    }
+    if (!connections.has(endKey)) {
+      connections.set(endKey, new Set());
+    }
 
     connections.get(startKey)!.add(endKey);
     connections.get(endKey)!.add(startKey);
@@ -282,10 +336,19 @@ class AdvancedFloorEngine {
   private static MIN_AREA = 0.1; // Minimum floor area in m²
 
   // Main entry point for advanced floor calculation
-  static createAdvancedInteriorFloor(walls: Wall[], exteriorVertices: { x: number; z: number }[]): { x: number; z: number }[] {
-    if (walls.length === 0 || exteriorVertices.length < 3) return exteriorVertices;
+  static createAdvancedInteriorFloor(
+    walls: Wall[],
+    exteriorVertices: { x: number; z: number }[],
+  ): { x: number; z: number }[] {
+    if (walls.length === 0 || exteriorVertices.length < 3) {
+      return exteriorVertices;
+    }
 
-    console.log('🏗️ Advanced Floor Engine: Processing', exteriorVertices.length, 'vertices');
+    console.log(
+      '🏗️ Advanced Floor Engine: Processing',
+      exteriorVertices.length,
+      'vertices',
+    );
 
     // Calculate dynamic inset based on room characteristics
     let insetDistance = this.calculateOptimalInset(walls, exteriorVertices);
@@ -298,14 +361,23 @@ class AdvancedFloorEngine {
       () => this.adaptivePolygonOffset(exteriorVertices, insetDistance),
       () => this.voronoiBasedInset(exteriorVertices, insetDistance),
       () => this.medialAxisInset(exteriorVertices, insetDistance),
-      () => this.centroidBasedInset(exteriorVertices, insetDistance)
+      () => this.centroidBasedInset(exteriorVertices, insetDistance),
     ];
 
     for (let i = 0; i < algorithms.length; i++) {
       try {
         const result = algorithms[i]();
         if (this.validateInteriorPolygon(result, exteriorVertices)) {
-          console.log(`✅ Algorithm ${i + 1} succeeded:`, ['Straight Skeleton', 'Adaptive Offset', 'Voronoi', 'Medial Axis', 'Centroid'][i]);
+          console.log(
+            `✅ Algorithm ${i + 1} succeeded:`,
+            [
+              'Straight Skeleton',
+              'Adaptive Offset',
+              'Voronoi',
+              'Medial Axis',
+              'Centroid',
+            ][i],
+          );
           return this.optimizeVertices(result);
         }
       } catch (error) {
@@ -318,8 +390,12 @@ class AdvancedFloorEngine {
   }
 
   // Calculate optimal inset distance based on room characteristics
-  private static calculateOptimalInset(walls: Wall[], vertices: { x: number; z: number }[]): number {
-    const avgThickness = walls.reduce((sum, wall) => sum + wall.thickness, 0) / walls.length;
+  private static calculateOptimalInset(
+    walls: Wall[],
+    vertices: { x: number; z: number }[],
+  ): number {
+    const avgThickness =
+      walls.reduce((sum, wall) => sum + wall.thickness, 0) / walls.length;
     const roomArea = this.calculatePolygonArea(vertices);
     const perimeter = this.calculatePolygonPerimeter(vertices);
 
@@ -332,7 +408,10 @@ class AdvancedFloorEngine {
   }
 
   // Method 1: Straight Skeleton Algorithm (most advanced)
-  private static straightSkeletonInset(vertices: { x: number; z: number }[], inset: number): { x: number; z: number }[] {
+  private static straightSkeletonInset(
+    vertices: { x: number; z: number }[],
+    inset: number,
+  ): { x: number; z: number }[] {
     const n = vertices.length;
     const offsetVertices: { x: number; z: number }[] = [];
 
@@ -349,16 +428,22 @@ class AdvancedFloorEngine {
       const len1 = Math.sqrt(e1.x * e1.x + e1.z * e1.z);
       const len2 = Math.sqrt(e2.x * e2.x + e2.z * e2.z);
 
-      if (len1 < this.PRECISION || len2 < this.PRECISION) continue;
+      if (len1 < this.PRECISION || len2 < this.PRECISION) {
+        continue;
+      }
 
-      e1.x /= len1; e1.z /= len1;
-      e2.x /= len2; e2.z /= len2;
+      e1.x /= len1;
+      e1.z /= len1;
+      e2.x /= len2;
+      e2.z /= len2;
 
       // Calculate angle bisector
       const bisector = { x: e1.x + e2.x, z: e1.z + e2.z };
       const bisectorLen = Math.sqrt(bisector.x * bisector.x + bisector.z * bisector.z);
 
-      if (bisectorLen < this.PRECISION) continue;
+      if (bisectorLen < this.PRECISION) {
+        continue;
+      }
 
       bisector.x /= bisectorLen;
       bisector.z /= bisectorLen;
@@ -368,7 +453,9 @@ class AdvancedFloorEngine {
       const angle = Math.acos(Math.max(-1, Math.min(1, cosAngle)));
       const sinHalfAngle = Math.sin(angle / 2);
 
-      if (sinHalfAngle < 0.1) continue; // Skip very sharp angles
+      if (sinHalfAngle < 0.1) {
+        continue;
+      } // Skip very sharp angles
 
       const adjustedInset = inset / sinHalfAngle;
 
@@ -378,7 +465,7 @@ class AdvancedFloorEngine {
 
       offsetVertices.push({
         x: curr.x + bisector.x * adjustedInset * inwardFactor,
-        z: curr.z + bisector.z * adjustedInset * inwardFactor
+        z: curr.z + bisector.z * adjustedInset * inwardFactor,
       });
     }
 
@@ -386,7 +473,10 @@ class AdvancedFloorEngine {
   }
 
   // Method 2: Adaptive Polygon Offset with Corner Detection
-  private static adaptivePolygonOffset(vertices: { x: number; z: number }[], inset: number): { x: number; z: number }[] {
+  private static adaptivePolygonOffset(
+    vertices: { x: number; z: number }[],
+    inset: number,
+  ): { x: number; z: number }[] {
     const n = vertices.length;
     const offsetVertices: { x: number; z: number }[] = [];
 
@@ -403,7 +493,7 @@ class AdvancedFloorEngine {
 
       offsetVertices.push({
         x: curr.x + normal.x * adaptiveInset,
-        z: curr.z + normal.z * adaptiveInset
+        z: curr.z + normal.z * adaptiveInset,
       });
     }
 
@@ -411,7 +501,10 @@ class AdvancedFloorEngine {
   }
 
   // Method 3: Voronoi-based Interior Calculation
-  private static voronoiBasedInset(vertices: { x: number; z: number }[], inset: number): { x: number; z: number }[] {
+  private static voronoiBasedInset(
+    vertices: { x: number; z: number }[],
+    inset: number,
+  ): { x: number; z: number }[] {
     // Simplified Voronoi approach using distance fields
     const centroid = this.calculateCentroid(vertices);
     const offsetVertices: { x: number; z: number }[] = [];
@@ -426,17 +519,21 @@ class AdvancedFloorEngine {
       // Direction towards centroid with edge-aware adjustment
       const toCentroid = {
         x: centroid.x - vertex.x,
-        z: centroid.z - vertex.z
+        z: centroid.z - vertex.z,
       };
 
-      const distance = Math.sqrt(toCentroid.x * toCentroid.x + toCentroid.z * toCentroid.z);
-      if (distance < this.PRECISION) continue;
+      const distance = Math.sqrt(
+        toCentroid.x * toCentroid.x + toCentroid.z * toCentroid.z,
+      );
+      if (distance < this.PRECISION) {
+        continue;
+      }
 
       const normalized = { x: toCentroid.x / distance, z: toCentroid.z / distance };
 
       offsetVertices.push({
         x: vertex.x + normalized.x * safeInset,
-        z: vertex.z + normalized.z * safeInset
+        z: vertex.z + normalized.z * safeInset,
       });
     }
 
@@ -444,7 +541,10 @@ class AdvancedFloorEngine {
   }
 
   // Method 4: Medial Axis Transform
-  private static medialAxisInset(vertices: { x: number; z: number }[], inset: number): { x: number; z: number }[] {
+  private static medialAxisInset(
+    vertices: { x: number; z: number }[],
+    inset: number,
+  ): { x: number; z: number }[] {
     const offsetVertices: { x: number; z: number }[] = [];
 
     for (let i = 0; i < vertices.length; i++) {
@@ -456,18 +556,20 @@ class AdvancedFloorEngine {
       // Move towards medial axis
       const direction = {
         x: medialPoint.x - vertex.x,
-        z: medialPoint.z - vertex.z
+        z: medialPoint.z - vertex.z,
       };
 
       const distance = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
-      if (distance < this.PRECISION) continue;
+      if (distance < this.PRECISION) {
+        continue;
+      }
 
       const normalized = { x: direction.x / distance, z: direction.z / distance };
       const safeInset = Math.min(inset, distance * 0.7);
 
       offsetVertices.push({
         x: vertex.x + normalized.x * safeInset,
-        z: vertex.z + normalized.z * safeInset
+        z: vertex.z + normalized.z * safeInset,
       });
     }
 
@@ -475,43 +577,65 @@ class AdvancedFloorEngine {
   }
 
   // Method 5: Enhanced Centroid-based Inset (fallback)
-  private static centroidBasedInset(vertices: { x: number; z: number }[], inset: number): { x: number; z: number }[] {
+  private static centroidBasedInset(
+    vertices: { x: number; z: number }[],
+    inset: number,
+  ): { x: number; z: number }[] {
     const centroid = this.calculateCentroid(vertices);
 
-    return vertices.map(vertex => {
+    return vertices.map((vertex) => {
       const direction = {
         x: centroid.x - vertex.x,
-        z: centroid.z - vertex.z
+        z: centroid.z - vertex.z,
       };
 
       const distance = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
-      if (distance < this.PRECISION) return vertex;
+      if (distance < this.PRECISION) {
+        return vertex;
+      }
 
       const normalized = { x: direction.x / distance, z: direction.z / distance };
 
       return {
         x: vertex.x + normalized.x * inset,
-        z: vertex.z + normalized.z * inset
+        z: vertex.z + normalized.z * inset,
       };
     });
   }
 
   // Helper Methods
-  private static detectCornerType(prev: { x: number; z: number }, curr: { x: number; z: number }, next: { x: number; z: number }): 'convex' | 'concave' | 'straight' {
-    const cross = (curr.x - prev.x) * (next.z - curr.z) - (curr.z - prev.z) * (next.x - curr.x);
-    if (Math.abs(cross) < this.PRECISION) return 'straight';
+  private static detectCornerType(
+    prev: { x: number; z: number },
+    curr: { x: number; z: number },
+    next: { x: number; z: number },
+  ): 'convex' | 'concave' | 'straight' {
+    const cross =
+      (curr.x - prev.x) * (next.z - curr.z) - (curr.z - prev.z) * (next.x - curr.x);
+    if (Math.abs(cross) < this.PRECISION) {
+      return 'straight';
+    }
     return cross > 0 ? 'convex' : 'concave';
   }
 
-  private static getAdaptiveInset(baseInset: number, cornerType: 'convex' | 'concave' | 'straight'): number {
+  private static getAdaptiveInset(
+    baseInset: number,
+    cornerType: 'convex' | 'concave' | 'straight',
+  ): number {
     switch (cornerType) {
-      case 'convex': return baseInset * 0.8; // Reduce inset for convex corners
-      case 'concave': return baseInset * 1.2; // Increase inset for concave corners
-      default: return baseInset;
+      case 'convex':
+        return baseInset * 0.8; // Reduce inset for convex corners
+      case 'concave':
+        return baseInset * 1.2; // Increase inset for concave corners
+      default:
+        return baseInset;
     }
   }
 
-  private static calculateInwardNormal(prev: { x: number; z: number }, curr: { x: number; z: number }, next: { x: number; z: number }): { x: number; z: number } {
+  private static calculateInwardNormal(
+    prev: { x: number; z: number },
+    curr: { x: number; z: number },
+    next: { x: number; z: number },
+  ): { x: number; z: number } {
     const e1 = { x: curr.x - prev.x, z: curr.z - prev.z };
     const e2 = { x: next.x - curr.x, z: next.z - curr.z };
 
@@ -523,8 +647,14 @@ class AdvancedFloorEngine {
     const len1 = Math.sqrt(n1.x * n1.x + n1.z * n1.z);
     const len2 = Math.sqrt(n2.x * n2.x + n2.z * n2.z);
 
-    if (len1 > this.PRECISION) { n1.x /= len1; n1.z /= len1; }
-    if (len2 > this.PRECISION) { n2.x /= len2; n2.z /= len2; }
+    if (len1 > this.PRECISION) {
+      n1.x /= len1;
+      n1.z /= len1;
+    }
+    if (len2 > this.PRECISION) {
+      n2.x /= len2;
+      n2.z /= len2;
+    }
 
     // Average the normals
     const avgNormal = { x: (n1.x + n2.x) / 2, z: (n1.z + n2.z) / 2 };
@@ -538,8 +668,12 @@ class AdvancedFloorEngine {
     return avgNormal;
   }
 
-  private static smoothOffsetVertices(vertices: { x: number; z: number }[]): { x: number; z: number }[] {
-    if (vertices.length < 3) return vertices;
+  private static smoothOffsetVertices(
+    vertices: { x: number; z: number }[],
+  ): { x: number; z: number }[] {
+    if (vertices.length < 3) {
+      return vertices;
+    }
 
     const smoothed: { x: number; z: number }[] = [];
     const smoothingFactor = 0.3;
@@ -550,15 +684,18 @@ class AdvancedFloorEngine {
       const next = vertices[(i + 1) % vertices.length];
 
       smoothed.push({
-        x: curr.x * (1 - smoothingFactor) + (prev.x + next.x) * smoothingFactor / 2,
-        z: curr.z * (1 - smoothingFactor) + (prev.z + next.z) * smoothingFactor / 2
+        x: curr.x * (1 - smoothingFactor) + ((prev.x + next.x) * smoothingFactor) / 2,
+        z: curr.z * (1 - smoothingFactor) + ((prev.z + next.z) * smoothingFactor) / 2,
       });
     }
 
     return smoothed;
   }
 
-  private static calculateDistanceToNearestEdges(point: { x: number; z: number }, vertices: { x: number; z: number }[]): number {
+  private static calculateDistanceToNearestEdges(
+    point: { x: number; z: number },
+    vertices: { x: number; z: number }[],
+  ): number {
     let minDistance = Infinity;
 
     for (let i = 0; i < vertices.length; i++) {
@@ -571,7 +708,11 @@ class AdvancedFloorEngine {
     return minDistance;
   }
 
-  private static pointToLineDistance(point: { x: number; z: number }, lineStart: { x: number; z: number }, lineEnd: { x: number; z: number }): number {
+  private static pointToLineDistance(
+    point: { x: number; z: number },
+    lineStart: { x: number; z: number },
+    lineEnd: { x: number; z: number },
+  ): number {
     const A = point.x - lineStart.x;
     const B = point.z - lineStart.z;
     const C = lineEnd.x - lineStart.x;
@@ -580,7 +721,9 @@ class AdvancedFloorEngine {
     const dot = A * C + B * D;
     const lenSq = C * C + D * D;
 
-    if (lenSq < this.PRECISION) return Math.sqrt(A * A + B * B);
+    if (lenSq < this.PRECISION) {
+      return Math.sqrt(A * A + B * B);
+    }
 
     const param = dot / lenSq;
 
@@ -601,7 +744,11 @@ class AdvancedFloorEngine {
     return Math.sqrt(dx * dx + dz * dz);
   }
 
-  private static findLocalMedialAxis(vertex: { x: number; z: number }, vertices: { x: number; z: number }[], index: number): { x: number; z: number } {
+  private static findLocalMedialAxis(
+    vertex: { x: number; z: number },
+    vertices: { x: number; z: number }[],
+    index: number,
+  ): { x: number; z: number } {
     const n = vertices.length;
     const prev = vertices[(index - 1 + n) % n];
     const next = vertices[(index + 1) % n];
@@ -613,10 +760,13 @@ class AdvancedFloorEngine {
     return { x: (midpoint1.x + midpoint2.x) / 2, z: (midpoint1.z + midpoint2.z) / 2 };
   }
 
-  private static calculateCentroid(vertices: { x: number; z: number }[]): { x: number; z: number } {
+  private static calculateCentroid(vertices: { x: number; z: number }[]): {
+    x: number;
+    z: number;
+  } {
     return {
       x: vertices.reduce((sum, v) => sum + v.x, 0) / vertices.length,
-      z: vertices.reduce((sum, v) => sum + v.z, 0) / vertices.length
+      z: vertices.reduce((sum, v) => sum + v.z, 0) / vertices.length,
     };
   }
 
@@ -641,8 +791,13 @@ class AdvancedFloorEngine {
     return perimeter;
   }
 
-  private static validateInteriorPolygon(interior: { x: number; z: number }[], exterior: { x: number; z: number }[]): boolean {
-    if (interior.length < 3) return false;
+  private static validateInteriorPolygon(
+    interior: { x: number; z: number }[],
+    exterior: { x: number; z: number }[],
+  ): boolean {
+    if (interior.length < 3) {
+      return false;
+    }
 
     const interiorArea = this.calculatePolygonArea(interior);
     const exteriorArea = this.calculatePolygonArea(exterior);
@@ -651,7 +806,9 @@ class AdvancedFloorEngine {
     return interiorArea > this.MIN_AREA && interiorArea < exteriorArea * 0.95;
   }
 
-  private static optimizeVertices(vertices: { x: number; z: number }[]): { x: number; z: number }[] {
+  private static optimizeVertices(
+    vertices: { x: number; z: number }[],
+  ): { x: number; z: number }[] {
     // Remove vertices that are too close together
     const optimized: { x: number; z: number }[] = [];
 
@@ -668,38 +825,47 @@ class AdvancedFloorEngine {
     return optimized.length >= 3 ? optimized : vertices;
   }
 
-  private static safeFallbackInset(vertices: { x: number; z: number }[], inset: number): { x: number; z: number }[] {
+  private static safeFallbackInset(
+    vertices: { x: number; z: number }[],
+    inset: number,
+  ): { x: number; z: number }[] {
     const centroid = this.calculateCentroid(vertices);
     const safeInset = Math.min(inset, 0.1); // Very conservative fallback
 
-    return vertices.map(vertex => {
+    return vertices.map((vertex) => {
       const direction = {
         x: centroid.x - vertex.x,
-        z: centroid.z - vertex.z
+        z: centroid.z - vertex.z,
       };
 
       const distance = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
-      if (distance < this.PRECISION) return vertex;
+      if (distance < this.PRECISION) {
+        return vertex;
+      }
 
       const normalized = { x: direction.x / distance, z: direction.z / distance };
 
       return {
         x: vertex.x + normalized.x * safeInset,
-        z: vertex.z + normalized.z * safeInset
+        z: vertex.z + normalized.z * safeInset,
       };
     });
   }
 }
 
 // Main function using the advanced engine
-const createAdvancedInteriorFloor = (walls: Wall[], exteriorVertices: { x: number; z: number }[]): { x: number; z: number }[] => {
-  return AdvancedFloorEngine.createAdvancedInteriorFloor(walls, exteriorVertices);
-};
+const createAdvancedInteriorFloor = (
+  walls: Wall[],
+  exteriorVertices: { x: number; z: number }[],
+): { x: number; z: number }[] =>
+  AdvancedFloorEngine.createAdvancedInteriorFloor(walls, exteriorVertices);
 
 // Advanced Geometry Creation Methods
 
 // Method 1: Constrained Delaunay Triangulation (most robust)
-const createConstrainedDelaunayGeometry = (vertices: { x: number; z: number }[]): THREE.BufferGeometry => {
+const createConstrainedDelaunayGeometry = (
+  vertices: { x: number; z: number }[],
+): THREE.BufferGeometry => {
   const geometry = new THREE.BufferGeometry();
 
   // Implement simplified Delaunay triangulation
@@ -711,8 +877,11 @@ const createConstrainedDelaunayGeometry = (vertices: { x: number; z: number }[])
   const uvs: number[] = [];
 
   // Calculate bounding box for UV mapping
-  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  vertices.forEach(v => {
+  let minX = Infinity,
+    maxX = -Infinity,
+    minZ = Infinity,
+    maxZ = -Infinity;
+  vertices.forEach((v) => {
     minX = Math.min(minX, v.x);
     maxX = Math.max(maxX, v.x);
     minZ = Math.min(minZ, v.z);
@@ -723,14 +892,14 @@ const createConstrainedDelaunayGeometry = (vertices: { x: number; z: number }[])
   const height = maxZ - minZ;
 
   // Add vertices with proper UVs and normals
-  vertices.forEach(v => {
+  vertices.forEach((v) => {
     positions.push(v.x, 0, v.z);
     normals.push(0, 1, 0);
     uvs.push((v.x - minX) / width, (v.z - minZ) / height);
   });
 
   // Add triangle indices
-  triangles.forEach(triangle => {
+  triangles.forEach((triangle) => {
     indices.push(triangle[0], triangle[1], triangle[2]);
   });
 
@@ -743,7 +912,9 @@ const createConstrainedDelaunayGeometry = (vertices: { x: number; z: number }[])
 };
 
 // Method 2: Advanced Shape Geometry with Holes Support
-const createAdvancedShapeGeometry = (vertices: { x: number; z: number }[]): THREE.BufferGeometry => {
+const createAdvancedShapeGeometry = (
+  vertices: { x: number; z: number }[],
+): THREE.BufferGeometry => {
   const shape = new THREE.Shape();
 
   // Create main shape
@@ -774,7 +945,7 @@ const createAdvancedShapeGeometry = (vertices: { x: number; z: number }[]): THRE
       const z = positions.getZ(i);
       uvs.push(
         ((x - geometry.boundingBox.min.x) / bboxSize.x) * scaleX,
-        ((z - geometry.boundingBox.min.z) / bboxSize.z) * scaleZ
+        ((z - geometry.boundingBox.min.z) / bboxSize.z) * scaleZ,
       );
     }
 
@@ -788,7 +959,9 @@ const createAdvancedShapeGeometry = (vertices: { x: number; z: number }[]): THRE
 };
 
 // Method 3: Optimized Ear-Clipping with Quality Improvements
-const createOptimizedEarClippingGeometry = (vertices: { x: number; z: number }[]): THREE.BufferGeometry => {
+const createOptimizedEarClippingGeometry = (
+  vertices: { x: number; z: number }[],
+): THREE.BufferGeometry => {
   const geometry = new THREE.BufferGeometry();
 
   // Enhanced ear-clipping with quality checks
@@ -802,18 +975,18 @@ const createOptimizedEarClippingGeometry = (vertices: { x: number; z: number }[]
   // Calculate centroid for better UV mapping
   const centroid = {
     x: vertices.reduce((sum, v) => sum + v.x, 0) / vertices.length,
-    z: vertices.reduce((sum, v) => sum + v.z, 0) / vertices.length
+    z: vertices.reduce((sum, v) => sum + v.z, 0) / vertices.length,
   };
 
   // Calculate maximum distance for UV normalization
   let maxDistance = 0;
-  vertices.forEach(v => {
+  vertices.forEach((v) => {
     const distance = Math.sqrt((v.x - centroid.x) ** 2 + (v.z - centroid.z) ** 2);
     maxDistance = Math.max(maxDistance, distance);
   });
 
   // Add vertices with radial UV mapping
-  vertices.forEach(v => {
+  vertices.forEach((v) => {
     positions.push(v.x, 0, v.z);
     normals.push(0, 1, 0);
 
@@ -824,13 +997,13 @@ const createOptimizedEarClippingGeometry = (vertices: { x: number; z: number }[]
     const angle = Math.atan2(dz, dx);
 
     uvs.push(
-      (Math.cos(angle) * distance / maxDistance + 1) / 2,
-      (Math.sin(angle) * distance / maxDistance + 1) / 2
+      ((Math.cos(angle) * distance) / maxDistance + 1) / 2,
+      ((Math.sin(angle) * distance) / maxDistance + 1) / 2,
     );
   });
 
   // Add optimized triangle indices
-  triangles.forEach(triangle => {
+  triangles.forEach((triangle) => {
     indices.push(triangle[0], triangle[1], triangle[2]);
   });
 
@@ -844,7 +1017,9 @@ const createOptimizedEarClippingGeometry = (vertices: { x: number; z: number }[]
 
 // Delaunay Triangulation Implementation
 const delaunayTriangulation = (vertices: { x: number; z: number }[]): number[][] => {
-  if (vertices.length < 3) return [];
+  if (vertices.length < 3) {
+    return [];
+  }
 
   // Simplified Bowyer-Watson algorithm
   const triangles: number[][] = [];
@@ -864,7 +1039,14 @@ const delaunayTriangulation = (vertices: { x: number; z: number }[]): number[][]
     // Find triangles whose circumcircle contains the vertex
     for (let j = 0; j < triangles.length; j++) {
       const triangle = triangles[j];
-      if (inCircumcircle(vertex, allVertices[triangle[0]], allVertices[triangle[1]], allVertices[triangle[2]])) {
+      if (
+        inCircumcircle(
+          vertex,
+          allVertices[triangle[0]],
+          allVertices[triangle[1]],
+          allVertices[triangle[2]],
+        )
+      ) {
         badTriangles.push(j);
       }
     }
@@ -879,7 +1061,9 @@ const delaunayTriangulation = (vertices: { x: number; z: number }[]): number[][]
         // Check if edge is shared with another bad triangle
         let isShared = false;
         for (const otherBadTriangleIndex of badTriangles) {
-          if (otherBadTriangleIndex === badTriangleIndex) continue;
+          if (otherBadTriangleIndex === badTriangleIndex) {
+            continue;
+          }
           const otherTriangle = triangles[otherBadTriangleIndex];
 
           if (hasEdge(otherTriangle, edge[0], edge[1])) {
@@ -906,34 +1090,44 @@ const delaunayTriangulation = (vertices: { x: number; z: number }[]): number[][]
   }
 
   // Remove triangles that contain super triangle vertices
-  return triangles.filter(triangle =>
-    triangle[0] < vertices.length &&
-    triangle[1] < vertices.length &&
-    triangle[2] < vertices.length
+  return triangles.filter(
+    (triangle) =>
+      triangle[0] < vertices.length &&
+      triangle[1] < vertices.length &&
+      triangle[2] < vertices.length,
   );
 };
 
 // Optimized Ear-Clipping Implementation
 const optimizedEarClipping = (vertices: { x: number; z: number }[]): number[][] => {
-  if (vertices.length < 3) return [];
-  if (vertices.length === 3) return [[0, 1, 2]];
+  if (vertices.length < 3) {
+    return [];
+  }
+  if (vertices.length === 3) {
+    return [[0, 1, 2]];
+  }
 
   const triangles: number[][] = [];
   const remaining = vertices.map((_, i) => i);
 
   // Pre-calculate vertex types (convex/reflex)
-  const isConvex = remaining.map(i => isVertexConvex(vertices, i));
+  const isConvex = remaining.map((i) => isVertexConvex(vertices, i));
 
   while (remaining.length > 3) {
     let earFound = false;
 
     // Prioritize convex vertices for better triangle quality
     const convexVertices = remaining.filter((_, i) => isConvex[remaining[i]]);
-    const searchOrder = [...convexVertices, ...remaining.filter((_, i) => !isConvex[remaining[i]])];
+    const searchOrder = [
+      ...convexVertices,
+      ...remaining.filter((_, i) => !isConvex[remaining[i]]),
+    ];
 
     for (const vertexIndex of searchOrder) {
       const i = remaining.indexOf(vertexIndex);
-      if (i === -1) continue;
+      if (i === -1) {
+        continue;
+      }
 
       const prev = remaining[(i - 1 + remaining.length) % remaining.length];
       const curr = remaining[i];
@@ -946,8 +1140,12 @@ const optimizedEarClipping = (vertices: { x: number; z: number }[]): number[][] 
         // Update convexity for neighboring vertices
         const prevIndex = remaining.indexOf(prev);
         const nextIndex = remaining.indexOf(next);
-        if (prevIndex !== -1) isConvex[prev] = isVertexConvex(vertices, prev);
-        if (nextIndex !== -1) isConvex[next] = isVertexConvex(vertices, next);
+        if (prevIndex !== -1) {
+          isConvex[prev] = isVertexConvex(vertices, prev);
+        }
+        if (nextIndex !== -1) {
+          isConvex[next] = isVertexConvex(vertices, next);
+        }
 
         earFound = true;
         break;
@@ -972,8 +1170,11 @@ const optimizedEarClipping = (vertices: { x: number; z: number }[]): number[][] 
 
 // Helper Functions
 const getBounds = (vertices: { x: number; z: number }[]) => {
-  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  vertices.forEach(v => {
+  let minX = Infinity,
+    maxX = -Infinity,
+    minZ = Infinity,
+    maxZ = -Infinity;
+  vertices.forEach((v) => {
     minX = Math.min(minX, v.x);
     maxX = Math.max(maxX, v.x);
     minZ = Math.min(minZ, v.z);
@@ -982,7 +1183,12 @@ const getBounds = (vertices: { x: number; z: number }[]) => {
   return { minX, maxX, minZ, maxZ };
 };
 
-const createSuperTriangle = (bounds: { minX: number; maxX: number; minZ: number; maxZ: number }) => {
+const createSuperTriangle = (bounds: {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}) => {
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxZ - bounds.minZ;
   const centerX = (bounds.minX + bounds.maxX) / 2;
@@ -992,11 +1198,16 @@ const createSuperTriangle = (bounds: { minX: number; maxX: number; minZ: number;
   return [
     { x: centerX, z: centerZ - size },
     { x: centerX - size, z: centerZ + size },
-    { x: centerX + size, z: centerZ + size }
+    { x: centerX + size, z: centerZ + size },
   ];
 };
 
-const inCircumcircle = (p: { x: number; z: number }, a: { x: number; z: number }, b: { x: number; z: number }, c: { x: number; z: number }): boolean => {
+const inCircumcircle = (
+  p: { x: number; z: number },
+  a: { x: number; z: number },
+  b: { x: number; z: number },
+  c: { x: number; z: number },
+): boolean => {
   const ax = a.x - p.x;
   const ay = a.z - p.z;
   const bx = b.x - p.x;
@@ -1004,16 +1215,16 @@ const inCircumcircle = (p: { x: number; z: number }, a: { x: number; z: number }
   const cx = c.x - p.x;
   const cy = c.z - p.z;
 
-  const det = (ax * ax + ay * ay) * (bx * cy - by * cx) +
+  const det =
+    (ax * ax + ay * ay) * (bx * cy - by * cx) +
     (bx * bx + by * by) * (cx * ay - cy * ax) +
     (cx * cx + cy * cy) * (ax * by - ay * bx);
 
   return det > 0;
 };
 
-const hasEdge = (triangle: number[], v1: number, v2: number): boolean => {
-  return (triangle.includes(v1) && triangle.includes(v2));
-};
+const hasEdge = (triangle: number[], v1: number, v2: number): boolean =>
+  triangle.includes(v1) && triangle.includes(v2);
 
 const isVertexConvex = (vertices: { x: number; z: number }[], index: number): boolean => {
   const n = vertices.length;
@@ -1021,13 +1232,19 @@ const isVertexConvex = (vertices: { x: number; z: number }[], index: number): bo
   const curr = vertices[index];
   const next = vertices[(index + 1) % n];
 
-  const cross = (curr.x - prev.x) * (next.z - curr.z) - (curr.z - prev.z) * (next.x - curr.x);
+  const cross =
+    (curr.x - prev.x) * (next.z - curr.z) - (curr.z - prev.z) * (next.x - curr.x);
   return cross > 0;
 };
 
 // Polygon offset algorithm for creating interior boundaries
-const offsetPolygon = (vertices: { x: number; z: number }[], offset: number): { x: number; z: number }[] => {
-  if (vertices.length < 3) return vertices;
+const offsetPolygon = (
+  vertices: { x: number; z: number }[],
+  offset: number,
+): { x: number; z: number }[] => {
+  if (vertices.length < 3) {
+    return vertices;
+  }
 
   const offsetVertices: { x: number; z: number }[] = [];
 
@@ -1060,7 +1277,7 @@ const offsetPolygon = (vertices: { x: number; z: number }[], offset: number): { 
     // Calculate bisector (average of normals)
     const bisector = {
       x: (normal1.x + normal2.x) / 2,
-      z: (normal1.z + normal2.z) / 2
+      z: (normal1.z + normal2.z) / 2,
     };
 
     // Normalize bisector
@@ -1082,7 +1299,7 @@ const offsetPolygon = (vertices: { x: number; z: number }[], offset: number): { 
     // Apply offset
     const offsetVertex = {
       x: curr.x + bisector.x * adjustedOffset,
-      z: curr.z + bisector.z * adjustedOffset
+      z: curr.z + bisector.z * adjustedOffset,
     };
 
     offsetVertices.push(offsetVertex);
@@ -1096,7 +1313,7 @@ const createAdvancedFloorSystem = (
   baseGeometry: THREE.BufferGeometry,
   floorType: string,
   isDarkMode: boolean,
-  vertices: { x: number; z: number }[]
+  vertices: { x: number; z: number }[],
 ): THREE.Mesh[] => {
   const floorMeshes: THREE.Mesh[] = [];
 
@@ -1109,13 +1326,14 @@ const createAdvancedFloorSystem = (
   baseMesh.castShadow = false;
   floorMeshes.push(baseMesh);
 
-
-
   return floorMeshes;
 };
 
 // Enhanced Floor Materials with Advanced Properties
-const createEnhancedFloorMaterial = (floorType: string, isDarkMode: boolean): THREE.MeshStandardMaterial => {
+const createEnhancedFloorMaterial = (
+  floorType: string,
+  isDarkMode: boolean,
+): THREE.MeshStandardMaterial => {
   const baseMaterial = createFloorMaterialByType(floorType as any, isDarkMode);
 
   // Enhance material properties based on type
@@ -1154,9 +1372,11 @@ const createEnhancedFloorMaterial = (floorType: string, isDarkMode: boolean): TH
 const createHeightVariationLayer = (
   baseGeometry: THREE.BufferGeometry,
   floorType: string,
-  isDarkMode: boolean
+  isDarkMode: boolean,
 ): THREE.Mesh | null => {
-  if (floorType === 'carpet') return null;
+  if (floorType === 'carpet') {
+    return null;
+  }
 
   const geometry = baseGeometry.clone();
   const positions = geometry.attributes.position;
@@ -1171,12 +1391,12 @@ const createHeightVariationLayer = (
   geometry.computeVertexNormals();
 
   const material = new THREE.MeshStandardMaterial({
-    color: isDarkMode ? 0x2A2A2A : 0xF0F0F0,
+    color: isDarkMode ? 0x2a2a2a : 0xf0f0f0,
     transparent: true,
     opacity: 0.1,
     roughness: 0.8,
     metalness: 0.0,
-    side: THREE.DoubleSide
+    side: THREE.DoubleSide,
   });
 
   return new THREE.Mesh(geometry, material);
@@ -1187,7 +1407,7 @@ const createProceduralDetails = (
   baseGeometry: THREE.BufferGeometry,
   floorType: string,
   isDarkMode: boolean,
-  vertices: { x: number; z: number }[]
+  vertices: { x: number; z: number }[],
 ): THREE.Mesh | null => {
   // Create detail texture based on floor type
   const canvas = document.createElement('canvas');
@@ -1227,7 +1447,7 @@ const createProceduralDetails = (
     opacity: 0.3,
     roughness: 0.9,
     metalness: 0.0,
-    side: THREE.DoubleSide
+    side: THREE.DoubleSide,
   });
 
   return new THREE.Mesh(baseGeometry.clone(), material);
@@ -1237,7 +1457,7 @@ const createProceduralDetails = (
 const createAmbientOcclusionLayer = (
   baseGeometry: THREE.BufferGeometry,
   vertices: { x: number; z: number }[],
-  isDarkMode: boolean
+  isDarkMode: boolean,
 ): THREE.Mesh | null => {
   const geometry = baseGeometry.clone();
 
@@ -1272,14 +1492,17 @@ const createAmbientOcclusionLayer = (
     vertexColors: true,
     transparent: true,
     opacity: 0.4,
-    side: THREE.DoubleSide
+    side: THREE.DoubleSide,
   });
 
   return new THREE.Mesh(geometry, material);
 };
 
 // Edge Finishing (baseboards, transitions)
-const createEdgeFinishing = (vertices: { x: number; z: number }[], isDarkMode: boolean): THREE.Mesh[] => {
+const createEdgeFinishing = (
+  vertices: { x: number; z: number }[],
+  isDarkMode: boolean,
+): THREE.Mesh[] => {
   const edgeMeshes: THREE.Mesh[] = [];
 
   // Create baseboards along room perimeter
@@ -1288,14 +1511,16 @@ const createEdgeFinishing = (vertices: { x: number; z: number }[], isDarkMode: b
     const end = vertices[(i + 1) % vertices.length];
 
     const length = Math.sqrt((end.x - start.x) ** 2 + (end.z - start.z) ** 2);
-    if (length < 0.01) continue;
+    if (length < 0.01) {
+      continue;
+    }
 
     // Baseboard geometry
     const baseboardGeometry = new THREE.BoxGeometry(length, 0.1, 0.02);
     const baseboardMaterial = new THREE.MeshStandardMaterial({
-      color: isDarkMode ? 0x2A2A2A : 0xF5F5F5,
+      color: isDarkMode ? 0x2a2a2a : 0xf5f5f5,
       roughness: 0.8,
-      metalness: 0.0
+      metalness: 0.0,
     });
 
     const baseboardMesh = new THREE.Mesh(baseboardGeometry, baseboardMaterial);
@@ -1380,7 +1605,11 @@ const addMarbleDetails = (ctx: CanvasRenderingContext2D, isDarkMode: boolean) =>
   }
 };
 
-const pointToLineDistance = (point: { x: number; z: number }, lineStart: { x: number; z: number }, lineEnd: { x: number; z: number }): number => {
+const pointToLineDistance = (
+  point: { x: number; z: number },
+  lineStart: { x: number; z: number },
+  lineEnd: { x: number; z: number },
+): number => {
   const A = point.x - lineStart.x;
   const B = point.z - lineStart.z;
   const C = lineEnd.x - lineStart.x;
@@ -1389,7 +1618,9 @@ const pointToLineDistance = (point: { x: number; z: number }, lineStart: { x: nu
   const dot = A * C + B * D;
   const lenSq = C * C + D * D;
 
-  if (lenSq < 0.001) return Math.sqrt(A * A + B * B);
+  if (lenSq < 0.001) {
+    return Math.sqrt(A * A + B * B);
+  }
 
   const param = dot / lenSq;
 
@@ -1429,7 +1660,7 @@ const createFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial =>
 
   // Create wood grain pattern
   for (let i = 0; i < 20; i++) {
-    const y = (i * 25) + Math.random() * 10;
+    const y = i * 25 + Math.random() * 10;
 
     // Main grain line
     ctx.strokeStyle = grainColor;
@@ -1573,7 +1804,7 @@ const createConcreteFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMat
     const angle = Math.random() * Math.PI * 2;
     ctx.lineTo(
       Math.random() * 512 + Math.cos(angle) * length,
-      Math.random() * 512 + Math.sin(angle) * length
+      Math.random() * 512 + Math.sin(angle) * length,
     );
     ctx.stroke();
   }
@@ -1724,14 +1955,17 @@ const createCarpetFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMater
 };
 
 // Floor material selector
-const createFloorMaterialByType = (floorType: 'wood' | 'tile' | 'concrete' | 'marble' | 'carpet', isDarkMode: boolean): THREE.MeshStandardMaterial => {
+const createFloorMaterialByType = (
+  floorType: 'wood' | 'tile' | 'concrete' | 'marble' | 'carpet',
+  isDarkMode: boolean,
+): THREE.MeshStandardMaterial => {
   // Simplified materials for better compatibility
   const colors = {
-    wood: isDarkMode ? 0x8B4513 : 0xDEB887,
-    tile: isDarkMode ? 0x2C3E50 : 0xECF0F1,
-    concrete: isDarkMode ? 0x34495E : 0x95A5A6,
-    marble: isDarkMode ? 0x2C3E50 : 0xF8F9FA,
-    carpet: isDarkMode ? 0x8B4513 : 0xD2691E
+    wood: isDarkMode ? 0x8b4513 : 0xdeb887,
+    tile: isDarkMode ? 0x2c3e50 : 0xecf0f1,
+    concrete: isDarkMode ? 0x34495e : 0x95a5a6,
+    marble: isDarkMode ? 0x2c3e50 : 0xf8f9fa,
+    carpet: isDarkMode ? 0x8b4513 : 0xd2691e,
   };
 
   const material = new THREE.MeshStandardMaterial({
@@ -1821,14 +2055,17 @@ const createTileFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMateria
 };
 
 // Create wall materials
-const createWallMaterial = (materialType: 'paint' | 'brick' | 'stone' | 'wood' | 'metal', isDarkMode: boolean): THREE.MeshStandardMaterial => {
+const createWallMaterial = (
+  materialType: 'paint' | 'brick' | 'stone' | 'wood' | 'metal',
+  isDarkMode: boolean,
+): THREE.MeshStandardMaterial => {
   // Simplified materials for better compatibility
   const colors = {
-    paint: isDarkMode ? 0x4A5568 : 0xE2E8F0,
-    brick: isDarkMode ? 0x8B4513 : 0xCD853F,
-    stone: isDarkMode ? 0x696969 : 0xA9A9A9,
-    wood: isDarkMode ? 0x8B4513 : 0xDEB887,
-    metal: isDarkMode ? 0x2F4F4F : 0xC0C0C0
+    paint: isDarkMode ? 0x4a5568 : 0xe2e8f0,
+    brick: isDarkMode ? 0x8b4513 : 0xcd853f,
+    stone: isDarkMode ? 0x696969 : 0xa9a9a9,
+    wood: isDarkMode ? 0x8b4513 : 0xdeb887,
+    metal: isDarkMode ? 0x2f4f4f : 0xc0c0c0,
   };
 
   const material = new THREE.MeshStandardMaterial({
@@ -1860,14 +2097,13 @@ const createWallMaterial = (materialType: 'paint' | 'brick' | 'stone' | 'wood' |
 };
 
 // Create paint wall material
-const createPaintWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
-  return new THREE.MeshStandardMaterial({
+const createPaintWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial =>
+  new THREE.MeshStandardMaterial({
     color: isDarkMode ? '#4A5568' : '#E2E8F0',
     roughness: 0.8,
     metalness: 0.0,
     side: THREE.DoubleSide,
   });
-};
 
 // Create brick wall material
 const createBrickWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
@@ -1898,9 +2134,18 @@ const createBrickWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMateria
 
       // Add slight color variation
       const variation = (Math.random() - 0.5) * 30;
-      const r = Math.max(0, Math.min(255, parseInt(brickColor.slice(1, 3), 16) + variation));
-      const g = Math.max(0, Math.min(255, parseInt(brickColor.slice(3, 5), 16) + variation));
-      const b = Math.max(0, Math.min(255, parseInt(brickColor.slice(5, 7), 16) + variation));
+      const r = Math.max(
+        0,
+        Math.min(255, parseInt(brickColor.slice(1, 3), 16) + variation),
+      );
+      const g = Math.max(
+        0,
+        Math.min(255, parseInt(brickColor.slice(3, 5), 16) + variation),
+      );
+      const b = Math.max(
+        0,
+        Math.min(255, parseInt(brickColor.slice(5, 7), 16) + variation),
+      );
 
       ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
       ctx.fillRect(x, y, brickWidth, brickHeight);
@@ -2008,17 +2253,20 @@ const createWoodWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial
 };
 
 // Create metal wall material
-const createMetalWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
-  return new THREE.MeshStandardMaterial({
+const createMetalWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial =>
+  new THREE.MeshStandardMaterial({
     color: isDarkMode ? '#2F4F4F' : '#C0C0C0',
     roughness: 0.2,
     metalness: 0.8,
     side: THREE.DoubleSide,
   });
-};
 
 // Create windows with different styles
-const createStyledWindow = (wall: Wall, windowPlacement: WindowPlacement, style: 'modern' | 'classic' | 'industrial'): THREE.Group => {
+const createStyledWindow = (
+  wall: Wall,
+  windowPlacement: WindowPlacement,
+  style: 'modern' | 'classic' | 'industrial',
+): THREE.Group => {
   switch (style) {
     case 'modern':
       return createModernWindow(wall, windowPlacement);
@@ -2032,17 +2280,22 @@ const createStyledWindow = (wall: Wall, windowPlacement: WindowPlacement, style:
 };
 
 // Create modern window
-const createModernWindow = (wall: Wall, windowPlacement: WindowPlacement): THREE.Group => {
+const createModernWindow = (
+  wall: Wall,
+  windowPlacement: WindowPlacement,
+): THREE.Group => {
   const windowGroup = new THREE.Group();
 
   const wallVector = new THREE.Vector3(
     wall.end.x - wall.start.x,
     0,
-    wall.end.z - wall.start.z
+    wall.end.z - wall.start.z,
   );
   const wallLength = wallVector.length();
 
-  if (wallLength < 2.5) return windowGroup;
+  if (wallLength < 2.5) {
+    return windowGroup;
+  }
 
   const windowWidth = windowPlacement.width;
   const windowHeight = windowPlacement.height;
@@ -2051,18 +2304,18 @@ const createModernWindow = (wall: Wall, windowPlacement: WindowPlacement): THREE
   const windowPosition = new THREE.Vector3(
     windowPlacement.position.x,
     windowBottom + windowHeight / 2,
-    windowPlacement.position.z
+    windowPlacement.position.z,
   );
 
   // Modern glass - large single pane
   const glassGeometry = new THREE.BoxGeometry(windowWidth, windowHeight, 0.01);
   const glassMaterial = new THREE.MeshStandardMaterial({
-    color: 0x88CCFF,
+    color: 0x88ccff,
     transparent: true,
     opacity: 0.3,
     metalness: 0.1,
     roughness: 0.05,
-    side: THREE.DoubleSide
+    side: THREE.DoubleSide,
   });
 
   const glassMesh = new THREE.Mesh(glassGeometry, glassMaterial);
@@ -2073,42 +2326,58 @@ const createModernWindow = (wall: Wall, windowPlacement: WindowPlacement): THREE
   const frameDepth = wall.thickness * 1.1;
 
   const frameMaterial = new THREE.MeshStandardMaterial({
-    color: 0x2C3E50,
+    color: 0x2c3e50,
     roughness: 0.3,
-    metalness: 0.7
+    metalness: 0.7,
   });
 
   // Thin frame around the glass
-  const frameGeometry = new THREE.BoxGeometry(windowWidth + frameThickness * 2, windowHeight + frameThickness * 2, frameDepth);
+  const frameGeometry = new THREE.BoxGeometry(
+    windowWidth + frameThickness * 2,
+    windowHeight + frameThickness * 2,
+    frameDepth,
+  );
   const frameMesh = new THREE.Mesh(frameGeometry, frameMaterial);
   windowGroup.add(frameMesh);
 
   // Glass cutout
-  const cutoutGeometry = new THREE.BoxGeometry(windowWidth, windowHeight, frameDepth + 0.01);
-  const cutoutMesh = new THREE.Mesh(cutoutGeometry, new THREE.MeshBasicMaterial({ visible: false }));
+  const cutoutGeometry = new THREE.BoxGeometry(
+    windowWidth,
+    windowHeight,
+    frameDepth + 0.01,
+  );
+  const cutoutMesh = new THREE.Mesh(
+    cutoutGeometry,
+    new THREE.MeshBasicMaterial({ visible: false }),
+  );
   windowGroup.add(cutoutMesh);
 
   windowGroup.position.copy(windowPosition);
   windowGroup.quaternion.setFromUnitVectors(
     new THREE.Vector3(1, 0, 0), // Window's local X axis
-    wallVector.clone().normalize() // Wall direction
+    wallVector.clone().normalize(), // Wall direction
   );
 
   return windowGroup;
 };
 
 // Create classic window
-const createClassicWindow = (wall: Wall, windowPlacement: WindowPlacement): THREE.Group => {
+const createClassicWindow = (
+  wall: Wall,
+  windowPlacement: WindowPlacement,
+): THREE.Group => {
   const windowGroup = new THREE.Group();
 
   const wallVector = new THREE.Vector3(
     wall.end.x - wall.start.x,
     0,
-    wall.end.z - wall.start.z
+    wall.end.z - wall.start.z,
   );
   const wallLength = wallVector.length();
 
-  if (wallLength < 2.5) return windowGroup;
+  if (wallLength < 2.5) {
+    return windowGroup;
+  }
 
   const windowWidth = windowPlacement.width;
   const windowHeight = windowPlacement.height;
@@ -2117,7 +2386,7 @@ const createClassicWindow = (wall: Wall, windowPlacement: WindowPlacement): THRE
   const windowPosition = new THREE.Vector3(
     windowPlacement.position.x,
     windowBottom + windowHeight / 2,
-    windowPlacement.position.z
+    windowPlacement.position.z,
   );
 
   // Classic divided glass panes
@@ -2125,24 +2394,24 @@ const createClassicWindow = (wall: Wall, windowPlacement: WindowPlacement): THRE
   const paneHeight = windowHeight / 2;
 
   const glassMaterial = new THREE.MeshStandardMaterial({
-    color: 0x88CCFF,
+    color: 0x88ccff,
     transparent: true,
     opacity: 0.3,
     metalness: 0.1,
     roughness: 0.05,
-    side: THREE.DoubleSide
+    side: THREE.DoubleSide,
   });
 
   // Create 4 glass panes
   for (let x = 0; x < 2; x++) {
     for (let y = 0; y < 2; y++) {
-      const glassGeometry = new THREE.BoxGeometry(paneWidth - 0.02, paneHeight - 0.02, 0.01);
-      const glassMesh = new THREE.Mesh(glassGeometry, glassMaterial);
-      glassMesh.position.set(
-        (x - 0.5) * paneWidth,
-        (y - 0.5) * paneHeight,
-        0
+      const glassGeometry = new THREE.BoxGeometry(
+        paneWidth - 0.02,
+        paneHeight - 0.02,
+        0.01,
       );
+      const glassMesh = new THREE.Mesh(glassGeometry, glassMaterial);
+      glassMesh.position.set((x - 0.5) * paneWidth, (y - 0.5) * paneHeight, 0);
       windowGroup.add(glassMesh);
     }
   }
@@ -2152,27 +2421,43 @@ const createClassicWindow = (wall: Wall, windowPlacement: WindowPlacement): THRE
   const frameDepth = wall.thickness * 1.1;
 
   const frameMaterial = new THREE.MeshStandardMaterial({
-    color: 0x8B4513,
+    color: 0x8b4513,
     roughness: 0.8,
-    metalness: 0.1
+    metalness: 0.1,
   });
 
   // Outer frame
-  const outerFrameGeometry = new THREE.BoxGeometry(windowWidth + frameThickness * 2, windowHeight + frameThickness * 2, frameDepth);
+  const outerFrameGeometry = new THREE.BoxGeometry(
+    windowWidth + frameThickness * 2,
+    windowHeight + frameThickness * 2,
+    frameDepth,
+  );
   const outerFrameMesh = new THREE.Mesh(outerFrameGeometry, frameMaterial);
   windowGroup.add(outerFrameMesh);
 
   // Cross dividers
-  const hDividerGeometry = new THREE.BoxGeometry(windowWidth, frameThickness / 2, frameDepth);
+  const hDividerGeometry = new THREE.BoxGeometry(
+    windowWidth,
+    frameThickness / 2,
+    frameDepth,
+  );
   const hDividerMesh = new THREE.Mesh(hDividerGeometry, frameMaterial);
   windowGroup.add(hDividerMesh);
 
-  const vDividerGeometry = new THREE.BoxGeometry(frameThickness / 2, windowHeight, frameDepth);
+  const vDividerGeometry = new THREE.BoxGeometry(
+    frameThickness / 2,
+    windowHeight,
+    frameDepth,
+  );
   const vDividerMesh = new THREE.Mesh(vDividerGeometry, frameMaterial);
   windowGroup.add(vDividerMesh);
 
   // Window sill
-  const sillGeometry = new THREE.BoxGeometry(windowWidth + frameThickness * 3, frameThickness, frameDepth + 0.05);
+  const sillGeometry = new THREE.BoxGeometry(
+    windowWidth + frameThickness * 3,
+    frameThickness,
+    frameDepth + 0.05,
+  );
   const sillMesh = new THREE.Mesh(sillGeometry, frameMaterial);
   sillMesh.position.y = -windowHeight / 2 - frameThickness;
   sillMesh.position.z = frameDepth * 0.1;
@@ -2181,24 +2466,29 @@ const createClassicWindow = (wall: Wall, windowPlacement: WindowPlacement): THRE
   windowGroup.position.copy(windowPosition);
   windowGroup.quaternion.setFromUnitVectors(
     new THREE.Vector3(1, 0, 0), // Window's local X axis
-    wallVector.clone().normalize() // Wall direction
+    wallVector.clone().normalize(), // Wall direction
   );
 
   return windowGroup;
 };
 
 // Create industrial window
-const createIndustrialWindow = (wall: Wall, windowPlacement: WindowPlacement): THREE.Group => {
+const createIndustrialWindow = (
+  wall: Wall,
+  windowPlacement: WindowPlacement,
+): THREE.Group => {
   const windowGroup = new THREE.Group();
 
   const wallVector = new THREE.Vector3(
     wall.end.x - wall.start.x,
     0,
-    wall.end.z - wall.start.z
+    wall.end.z - wall.start.z,
   );
   const wallLength = wallVector.length();
 
-  if (wallLength < 2.5) return windowGroup;
+  if (wallLength < 2.5) {
+    return windowGroup;
+  }
 
   const windowWidth = windowPlacement.width;
   const windowHeight = windowPlacement.height;
@@ -2207,7 +2497,7 @@ const createIndustrialWindow = (wall: Wall, windowPlacement: WindowPlacement): T
   const windowPosition = new THREE.Vector3(
     windowPlacement.position.x,
     windowBottom + windowHeight / 2,
-    windowPlacement.position.z
+    windowPlacement.position.z,
   );
 
   // Industrial grid glass
@@ -2216,23 +2506,27 @@ const createIndustrialWindow = (wall: Wall, windowPlacement: WindowPlacement): T
   const paneHeight = windowHeight / gridSize;
 
   const glassMaterial = new THREE.MeshStandardMaterial({
-    color: 0x88CCFF,
+    color: 0x88ccff,
     transparent: true,
     opacity: 0.3,
     metalness: 0.2,
     roughness: 0.1,
-    side: THREE.DoubleSide
+    side: THREE.DoubleSide,
   });
 
   // Create grid of glass panes
   for (let x = 0; x < gridSize; x++) {
     for (let y = 0; y < gridSize; y++) {
-      const glassGeometry = new THREE.BoxGeometry(paneWidth - 0.01, paneHeight - 0.01, 0.01);
+      const glassGeometry = new THREE.BoxGeometry(
+        paneWidth - 0.01,
+        paneHeight - 0.01,
+        0.01,
+      );
       const glassMesh = new THREE.Mesh(glassGeometry, glassMaterial);
       glassMesh.position.set(
         (x - (gridSize - 1) / 2) * paneWidth,
         (y - (gridSize - 1) / 2) * paneHeight,
-        0
+        0,
       );
       windowGroup.add(glassMesh);
     }
@@ -2243,26 +2537,38 @@ const createIndustrialWindow = (wall: Wall, windowPlacement: WindowPlacement): T
   const frameDepth = wall.thickness * 1.2;
 
   const frameMaterial = new THREE.MeshStandardMaterial({
-    color: 0x2F4F4F,
+    color: 0x2f4f4f,
     roughness: 0.4,
-    metalness: 0.8
+    metalness: 0.8,
   });
 
   // Outer frame
-  const outerFrameGeometry = new THREE.BoxGeometry(windowWidth + frameThickness * 2, windowHeight + frameThickness * 2, frameDepth);
+  const outerFrameGeometry = new THREE.BoxGeometry(
+    windowWidth + frameThickness * 2,
+    windowHeight + frameThickness * 2,
+    frameDepth,
+  );
   const outerFrameMesh = new THREE.Mesh(outerFrameGeometry, frameMaterial);
   windowGroup.add(outerFrameMesh);
 
   // Grid dividers
   for (let i = 1; i < gridSize; i++) {
     // Horizontal dividers
-    const hDividerGeometry = new THREE.BoxGeometry(windowWidth, frameThickness / 3, frameDepth);
+    const hDividerGeometry = new THREE.BoxGeometry(
+      windowWidth,
+      frameThickness / 3,
+      frameDepth,
+    );
     const hDividerMesh = new THREE.Mesh(hDividerGeometry, frameMaterial);
     hDividerMesh.position.y = (i - gridSize / 2) * paneHeight;
     windowGroup.add(hDividerMesh);
 
     // Vertical dividers
-    const vDividerGeometry = new THREE.BoxGeometry(frameThickness / 3, windowHeight, frameDepth);
+    const vDividerGeometry = new THREE.BoxGeometry(
+      frameThickness / 3,
+      windowHeight,
+      frameDepth,
+    );
     const vDividerMesh = new THREE.Mesh(vDividerGeometry, frameMaterial);
     vDividerMesh.position.x = (i - gridSize / 2) * paneWidth;
     windowGroup.add(vDividerMesh);
@@ -2271,24 +2577,29 @@ const createIndustrialWindow = (wall: Wall, windowPlacement: WindowPlacement): T
   windowGroup.position.copy(windowPosition);
   windowGroup.quaternion.setFromUnitVectors(
     new THREE.Vector3(1, 0, 0), // Window's local X axis
-    wallVector.clone().normalize() // Wall direction
+    wallVector.clone().normalize(), // Wall direction
   );
 
   return windowGroup;
 };
 
 // Create optimized windows based on advanced geometry engine
-const createOptimizedWindow = (wall: Wall, windowPlacement: WindowPlacement): THREE.Group => {
+const createOptimizedWindow = (
+  wall: Wall,
+  windowPlacement: WindowPlacement,
+): THREE.Group => {
   const windowGroup = new THREE.Group();
 
   const wallVector = new THREE.Vector3(
     wall.end.x - wall.start.x,
     0,
-    wall.end.z - wall.start.z
+    wall.end.z - wall.start.z,
   );
   const wallLength = wallVector.length();
 
-  if (wallLength < 2.5) return windowGroup;
+  if (wallLength < 2.5) {
+    return windowGroup;
+  }
 
   // Use optimized window dimensions
   const windowWidth = windowPlacement.width;
@@ -2299,24 +2610,20 @@ const createOptimizedWindow = (wall: Wall, windowPlacement: WindowPlacement): TH
   const windowPosition = new THREE.Vector3(
     windowPlacement.position.x,
     windowBottom + windowHeight / 2,
-    windowPlacement.position.z
+    windowPlacement.position.z,
   );
 
   // Window glass with better transparency
-  const glassGeometry = new THREE.BoxGeometry(
-    windowWidth,
-    windowHeight,
-    0.02
-  );
+  const glassGeometry = new THREE.BoxGeometry(windowWidth, windowHeight, 0.02);
 
   const glassMaterial = new THREE.MeshStandardMaterial({
-    color: 0x88CCFF,
+    color: 0x88ccff,
     transparent: true,
     opacity: 0.2,
     metalness: 0.1,
     roughness: 0.05,
     envMapIntensity: 1.0,
-    side: THREE.DoubleSide
+    side: THREE.DoubleSide,
   });
 
   const glassMesh = new THREE.Mesh(glassGeometry, glassMaterial);
@@ -2327,13 +2634,17 @@ const createOptimizedWindow = (wall: Wall, windowPlacement: WindowPlacement): TH
   const frameDepth = wall.thickness * 1.1;
 
   const frameMaterial = new THREE.MeshStandardMaterial({
-    color: 0x8B4513,
+    color: 0x8b4513,
     roughness: 0.8,
-    metalness: 0.1
+    metalness: 0.1,
   });
 
   // Horizontal frame pieces (top and bottom)
-  const hFrameGeometry = new THREE.BoxGeometry(windowWidth + frameThickness * 2, frameThickness, frameDepth);
+  const hFrameGeometry = new THREE.BoxGeometry(
+    windowWidth + frameThickness * 2,
+    frameThickness,
+    frameDepth,
+  );
 
   const topFrame = new THREE.Mesh(hFrameGeometry, frameMaterial);
   topFrame.position.y = windowHeight / 2 + frameThickness / 2;
@@ -2355,7 +2666,11 @@ const createOptimizedWindow = (wall: Wall, windowPlacement: WindowPlacement): TH
   windowGroup.add(rightFrame);
 
   // Window sill
-  const sillGeometry = new THREE.BoxGeometry(windowWidth + frameThickness * 3, frameThickness / 2, frameDepth + 0.05);
+  const sillGeometry = new THREE.BoxGeometry(
+    windowWidth + frameThickness * 3,
+    frameThickness / 2,
+    frameDepth + 0.05,
+  );
   const sillMesh = new THREE.Mesh(sillGeometry, frameMaterial);
   sillMesh.position.y = -windowHeight / 2 - frameThickness;
   sillMesh.position.z = frameDepth * 0.1;
@@ -2365,7 +2680,7 @@ const createOptimizedWindow = (wall: Wall, windowPlacement: WindowPlacement): TH
   windowGroup.position.copy(windowPosition);
   windowGroup.quaternion.setFromUnitVectors(
     new THREE.Vector3(1, 0, 0), // Window's local X axis
-    wallVector.clone().normalize() // Wall direction
+    wallVector.clone().normalize(), // Wall direction
   );
 
   // Enable shadows for all window components
@@ -2380,18 +2695,25 @@ const createOptimizedWindow = (wall: Wall, windowPlacement: WindowPlacement): TH
 };
 
 // Create windows in walls with enhanced visual details (legacy function)
-const createWindow = (wall: Wall, windowHeight: number = 1.2, windowWidth: number = 1.5, windowBottom: number = 0.8): THREE.Group => {
+const createWindow = (
+  wall: Wall,
+  windowHeight: number = 1.2,
+  windowWidth: number = 1.5,
+  windowBottom: number = 0.8,
+): THREE.Group => {
   const windowGroup = new THREE.Group();
 
   const wallVector = new THREE.Vector3(
     wall.end.x - wall.start.x,
     0,
-    wall.end.z - wall.start.z
+    wall.end.z - wall.start.z,
   );
   const wallLength = wallVector.length();
 
   // Only create windows in walls longer than 2.5m
-  if (wallLength < 2.5) return windowGroup;
+  if (wallLength < 2.5) {
+    return windowGroup;
+  }
 
   // Adjust window width to fit wall proportionally
   const actualWindowWidth = Math.min(windowWidth, wallLength * 0.6);
@@ -2400,31 +2722,27 @@ const createWindow = (wall: Wall, windowHeight: number = 1.2, windowWidth: numbe
   const windowPosition = new THREE.Vector3(
     (wall.start.x + wall.end.x) / 2,
     windowBottom + windowHeight / 2,
-    (wall.start.z + wall.end.z) / 2
+    (wall.start.z + wall.end.z) / 2,
   );
 
   // Window opening (cut into wall)
   const openingGeometry = new THREE.BoxGeometry(
     actualWindowWidth + 0.1,
     windowHeight + 0.1,
-    wall.thickness + 0.1
+    wall.thickness + 0.1,
   );
 
   // Window glass with better transparency
-  const glassGeometry = new THREE.BoxGeometry(
-    actualWindowWidth,
-    windowHeight,
-    0.02
-  );
+  const glassGeometry = new THREE.BoxGeometry(actualWindowWidth, windowHeight, 0.02);
 
   const glassMaterial = new THREE.MeshStandardMaterial({
-    color: 0x88CCFF,
+    color: 0x88ccff,
     transparent: true,
     opacity: 0.2,
     metalness: 0.1,
     roughness: 0.05,
     envMapIntensity: 1.0,
-    side: THREE.DoubleSide
+    side: THREE.DoubleSide,
   });
 
   const glassMesh = new THREE.Mesh(glassGeometry, glassMaterial);
@@ -2435,13 +2753,17 @@ const createWindow = (wall: Wall, windowHeight: number = 1.2, windowWidth: numbe
   const frameDepth = wall.thickness * 1.1;
 
   const frameMaterial = new THREE.MeshStandardMaterial({
-    color: 0x8B4513,
+    color: 0x8b4513,
     roughness: 0.8,
-    metalness: 0.1
+    metalness: 0.1,
   });
 
   // Horizontal frame pieces (top and bottom)
-  const hFrameGeometry = new THREE.BoxGeometry(actualWindowWidth + frameThickness * 2, frameThickness, frameDepth);
+  const hFrameGeometry = new THREE.BoxGeometry(
+    actualWindowWidth + frameThickness * 2,
+    frameThickness,
+    frameDepth,
+  );
 
   const topFrame = new THREE.Mesh(hFrameGeometry, frameMaterial);
   topFrame.position.y = windowHeight / 2 + frameThickness / 2;
@@ -2463,7 +2785,11 @@ const createWindow = (wall: Wall, windowHeight: number = 1.2, windowWidth: numbe
   windowGroup.add(rightFrame);
 
   // Window sill
-  const sillGeometry = new THREE.BoxGeometry(actualWindowWidth + frameThickness * 3, frameThickness / 2, frameDepth + 0.05);
+  const sillGeometry = new THREE.BoxGeometry(
+    actualWindowWidth + frameThickness * 3,
+    frameThickness / 2,
+    frameDepth + 0.05,
+  );
   const sillMesh = new THREE.Mesh(sillGeometry, frameMaterial);
   sillMesh.position.y = -windowHeight / 2 - frameThickness;
   sillMesh.position.z = frameDepth * 0.1;
@@ -2473,7 +2799,7 @@ const createWindow = (wall: Wall, windowHeight: number = 1.2, windowWidth: numbe
   windowGroup.position.copy(windowPosition);
   windowGroup.quaternion.setFromUnitVectors(
     new THREE.Vector3(1, 0, 0), // Window's local X axis
-    wallVector.clone().normalize() // Wall direction
+    wallVector.clone().normalize(), // Wall direction
   );
 
   // Enable shadows for all window components
@@ -2505,46 +2831,54 @@ interface ThreeCanvasProps {
 // Furniture Creation Functions
 const createChair = (isDarkMode: boolean): THREE.Group => {
   const chairGroup = new THREE.Group();
-  
-  const woodColor = isDarkMode ? 0x4A4A4A : 0x8B4513;
-  const cushionColor = isDarkMode ? 0x2A2A2A : 0x654321;
-  
-  const woodMaterial = new THREE.MeshStandardMaterial({ color: woodColor, roughness: 0.8 });
-  const cushionMaterial = new THREE.MeshStandardMaterial({ color: cushionColor, roughness: 0.6 });
-  
+
+  const woodColor = isDarkMode ? 0x4a4a4a : 0x8b4513;
+  const cushionColor = isDarkMode ? 0x2a2a2a : 0x654321;
+
+  const woodMaterial = new THREE.MeshStandardMaterial({
+    color: woodColor,
+    roughness: 0.8,
+  });
+  const cushionMaterial = new THREE.MeshStandardMaterial({
+    color: cushionColor,
+    roughness: 0.6,
+  });
+
   // Seat
   const seatGeometry = new THREE.BoxGeometry(0.5, 0.05, 0.5);
   const seatMesh = new THREE.Mesh(seatGeometry, cushionMaterial);
   seatMesh.position.y = 0.45;
   chairGroup.add(seatMesh);
-  
+
   // Backrest
   const backGeometry = new THREE.BoxGeometry(0.5, 0.6, 0.05);
   const backMesh = new THREE.Mesh(backGeometry, woodMaterial);
   backMesh.position.set(0, 0.75, -0.225);
   chairGroup.add(backMesh);
-  
+
   // Legs
   const legGeometry = new THREE.BoxGeometry(0.05, 0.45, 0.05);
   const legPositions = [
-    [-0.2, 0.225, -0.2], [0.2, 0.225, -0.2],
-    [-0.2, 0.225, 0.2], [0.2, 0.225, 0.2]
+    [-0.2, 0.225, -0.2],
+    [0.2, 0.225, -0.2],
+    [-0.2, 0.225, 0.2],
+    [0.2, 0.225, 0.2],
   ];
-  
-  legPositions.forEach(pos => {
+
+  legPositions.forEach((pos) => {
     const legMesh = new THREE.Mesh(legGeometry, woodMaterial);
     legMesh.position.set(pos[0], pos[1], pos[2]);
     legMesh.castShadow = true;
     chairGroup.add(legMesh);
   });
-  
-  chairGroup.traverse(child => {
+
+  chairGroup.traverse((child) => {
     if (child instanceof THREE.Mesh) {
       child.castShadow = true;
       child.receiveShadow = true;
     }
   });
-  
+
   return chairGroup;
 };
 
@@ -2560,321 +2894,367 @@ const finalizeObject = (group: THREE.Group, type: string, canPlaceOn: string[] =
 
 const createTable = (isDarkMode: boolean): THREE.Group => {
   const tableGroup = new THREE.Group();
-  
-  const woodColor = isDarkMode ? 0x3A3A3A : 0x8B4513;
-  const woodMaterial = new THREE.MeshStandardMaterial({ color: woodColor, roughness: 0.7 });
-  
+
+  const woodColor = isDarkMode ? 0x3a3a3a : 0x8b4513;
+  const woodMaterial = new THREE.MeshStandardMaterial({
+    color: woodColor,
+    roughness: 0.7,
+  });
+
   // Table top
   const topGeometry = new THREE.BoxGeometry(1.2, 0.05, 0.8);
   const topMesh = new THREE.Mesh(topGeometry, woodMaterial);
   topMesh.position.y = 0.75;
   tableGroup.add(topMesh);
-  
+
   // Legs
   const legGeometry = new THREE.BoxGeometry(0.06, 0.75, 0.06);
   const legPositions = [
-    [-0.55, 0.375, -0.35], [0.55, 0.375, -0.35],
-    [-0.55, 0.375, 0.35], [0.55, 0.375, 0.35]
+    [-0.55, 0.375, -0.35],
+    [0.55, 0.375, -0.35],
+    [-0.55, 0.375, 0.35],
+    [0.55, 0.375, 0.35],
   ];
-  
-  legPositions.forEach(pos => {
+
+  legPositions.forEach((pos) => {
     const legMesh = new THREE.Mesh(legGeometry, woodMaterial);
     legMesh.position.set(pos[0], pos[1], pos[2]);
     legMesh.castShadow = true;
     tableGroup.add(legMesh);
   });
-  
-  tableGroup.traverse(child => {
+
+  tableGroup.traverse((child) => {
     if (child instanceof THREE.Mesh) {
       child.castShadow = true;
       child.receiveShadow = true;
     }
   });
-  
+
   return finalizeObject(tableGroup, 'table');
 };
 
 const createSofa = (isDarkMode: boolean): THREE.Group => {
   const sofaGroup = new THREE.Group();
-  
-  const fabricColor = isDarkMode ? 0x2A2A2A : 0x8B4513;
-  const fabricMaterial = new THREE.MeshStandardMaterial({ color: fabricColor, roughness: 0.8 });
-  
+
+  const fabricColor = isDarkMode ? 0x2a2a2a : 0x8b4513;
+  const fabricMaterial = new THREE.MeshStandardMaterial({
+    color: fabricColor,
+    roughness: 0.8,
+  });
+
   // Base
   const baseGeometry = new THREE.BoxGeometry(2.0, 0.4, 0.8);
   const baseMesh = new THREE.Mesh(baseGeometry, fabricMaterial);
   baseMesh.position.y = 0.2;
   sofaGroup.add(baseMesh);
-  
+
   // Backrest
   const backGeometry = new THREE.BoxGeometry(2.0, 0.6, 0.15);
   const backMesh = new THREE.Mesh(backGeometry, fabricMaterial);
   backMesh.position.set(0, 0.7, -0.325);
   sofaGroup.add(backMesh);
-  
+
   // Armrests
   const armGeometry = new THREE.BoxGeometry(0.15, 0.6, 0.8);
   const leftArm = new THREE.Mesh(armGeometry, fabricMaterial);
   leftArm.position.set(-0.925, 0.7, 0);
   sofaGroup.add(leftArm);
-  
+
   const rightArm = new THREE.Mesh(armGeometry, fabricMaterial);
   rightArm.position.set(0.925, 0.7, 0);
   sofaGroup.add(rightArm);
-  
-  sofaGroup.traverse(child => {
+
+  sofaGroup.traverse((child) => {
     if (child instanceof THREE.Mesh) {
       child.castShadow = true;
       child.receiveShadow = true;
     }
   });
-  
+
   return sofaGroup;
 };
 
 const createBed = (isDarkMode: boolean): THREE.Group => {
   const bedGroup = new THREE.Group();
-  
-  const frameColor = isDarkMode ? 0x4A4A4A : 0x8B4513;
-  const mattressColor = isDarkMode ? 0x5A5A5A : 0xF5F5DC;
-  
-  const frameMaterial = new THREE.MeshStandardMaterial({ color: frameColor, roughness: 0.8 });
-  const mattressMaterial = new THREE.MeshStandardMaterial({ color: mattressColor, roughness: 0.6 });
-  
+
+  const frameColor = isDarkMode ? 0x4a4a4a : 0x8b4513;
+  const mattressColor = isDarkMode ? 0x5a5a5a : 0xf5f5dc;
+
+  const frameMaterial = new THREE.MeshStandardMaterial({
+    color: frameColor,
+    roughness: 0.8,
+  });
+  const mattressMaterial = new THREE.MeshStandardMaterial({
+    color: mattressColor,
+    roughness: 0.6,
+  });
+
   // Bed frame
   const frameGeometry = new THREE.BoxGeometry(2.1, 0.3, 1.1);
   const frameMesh = new THREE.Mesh(frameGeometry, frameMaterial);
   frameMesh.position.y = 0.15;
   bedGroup.add(frameMesh);
-  
+
   // Mattress
   const mattressGeometry = new THREE.BoxGeometry(2.0, 0.2, 1.0);
   const mattressMesh = new THREE.Mesh(mattressGeometry, mattressMaterial);
   mattressMesh.position.y = 0.4;
   bedGroup.add(mattressMesh);
-  
+
   // Headboard
   const headGeometry = new THREE.BoxGeometry(2.1, 1.0, 0.1);
   const headMesh = new THREE.Mesh(headGeometry, frameMaterial);
   headMesh.position.set(0, 0.8, -0.55);
   bedGroup.add(headMesh);
-  
-  bedGroup.traverse(child => {
+
+  bedGroup.traverse((child) => {
     if (child instanceof THREE.Mesh) {
       child.castShadow = true;
       child.receiveShadow = true;
     }
   });
-  
+
   return bedGroup;
 };
 
 const createPlant = (isDarkMode: boolean): THREE.Group => {
   const plantGroup = new THREE.Group();
-  
-  const potColor = isDarkMode ? 0x2A2A2A : 0x8B4513;
-  const leafColor = isDarkMode ? 0x1A4A1A : 0x228B22;
-  
+
+  const potColor = isDarkMode ? 0x2a2a2a : 0x8b4513;
+  const leafColor = isDarkMode ? 0x1a4a1a : 0x228b22;
+
   const potMaterial = new THREE.MeshStandardMaterial({ color: potColor, roughness: 0.8 });
-  const leafMaterial = new THREE.MeshStandardMaterial({ color: leafColor, roughness: 0.6 });
-  
+  const leafMaterial = new THREE.MeshStandardMaterial({
+    color: leafColor,
+    roughness: 0.6,
+  });
+
   // Pot
   const potGeometry = new THREE.CylinderGeometry(0.15, 0.12, 0.3, 16);
   const potMesh = new THREE.Mesh(potGeometry, potMaterial);
   potMesh.position.y = 0.15;
   plantGroup.add(potMesh);
-  
+
   // Stem
   const stemGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.5, 8);
   const stemMesh = new THREE.Mesh(stemGeometry, leafMaterial);
   stemMesh.position.y = 0.55;
   plantGroup.add(stemMesh);
-  
+
   // Leaves
   const leafGeometry = new THREE.SphereGeometry(0.3, 8, 6);
   const leafMesh = new THREE.Mesh(leafGeometry, leafMaterial);
   leafMesh.position.y = 0.9;
   leafMesh.scale.set(1, 0.6, 1);
   plantGroup.add(leafMesh);
-  
-  plantGroup.traverse(child => {
+
+  plantGroup.traverse((child) => {
     if (child instanceof THREE.Mesh) {
       child.castShadow = true;
       child.receiveShadow = true;
     }
   });
-  
-  return finalizeObject(plantGroup, 'decor', ['table','nightstand','shelf']);
+
+  return finalizeObject(plantGroup, 'decor', ['table', 'nightstand', 'shelf']);
 };
 
 const createLamp = (isDarkMode: boolean): THREE.Group => {
   const lampGroup = new THREE.Group();
-  
-  const baseColor = isDarkMode ? 0x2A2A2A : 0x4A4A4A;
-  const shadeColor = isDarkMode ? 0x3A3A3A : 0xF5F5DC;
-  
-  const baseMaterial = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.8 });
-  const shadeMaterial = new THREE.MeshStandardMaterial({ color: shadeColor, roughness: 0.6 });
-  
+
+  const baseColor = isDarkMode ? 0x2a2a2a : 0x4a4a4a;
+  const shadeColor = isDarkMode ? 0x3a3a3a : 0xf5f5dc;
+
+  const baseMaterial = new THREE.MeshStandardMaterial({
+    color: baseColor,
+    roughness: 0.8,
+  });
+  const shadeMaterial = new THREE.MeshStandardMaterial({
+    color: shadeColor,
+    roughness: 0.6,
+  });
+
   // Base
   const baseGeometry = new THREE.CylinderGeometry(0.1, 0.15, 0.05, 16);
   const baseMesh = new THREE.Mesh(baseGeometry, baseMaterial);
   baseMesh.position.y = 0.025;
   lampGroup.add(baseMesh);
-  
+
   // Pole
   const poleGeometry = new THREE.CylinderGeometry(0.02, 0.02, 1.0, 8);
   const poleMesh = new THREE.Mesh(poleGeometry, baseMaterial);
   poleMesh.position.y = 0.55;
   lampGroup.add(poleMesh);
-  
+
   // Lampshade
   const shadeGeometry = new THREE.ConeGeometry(0.25, 0.3, 16, 1, true);
   const shadeMesh = new THREE.Mesh(shadeGeometry, shadeMaterial);
   shadeMesh.position.y = 1.2;
   lampGroup.add(shadeMesh);
-  
+
   // Light source
-  const light = new THREE.PointLight(0xFFFFAA, 0.5, 3);
+  const light = new THREE.PointLight(0xffffaa, 0.5, 3);
   light.position.y = 1.1;
   light.castShadow = true;
   lampGroup.add(light);
-  
-  lampGroup.traverse(child => {
+
+  lampGroup.traverse((child) => {
     if (child instanceof THREE.Mesh) {
       child.castShadow = true;
       child.receiveShadow = true;
     }
   });
-  
+
   return lampGroup;
 };
 
 const createKitchenIsland = (isDarkMode: boolean): THREE.Group => {
   const islandGroup = new THREE.Group();
-  
-  const counterColor = isDarkMode ? 0x2A2A2A : 0x696969;
-  const cabinetColor = isDarkMode ? 0x1A1A1A : 0x8B4513;
-  
-  const counterMaterial = new THREE.MeshStandardMaterial({ color: counterColor, roughness: 0.3 });
-  const cabinetMaterial = new THREE.MeshStandardMaterial({ color: cabinetColor, roughness: 0.8 });
-  
+
+  const counterColor = isDarkMode ? 0x2a2a2a : 0x696969;
+  const cabinetColor = isDarkMode ? 0x1a1a1a : 0x8b4513;
+
+  const counterMaterial = new THREE.MeshStandardMaterial({
+    color: counterColor,
+    roughness: 0.3,
+  });
+  const cabinetMaterial = new THREE.MeshStandardMaterial({
+    color: cabinetColor,
+    roughness: 0.8,
+  });
+
   // Cabinet base
   const cabinetGeometry = new THREE.BoxGeometry(2.0, 0.8, 1.0);
   const cabinetMesh = new THREE.Mesh(cabinetGeometry, cabinetMaterial);
   cabinetMesh.position.y = 0.4;
   islandGroup.add(cabinetMesh);
-  
+
   // Countertop
   const counterGeometry = new THREE.BoxGeometry(2.1, 0.05, 1.1);
   const counterMesh = new THREE.Mesh(counterGeometry, counterMaterial);
   counterMesh.position.y = 0.825;
   islandGroup.add(counterMesh);
-  
-  islandGroup.traverse(child => {
+
+  islandGroup.traverse((child) => {
     if (child instanceof THREE.Mesh) {
       child.castShadow = true;
       child.receiveShadow = true;
     }
   });
-  
+
   return islandGroup;
 };
 
 const createRefrigerator = (isDarkMode: boolean): THREE.Group => {
   const fridgeGroup = new THREE.Group();
-  
-  const fridgeColor = isDarkMode ? 0x2A2A2A : 0xF5F5F5;
-  const fridgeMaterial = new THREE.MeshStandardMaterial({ color: fridgeColor, roughness: 0.4, metalness: 0.1 });
-  
+
+  const fridgeColor = isDarkMode ? 0x2a2a2a : 0xf5f5f5;
+  const fridgeMaterial = new THREE.MeshStandardMaterial({
+    color: fridgeColor,
+    roughness: 0.4,
+    metalness: 0.1,
+  });
+
   // Main body
   const bodyGeometry = new THREE.BoxGeometry(0.6, 1.8, 0.6);
   const bodyMesh = new THREE.Mesh(bodyGeometry, fridgeMaterial);
   bodyMesh.position.y = 0.9;
   fridgeGroup.add(bodyMesh);
-  
+
   // Door handles
   const handleGeometry = new THREE.BoxGeometry(0.02, 0.3, 0.02);
-  const handleMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.8 });
-  
+  const handleMaterial = new THREE.MeshStandardMaterial({
+    color: 0x444444,
+    metalness: 0.8,
+  });
+
   const handle1 = new THREE.Mesh(handleGeometry, handleMaterial);
   handle1.position.set(0.25, 1.3, 0.31);
   fridgeGroup.add(handle1);
-  
+
   const handle2 = new THREE.Mesh(handleGeometry, handleMaterial);
   handle2.position.set(0.25, 0.6, 0.31);
   fridgeGroup.add(handle2);
-  
-  fridgeGroup.traverse(child => {
+
+  fridgeGroup.traverse((child) => {
     if (child instanceof THREE.Mesh) {
       child.castShadow = true;
       child.receiveShadow = true;
     }
   });
-  
+
   return fridgeGroup;
 };
 
 const createToilet = (isDarkMode: boolean): THREE.Group => {
   const toiletGroup = new THREE.Group();
-  
-  const porcelainColor = isDarkMode ? 0xE8E8E8 : 0xFFFFF0;
-  const porcelainMaterial = new THREE.MeshStandardMaterial({ color: porcelainColor, roughness: 0.1 });
-  
+
+  const porcelainColor = isDarkMode ? 0xe8e8e8 : 0xfffff0;
+  const porcelainMaterial = new THREE.MeshStandardMaterial({
+    color: porcelainColor,
+    roughness: 0.1,
+  });
+
   // Base
   const baseGeometry = new THREE.BoxGeometry(0.4, 0.4, 0.6);
   const baseMesh = new THREE.Mesh(baseGeometry, porcelainMaterial);
   baseMesh.position.y = 0.2;
   toiletGroup.add(baseMesh);
-  
+
   // Tank
   const tankGeometry = new THREE.BoxGeometry(0.35, 0.5, 0.2);
   const tankMesh = new THREE.Mesh(tankGeometry, porcelainMaterial);
   tankMesh.position.set(0, 0.65, -0.2);
   toiletGroup.add(tankMesh);
-  
+
   // Seat
   const seatGeometry = new THREE.CylinderGeometry(0.18, 0.18, 0.02, 16);
   const seatMesh = new THREE.Mesh(seatGeometry, porcelainMaterial);
   seatMesh.position.y = 0.42;
   toiletGroup.add(seatMesh);
-  
-  toiletGroup.traverse(child => {
+
+  toiletGroup.traverse((child) => {
     if (child instanceof THREE.Mesh) {
       child.castShadow = true;
       child.receiveShadow = true;
     }
   });
-  
+
   return toiletGroup;
 };
 
 const createSink = (isDarkMode: boolean): THREE.Group => {
   const sinkGroup = new THREE.Group();
-  
-  const sinkColor = isDarkMode ? 0xC0C0C0 : 0xF5F5F5;
-  const sinkMaterial = new THREE.MeshStandardMaterial({ color: sinkColor, roughness: 0.2, metalness: 0.3 });
-  
+
+  const sinkColor = isDarkMode ? 0xc0c0c0 : 0xf5f5f5;
+  const sinkMaterial = new THREE.MeshStandardMaterial({
+    color: sinkColor,
+    roughness: 0.2,
+    metalness: 0.3,
+  });
+
   // Basin
   const basinGeometry = new THREE.CylinderGeometry(0.25, 0.2, 0.15, 16);
   const basinMesh = new THREE.Mesh(basinGeometry, sinkMaterial);
   basinMesh.position.y = 0.075;
   sinkGroup.add(basinMesh);
-  
+
   // Faucet
   const faucetGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.3, 8);
-  const faucetMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.8 });
+  const faucetMaterial = new THREE.MeshStandardMaterial({
+    color: 0x444444,
+    metalness: 0.8,
+  });
   const faucetMesh = new THREE.Mesh(faucetGeometry, faucetMaterial);
   faucetMesh.position.set(0, 0.3, -0.2);
   sinkGroup.add(faucetMesh);
-  
-  sinkGroup.traverse(child => {
+
+  sinkGroup.traverse((child) => {
     if (child instanceof THREE.Mesh) {
       child.castShadow = true;
       child.receiveShadow = true;
     }
   });
-  
+
   return sinkGroup;
 };
 
@@ -2891,57 +3271,67 @@ const addRoomFurniture = (
   maxX: number,
   minZ: number,
   maxZ: number,
-  polygon: {x:number,z:number}[]
+  polygon: { x: number; z: number }[],
 ) => {
   const furnitureSpacing = 1.5; // Minimum distance from walls
   const OBJECT_SPACING = 1.0; // Minimum distance between furniture objects
   const minRoomSize = 2.0; // Minimum room dimension to add furniture
 
   // Helper to clamp position inside bounds with margin
-  const clampPos = (x:number, z:number) => ({
+  const clampPos = (x: number, z: number) => ({
     x: THREE.MathUtils.clamp(x, minX + furnitureSpacing, maxX - furnitureSpacing),
-    z: THREE.MathUtils.clamp(z, minZ + furnitureSpacing, maxZ - furnitureSpacing)
+    z: THREE.MathUtils.clamp(z, minZ + furnitureSpacing, maxZ - furnitureSpacing),
   });
 
   // Track placed objects to avoid overlap
-  const placed: {x:number,z:number,r:number}[] = [];
+  const placed: { x: number; z: number; r: number }[] = [];
 
   // Point-in-polygon using ray-casting
-  const isInside = (x:number, z:number) => {
+  const isInside = (x: number, z: number) => {
     let inside = false;
-    for(let i=0, j=polygon.length-1; i<polygon.length; j=i++){
-      const xi = polygon[i].x, zi = polygon[i].z;
-      const xj = polygon[j].x, zj = polygon[j].z;
-      const intersect = ((zi>z) !== (zj>z)) && (x < (xj-xi)*(z-zi)/(zj-zi)+xi);
-      if(intersect) inside = !inside;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].x,
+        zi = polygon[i].z;
+      const xj = polygon[j].x,
+        zj = polygon[j].z;
+      const intersect = zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi;
+      if (intersect) {
+        inside = !inside;
+      }
     }
     return inside;
   };
 
-  const placeObject = (obj:THREE.Object3D, desiredX:number, desiredZ:number, radius:number=0.5) => {
-    let bestX = desiredX, bestZ = desiredZ;
+  const placeObject = (
+    obj: THREE.Object3D,
+    desiredX: number,
+    desiredZ: number,
+    radius: number = 0.5,
+  ) => {
+    let bestX = desiredX,
+      bestZ = desiredZ;
     let minDistance = Infinity;
-    
+
     // Grid search for best non-conflicting position
     const searchRadius = 3.0; // Search within 3m radius
     const step = 0.5; // 50cm grid
-    
-    for(let dx = -searchRadius; dx <= searchRadius; dx += step) {
-      for(let dz = -searchRadius; dz <= searchRadius; dz += step) {
+
+    for (let dx = -searchRadius; dx <= searchRadius; dx += step) {
+      for (let dz = -searchRadius; dz <= searchRadius; dz += step) {
         const testX = desiredX + dx;
         const testZ = desiredZ + dz;
-        const {x, z} = clampPos(testX, testZ);
-        
+        const { x, z } = clampPos(testX, testZ);
+
         // Check if position inside polygon and within bounds
-        if(x === testX && z === testZ && isInside(x,z)) {
+        if (x === testX && z === testZ && isInside(x, z)) {
           // Check for conflicts with existing objects
-          const hasConflict = placed.some(p => 
-            Math.hypot(p.x - x, p.z - z) < (p.r + radius + OBJECT_SPACING)
+          const hasConflict = placed.some(
+            (p) => Math.hypot(p.x - x, p.z - z) < p.r + radius + OBJECT_SPACING,
           );
-          
-          if(!hasConflict) {
+
+          if (!hasConflict) {
             const distance = Math.hypot(dx, dz);
-            if(distance < minDistance) {
+            if (distance < minDistance) {
               minDistance = distance;
               bestX = x;
               bestZ = z;
@@ -2950,109 +3340,167 @@ const addRoomFurniture = (
         }
       }
     }
-    
+
     obj.position.set(bestX, obj.position.y, bestZ);
     obj.userData.radius = radius;
-    placed.push({x: bestX, z: bestZ, r: radius});
+    placed.push({ x: bestX, z: bestZ, r: radius });
     wallGroup.add(obj);
   };
-  
-  if (roomWidth < minRoomSize || roomDepth < minRoomSize) return;
-  
+
+  if (roomWidth < minRoomSize || roomDepth < minRoomSize) {
+    return;
+  }
+
   // Determine room type based on size and shape
   const aspectRatio = roomWidth / roomDepth;
   const isSquarish = Math.abs(aspectRatio - 1) < 0.3;
-  
+
   // Large rooms (>20m²) - Living room setup
   if (roomArea > 20) {
     // Add sofa
     const sofa = createSofa(isDarkMode);
     sofa.name = 'furniture-sofa';
     placeObject(sofa, centerX, centerZ - roomDepth * 0.2, 1.0);
-    
+
     // Add coffee table
     const table = createTable(isDarkMode);
     table.name = 'furniture-table';
     placeObject(table, centerX, centerZ + roomDepth * 0.1, 0.6);
-    
+
     // Add chairs
     const chair1 = createChair(isDarkMode);
     chair1.rotation.y = Math.PI / 4;
     chair1.name = 'furniture-chair1';
     placeObject(chair1, centerX - roomWidth * 0.25, centerZ + roomDepth * 0.25, 0.5);
-    
+
     const chair2 = createChair(isDarkMode);
     chair2.rotation.y = -Math.PI / 4;
     chair2.name = 'furniture-chair2';
     placeObject(chair2, centerX + roomWidth * 0.25, centerZ + roomDepth * 0.25, 0.5);
   }
-  
+
   // Medium rooms (12-20m²) - Kitchen setup
   else if (roomArea > 12 && roomWidth > 3 && roomDepth > 3) {
     // Add kitchen island
     const island = createKitchenIsland(isDarkMode);
-    const islandX = THREE.MathUtils.clamp(centerX, minX + furnitureSpacing, maxX - furnitureSpacing);
-    const islandZ = THREE.MathUtils.clamp(centerZ, minZ + furnitureSpacing, maxZ - furnitureSpacing);
+    const islandX = THREE.MathUtils.clamp(
+      centerX,
+      minX + furnitureSpacing,
+      maxX - furnitureSpacing,
+    );
+    const islandZ = THREE.MathUtils.clamp(
+      centerZ,
+      minZ + furnitureSpacing,
+      maxZ - furnitureSpacing,
+    );
     island.position.set(islandX, 0, islandZ);
     island.name = 'furniture-kitchen-island';
     wallGroup.add(island);
-    
+
     // Add refrigerator in corner
     const fridge = createRefrigerator(isDarkMode);
-    const fridgeX = THREE.MathUtils.clamp(centerX - roomWidth * 0.35, minX + furnitureSpacing, maxX - furnitureSpacing);
-    const fridgeZ = THREE.MathUtils.clamp(centerZ - roomDepth * 0.35, minZ + furnitureSpacing, maxZ - furnitureSpacing);
+    const fridgeX = THREE.MathUtils.clamp(
+      centerX - roomWidth * 0.35,
+      minX + furnitureSpacing,
+      maxX - furnitureSpacing,
+    );
+    const fridgeZ = THREE.MathUtils.clamp(
+      centerZ - roomDepth * 0.35,
+      minZ + furnitureSpacing,
+      maxZ - furnitureSpacing,
+    );
     fridge.position.set(fridgeX, 0, fridgeZ);
     fridge.name = 'furniture-refrigerator';
     wallGroup.add(fridge);
-    
+
     // Add sink
     const sink = createSink(isDarkMode);
-    const sinkX = THREE.MathUtils.clamp(centerX + roomWidth * 0.3, minX + furnitureSpacing, maxX - furnitureSpacing);
-    const sinkZ = THREE.MathUtils.clamp(centerZ + roomDepth * 0.3, minZ + furnitureSpacing, maxZ - furnitureSpacing);
+    const sinkX = THREE.MathUtils.clamp(
+      centerX + roomWidth * 0.3,
+      minX + furnitureSpacing,
+      maxX - furnitureSpacing,
+    );
+    const sinkZ = THREE.MathUtils.clamp(
+      centerZ + roomDepth * 0.3,
+      minZ + furnitureSpacing,
+      maxZ - furnitureSpacing,
+    );
     sink.position.set(sinkX, 0.8, sinkZ);
     sink.name = 'furniture-sink';
     wallGroup.add(sink);
   }
-  
+
   // Medium rooms (8-12m²) - Bedroom setup
   else if (roomArea > 8) {
     // Add bed
     const bed = createBed(isDarkMode);
-    const bedX = THREE.MathUtils.clamp(centerX, minX + furnitureSpacing, maxX - furnitureSpacing);
-    const bedZ = THREE.MathUtils.clamp(centerZ - roomDepth * 0.2, minZ + furnitureSpacing, maxZ - furnitureSpacing);
+    const bedX = THREE.MathUtils.clamp(
+      centerX,
+      minX + furnitureSpacing,
+      maxX - furnitureSpacing,
+    );
+    const bedZ = THREE.MathUtils.clamp(
+      centerZ - roomDepth * 0.2,
+      minZ + furnitureSpacing,
+      maxZ - furnitureSpacing,
+    );
     bed.position.set(bedX, 0, bedZ);
     bed.name = 'furniture-bed';
     wallGroup.add(bed);
-    
+
     // Add side table
     const sideTable = createTable(isDarkMode);
     sideTable.scale.set(0.6, 1, 0.6); // Smaller side table
-    const tableX = THREE.MathUtils.clamp(centerX + roomWidth * 0.3, minX + furnitureSpacing, maxX - furnitureSpacing);
-    const tableZ = THREE.MathUtils.clamp(centerZ - roomDepth * 0.2, minZ + furnitureSpacing, maxZ - furnitureSpacing);
+    const tableX = THREE.MathUtils.clamp(
+      centerX + roomWidth * 0.3,
+      minX + furnitureSpacing,
+      maxX - furnitureSpacing,
+    );
+    const tableZ = THREE.MathUtils.clamp(
+      centerZ - roomDepth * 0.2,
+      minZ + furnitureSpacing,
+      maxZ - furnitureSpacing,
+    );
     sideTable.position.set(tableX, 0, tableZ);
     sideTable.name = 'furniture-sidetable';
     wallGroup.add(sideTable);
   }
-  
+
   // Small rooms (4-8m²) - Bathroom setup
   else if (roomArea > 4 && roomArea <= 8) {
     // Add toilet
     const toilet = createToilet(isDarkMode);
-    const toiletX = THREE.MathUtils.clamp(centerX - roomWidth * 0.25, minX + furnitureSpacing, maxX - furnitureSpacing);
-    const toiletZ = THREE.MathUtils.clamp(centerZ - roomDepth * 0.25, minZ + furnitureSpacing, maxZ - furnitureSpacing);
+    const toiletX = THREE.MathUtils.clamp(
+      centerX - roomWidth * 0.25,
+      minX + furnitureSpacing,
+      maxX - furnitureSpacing,
+    );
+    const toiletZ = THREE.MathUtils.clamp(
+      centerZ - roomDepth * 0.25,
+      minZ + furnitureSpacing,
+      maxZ - furnitureSpacing,
+    );
     toilet.position.set(toiletX, 0, toiletZ);
     toilet.name = 'furniture-toilet';
     wallGroup.add(toilet);
-    
+
     // Add sink
     const sink = createSink(isDarkMode);
-    const sinkX = THREE.MathUtils.clamp(centerX + roomWidth * 0.25, minX + furnitureSpacing, maxX - furnitureSpacing);
-    const sinkZ = THREE.MathUtils.clamp(centerZ + roomDepth * 0.25, minZ + furnitureSpacing, maxZ - furnitureSpacing);
+    const sinkX = THREE.MathUtils.clamp(
+      centerX + roomWidth * 0.25,
+      minX + furnitureSpacing,
+      maxX - furnitureSpacing,
+    );
+    const sinkZ = THREE.MathUtils.clamp(
+      centerZ + roomDepth * 0.25,
+      minZ + furnitureSpacing,
+      maxZ - furnitureSpacing,
+    );
     sink.position.set(sinkX, 0.8, sinkZ);
     sink.name = 'furniture-bathroom-sink';
     wallGroup.add(sink);
   }
-  
+
   // Always add decorative items if room is big enough
   if (roomArea > 6) {
     // Add plants in corners
@@ -3060,12 +3508,12 @@ const addRoomFurniture = (
     plant1.position.set(centerX - roomWidth * 0.35, 0, centerZ - roomDepth * 0.35);
     plant1.name = 'furniture-plant1';
     wallGroup.add(plant1);
-    
+
     const plant2 = createPlant(isDarkMode);
     plant2.position.set(centerX + roomWidth * 0.35, 0, centerZ + roomDepth * 0.35);
     plant2.name = 'furniture-plant2';
     wallGroup.add(plant2);
-    
+
     // Add floor lamp
     const lamp = createLamp(isDarkMode);
     lamp.position.set(centerX - roomWidth * 0.3, 0, centerZ + roomDepth * 0.3);
@@ -3074,10 +3522,16 @@ const addRoomFurniture = (
   }
 
   // Clamp all furniture positions to avoid intersecting walls
-  wallGroup.children.forEach(child => {
+  wallGroup.children.forEach((child) => {
     if (child.name && child.name.startsWith('furniture-')) {
-      child.position.x = Math.max(minX + furnitureSpacing, Math.min(maxX - furnitureSpacing, child.position.x));
-      child.position.z = Math.max(minZ + furnitureSpacing, Math.min(maxZ - furnitureSpacing, child.position.z));
+      child.position.x = Math.max(
+        minX + furnitureSpacing,
+        Math.min(maxX - furnitureSpacing, child.position.x),
+      );
+      child.position.z = Math.max(
+        minZ + furnitureSpacing,
+        Math.min(maxZ - furnitureSpacing, child.position.z),
+      );
     }
   });
 };
@@ -3096,7 +3550,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   rendererRef,
   onScreenshot,
   activeTool = 'select',
-  selectedColor = '#ffffff'
+  selectedColor = '#ffffff',
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const activeToolRef = useRef(activeTool);
@@ -3114,16 +3568,23 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   const fpControlsRef = useRef<PointerLockControls | null>(null);
   const clockRef = useRef<THREE.Clock>(new THREE.Clock());
   const wallGroupRef = useRef<THREE.Group>(new THREE.Group());
-  const polygonRef = useRef<{x:number,z:number}[]>([]);
-  const wallSegmentsRef = useRef<{start:{x:number,z:number},end:{x:number,z:number}}[]>([]);
+  const polygonRef = useRef<{ x: number; z: number }[]>([]);
+  const wallSegmentsRef = useRef<
+    { start: { x: number; z: number }; end: { x: number; z: number } }[]
+  >([]);
   const floorGroupRef = useRef<THREE.Group>(new THREE.Group());
   const measurementGroupRef = useRef<THREE.Group>(new THREE.Group());
-  
+
   // Furniture dragging refs
-  const boundsRef = useRef<{minX:number,maxX:number,minZ:number,maxZ:number}|null>(null);
-  const draggedRef = useRef<THREE.Object3D|null>(null);
+  const boundsRef = useRef<{
+    minX: number;
+    maxX: number;
+    minZ: number;
+    maxZ: number;
+  } | null>(null);
+  const draggedRef = useRef<THREE.Object3D | null>(null);
   const draggableObjectsRef = useRef<THREE.Object3D[]>([]);
-  const selectedObjectRef = useRef<THREE.Object3D|null>(null);
+  const selectedObjectRef = useRef<THREE.Object3D | null>(null);
   const isRotatingRef = useRef<boolean>(false);
 
   const [isFloorplanValid, setIsFloorplanValid] = useState(false);
@@ -3135,17 +3596,20 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
   // --- Main setup effect (runs only once) ---
   useEffect(() => {
-    if (!mountRef.current) return;
+    if (!mountRef.current) {
+      return;
+    }
     const currentMount = mountRef.current;
 
     // --- Core Scene Setup ---
     const scene = new THREE.Scene();
     sceneRef.current = scene;
-    
+
     // --- Skybox ---
     try {
-      const tex = new THREE.CubeTextureLoader().setPath('/sky/')
-        .load(['px.jpg','nx.jpg','py.jpg','ny.jpg','pz.jpg','nz.jpg']);
+      const tex = new THREE.CubeTextureLoader()
+        .setPath('/sky/')
+        .load(['px.jpg', 'nx.jpg', 'py.jpg', 'ny.jpg', 'pz.jpg', 'nz.jpg']);
       scene.background = tex;
       scene.environment = tex; // PBR reflections
     } catch (e) {
@@ -3154,7 +3618,12 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       scene.fog = new THREE.Fog(isDarkMode ? 0x000000 : 0xffffff, 20, 60);
     }
 
-    const camera = new THREE.PerspectiveCamera(60, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(
+      60,
+      currentMount.clientWidth / currentMount.clientHeight,
+      0.1,
+      1000,
+    );
     cameraRef.current = camera;
     camera.position.set(0, 15, 15);
     camera.lookAt(0, 0, 0);
@@ -3163,7 +3632,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       antialias: true,
       alpha: true,
       logarithmicDepthBuffer: true,
-      preserveDrawingBuffer: true // ensure screenshots capture correctly
+      preserveDrawingBuffer: true, // ensure screenshots capture correctly
     });
     internalRendererRef.current = renderer;
     if (rendererRef) {
@@ -3203,28 +3672,28 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     const fpControls = new PointerLockControls(camera, renderer.domElement);
     fpControlsRef.current = fpControls;
     const walkKeys: Record<string, boolean> = { w: false, a: false, s: false, d: false };
-    
+
     // Handle pointer lock errors
     fpControls.addEventListener('error', () => {
       console.log('Pointer lock failed - user may have denied permission');
       setFpMode(false);
       controls.enabled = true;
     });
-    
+
     // Handle pointer lock changes
     fpControls.addEventListener('lock', () => {
       console.log('Pointer locked - entering first-person mode');
     });
-    
+
     fpControls.addEventListener('unlock', () => {
       console.log('Pointer unlocked - exiting first-person mode');
       setFpMode(false);
       controls.enabled = true;
     });
-    
+
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyF') {
-        setFpMode(prev => {
+        setFpMode((prev) => {
           const newMode = !prev;
           controls.enabled = !newMode;
           if (newMode) {
@@ -3241,11 +3710,15 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           return newMode;
         });
       }
-      if (walkKeys.hasOwnProperty(e.key)) walkKeys[e.key] = true;
+      if (Object.prototype.hasOwnProperty.call(walkKeys, e.key)) {
+        walkKeys[e.key] = true;
+      }
     });
-    
+
     window.addEventListener('keyup', (e) => {
-      if (walkKeys.hasOwnProperty(e.key)) walkKeys[e.key] = false;
+      if (Object.prototype.hasOwnProperty.call(walkKeys, e.key)) {
+        walkKeys[e.key] = false;
+      }
     });
 
     // --- Add groups to scene ---
@@ -3303,32 +3776,40 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     accentLight2.shadow.mapSize.height = 2048;
     scene.add(accentLight2);
 
-
-
     // --- Animation Loop ---
     let animationFrameId: number;
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
-      
+
       // First-person movement
       if (fpMode && fpControlsRef.current && fpControlsRef.current.isLocked) {
         const dt = clockRef.current.getDelta();
         const speed = 3;
-        if (walkKeys.w) fpControlsRef.current.moveForward(speed * dt);
-        if (walkKeys.s) fpControlsRef.current.moveForward(-speed * dt);
-        if (walkKeys.a) fpControlsRef.current.moveRight(-speed * dt);
-        if (walkKeys.d) fpControlsRef.current.moveRight(speed * dt);
+        if (walkKeys.w) {
+          fpControlsRef.current.moveForward(speed * dt);
+        }
+        if (walkKeys.s) {
+          fpControlsRef.current.moveForward(-speed * dt);
+        }
+        if (walkKeys.a) {
+          fpControlsRef.current.moveRight(-speed * dt);
+        }
+        if (walkKeys.d) {
+          fpControlsRef.current.moveRight(speed * dt);
+        }
       } else {
         controls.update();
       }
-      
+
       renderer.render(scene, camera);
     };
     animate();
 
     // --- Resize Handling ---
     const handleResize = () => {
-      if (!currentMount || !renderer || !camera) return;
+      if (!currentMount || !renderer || !camera) {
+        return;
+      }
       camera.aspect = currentMount.clientWidth / currentMount.clientHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
@@ -3343,9 +3824,9 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       const rect = renderer.domElement.getBoundingClientRect();
       const mouse = new THREE.Vector2(
         ((e.clientX - rect.left) / rect.width) * 2 - 1,
-        -((e.clientY - rect.top) / rect.height) * 2 + 1
+        -((e.clientY - rect.top) / rect.height) * 2 + 1,
       );
-      
+
       raycaster.setFromCamera(mouse, camera);
 
       // HUD hover detection
@@ -3354,7 +3835,9 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         const hoverHit = raycaster.intersectObjects(draggableObjectsRef.current, true)[0];
         if (hoverHit) {
           let obj = hoverHit.object;
-          while (obj.parent && !obj.userData.type) obj = obj.parent;
+          while (obj.parent && !obj.userData.type) {
+            obj = obj.parent;
+          }
           setHoverName(obj.userData.type || obj.name || '');
         } else {
           setHoverName('');
@@ -3362,15 +3845,20 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       }
 
       // Handle paint tool
-      if(activeToolRef.current==='paint'){
-        const allTargets = [...wallGroupRef.current.children, ...draggableObjectsRef.current];
+      if (activeToolRef.current === 'paint') {
+        const allTargets = [
+          ...wallGroupRef.current.children,
+          ...draggableObjectsRef.current,
+        ];
         const phit = raycaster.intersectObjects(allTargets, true)[0];
-        if(phit){
+        if (phit) {
           let target: THREE.Object3D = phit.object;
-          while(target.parent && !target.userData.type) target = target.parent;
-          if(target.userData.type==='wall' || target.userData.colorable){
-            target.traverse(c=>{
-              if((c as THREE.Mesh).isMesh){
+          while (target.parent && !target.userData.type) {
+            target = target.parent;
+          }
+          if (target.userData.type === 'wall' || target.userData.colorable) {
+            target.traverse((c) => {
+              if ((c as THREE.Mesh).isMesh) {
                 const mesh = c as THREE.Mesh;
                 mesh.material = (mesh.material as THREE.Material).clone();
                 (mesh.material as THREE.MeshStandardMaterial).color.set(colorRef.current);
@@ -3382,29 +3870,37 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       }
 
       // Handle delete tool
-      if(activeToolRef.current==='delete'){
-        const dhit = raycaster.intersectObjects(draggableObjectsRef.current,true)[0];
-        if(dhit){
+      if (activeToolRef.current === 'delete') {
+        const dhit = raycaster.intersectObjects(draggableObjectsRef.current, true)[0];
+        if (dhit) {
           // Push undo before deleting
-          const snapshot = draggableObjectsRef.current.map(o => o.clone());
-          setObjUndo(prev => [snapshot, ...prev]);
+          const snapshot = draggableObjectsRef.current.map((o) => o.clone());
+          setObjUndo((prev) => [snapshot, ...prev]);
           setObjRedo([]);
-          
-          let obj:THREE.Object3D = dhit.object;
-          while(obj.parent && !obj.name?.startsWith('furniture-')) obj = obj.parent;
-          draggableObjectsRef.current = draggableObjectsRef.current.filter(o=>o!==obj);
+
+          let obj: THREE.Object3D = dhit.object;
+          while (obj.parent && !obj.name?.startsWith('furniture-')) {
+            obj = obj.parent;
+          }
+          draggableObjectsRef.current = draggableObjectsRef.current.filter(
+            (o) => o !== obj,
+          );
           obj.parent?.remove(obj);
         }
         return;
       }
 
       // Handle resize tool (select)
-      if(activeToolRef.current==='resize'){
-        const rhit = raycaster.intersectObjects(draggableObjectsRef.current,true)[0];
-        if(rhit){
+      if (activeToolRef.current === 'resize') {
+        const rhit = raycaster.intersectObjects(draggableObjectsRef.current, true)[0];
+        if (rhit) {
           selectedObjectRef.current = rhit.object;
-          while(selectedObjectRef.current.parent && !selectedObjectRef.current.name?.startsWith('furniture-'))
+          while (
+            selectedObjectRef.current.parent &&
+            !selectedObjectRef.current.name?.startsWith('furniture-')
+          ) {
             selectedObjectRef.current = selectedObjectRef.current.parent;
+          }
           // highlight maybe
         }
         return;
@@ -3432,22 +3928,24 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      if(activeToolRef.current==='resize'){
-        if(selectedObjectRef.current){
+      if (activeToolRef.current === 'resize') {
+        if (selectedObjectRef.current) {
           const dy = e.movementY || 0;
-          const scaleDelta = 1 - dy*0.01;
+          const scaleDelta = 1 - dy * 0.01;
           selectedObjectRef.current.scale.multiplyScalar(scaleDelta);
         }
         return;
       }
-      if (!selectedObjectRef.current || !boundsRef.current) return;
-      
+      if (!selectedObjectRef.current || !boundsRef.current) {
+        return;
+      }
+
       const rect = renderer.domElement.getBoundingClientRect();
       const mouse = new THREE.Vector2(
         ((e.clientX - rect.left) / rect.width) * 2 - 1,
-        -((e.clientY - rect.top) / rect.height) * 2 + 1
+        -((e.clientY - rect.top) / rect.height) * 2 + 1,
       );
-      
+
       if (isRotatingRef.current) {
         // Rotate object based on mouse movement
         const deltaX = e.movementX || 0;
@@ -3458,40 +3956,59 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         const hit = new THREE.Vector3();
         raycaster.ray.intersectPlane(dragPlane, hit);
 
-        let newX = hit.x;
-        let newZ = hit.z;
+        const newX = hit.x;
+        const newZ = hit.z;
         const rObj = draggedRef.current.userData.radius ?? 0.5;
         const GAP_WALL = 0.15; // extra breathing room
 
         // --- Room containment (polygon + distance to every wall) -----------
         const insideRoom = (() => {
           const poly = polygonRef.current;
-          if (!poly || poly.length < 3) return true;
+          if (!poly || poly.length < 3) {
+            return true;
+          }
           // even-odd rule (ray cast along –Z)
           let inside = false;
           for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-            const a = poly[i], b = poly[j];
-            const intersect = ((a.z > newZ) !== (b.z > newZ)) &&
-                              (newX < (b.x - a.x) * (newZ - a.z) / (b.z - a.z) + a.x);
-            if (intersect) inside = !inside;
+            const a = poly[i],
+              b = poly[j];
+            const intersect =
+              a.z > newZ !== b.z > newZ &&
+              newX < ((b.x - a.x) * (newZ - a.z)) / (b.z - a.z) + a.x;
+            if (intersect) {
+              inside = !inside;
+            }
           }
-          if (!inside) return false;
+          if (!inside) {
+            return false;
+          }
           // check clearance from every wall segment
-          return wallSegmentsRef.current.every(seg => {
-            const ax = seg.start.x, az = seg.start.z;
-            const bx = seg.end.x,   bz = seg.end.z;
-            const vx = bx - ax,     vz = bz - az;
-            const lenSq = vx*vx + vz*vz;
-            if (lenSq === 0) return true;
-            const t = Math.max(0, Math.min(1, ((newX - ax) * vx + (newZ - az) * vz) / lenSq));
-            const px = ax + t * vx, pz = az + t * vz;
-            return Math.hypot(newX - px, newZ - pz) >= (rObj + GAP_WALL);
+          return wallSegmentsRef.current.every((seg) => {
+            const ax = seg.start.x,
+              az = seg.start.z;
+            const bx = seg.end.x,
+              bz = seg.end.z;
+            const vx = bx - ax,
+              vz = bz - az;
+            const lenSq = vx * vx + vz * vz;
+            if (lenSq === 0) {
+              return true;
+            }
+            const t = Math.max(
+              0,
+              Math.min(1, ((newX - ax) * vx + (newZ - az) * vz) / lenSq),
+            );
+            const px = ax + t * vx,
+              pz = az + t * vz;
+            return Math.hypot(newX - px, newZ - pz) >= rObj + GAP_WALL;
           });
         })();
 
         // --- Object-object clearance --------------------------------------
-        const clearOfOthers = draggableObjectsRef.current.every(o => {
-          if (o === draggedRef.current) return true;
+        const clearOfOthers = draggableObjectsRef.current.every((o) => {
+          if (o === draggedRef.current) {
+            return true;
+          }
           const r = (o.userData.radius ?? 0.5) + rObj + OBJECT_SPACING;
           return Math.hypot(newX - o.position.x, newZ - o.position.z) >= r;
         });
@@ -3505,7 +4022,9 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
             const mat = mesh.material as THREE.Material;
             // Save original color the very first time we touch this mesh
             if (!mesh.userData.origColor) {
-              mesh.userData.origColor = (mesh.material as THREE.MeshStandardMaterial).color.clone();
+              mesh.userData.origColor = (
+                mesh.material as THREE.MeshStandardMaterial
+              ).color.clone();
             }
 
             // Clone the material once so we are not mutating a material that may be shared
@@ -3515,20 +4034,21 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
             }
 
             // Visual feedback – white if legal, red if illegal
-            (mesh.material as THREE.MeshStandardMaterial).color.set(legal ? 0xffffff : 0xff0000);
+            (mesh.material as THREE.MeshStandardMaterial).color.set(
+              legal ? 0xffffff : 0xff0000,
+            );
           }
         });
 
         if (legal) {
           draggedRef.current.position.set(newX, draggedRef.current.position.y, newZ);
         }
-
       }
     };
 
     const onPointerUp = () => {
       // --- Stacking logic ---
-      if(selectedObjectRef.current){
+      if (selectedObjectRef.current) {
         const obj = selectedObjectRef.current as THREE.Group;
         const canPlaceOn: string[] = obj.userData.canPlaceOn || [];
         if (canPlaceOn.length) {
@@ -3537,29 +4057,37 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           origin.y += 0.05;
           const down = new THREE.Vector3(0, -1, 0);
           raycaster.set(origin, down);
-          const hits = raycaster.intersectObjects(draggableObjectsRef.current.filter(o=>o!==obj), true);
+          const hits = raycaster.intersectObjects(
+            draggableObjectsRef.current.filter((o) => o !== obj),
+            true,
+          );
           for (const h of hits) {
             let target = h.object as THREE.Object3D;
-            while (target.parent && !target.userData.type) target = target.parent;
+            while (target.parent && !target.userData.type) {
+              target = target.parent;
+            }
             if (target.userData && canPlaceOn.includes(target.userData.type)) {
               const targetHeight = target.userData.height ?? 1;
               const objHeight = obj.userData.height ?? 1;
-              obj.position.y = target.position.y + targetHeight/2 + objHeight/2 + 0.01;
+              obj.position.y =
+                target.position.y + targetHeight / 2 + objHeight / 2 + 0.01;
               break;
             }
           }
         } else {
           // place on floor
           const objHeight = obj.userData.height ?? 1;
-          obj.position.y = objHeight/2;
+          obj.position.y = objHeight / 2;
         }
-      
-      // Restore original color
-        selectedObjectRef.current.traverse(child=>{
-          if((child as THREE.Mesh).isMesh){
+
+        // Restore original color
+        selectedObjectRef.current.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
             const mesh = child as THREE.Mesh;
-            if(mesh.userData.origColor){
-              (mesh.material as THREE.MeshStandardMaterial).color.copy(mesh.userData.origColor);
+            if (mesh.userData.origColor) {
+              (mesh.material as THREE.MeshStandardMaterial).color.copy(
+                mesh.userData.origColor,
+              );
             }
           }
         });
@@ -3582,32 +4110,32 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === 'z') {
         if (objUndo.length > 0) {
-          const snapshot = draggableObjectsRef.current.map(o => o.clone());
-          setObjRedo(prev => [snapshot, ...prev]);
-          
+          const snapshot = draggableObjectsRef.current.map((o) => o.clone());
+          setObjRedo((prev) => [snapshot, ...prev]);
+
           const restore = objUndo[0];
-          draggableObjectsRef.current.forEach(o => scene.remove(o));
+          draggableObjectsRef.current.forEach((o) => scene.remove(o));
           draggableObjectsRef.current = [...restore];
-          restore.forEach(o => scene.add(o));
-          
-          setObjUndo(prev => prev.slice(1));
+          restore.forEach((o) => scene.add(o));
+
+          setObjUndo((prev) => prev.slice(1));
         }
       }
       if (e.ctrlKey && e.key === 'y') {
         if (objRedo.length > 0) {
-          const snapshot = draggableObjectsRef.current.map(o => o.clone());
-          setObjUndo(prev => [snapshot, ...prev]);
-          
+          const snapshot = draggableObjectsRef.current.map((o) => o.clone());
+          setObjUndo((prev) => [snapshot, ...prev]);
+
           const restore = objRedo[0];
-          draggableObjectsRef.current.forEach(o => scene.remove(o));
+          draggableObjectsRef.current.forEach((o) => scene.remove(o));
           draggableObjectsRef.current = [...restore];
-          restore.forEach(o => scene.add(o));
-          
-          setObjRedo(prev => prev.slice(1));
+          restore.forEach((o) => scene.add(o));
+
+          setObjRedo((prev) => prev.slice(1));
         }
       }
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
@@ -3632,24 +4160,29 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   // --- Update lighting and background on theme change ---
   useEffect(() => {
     const scene = sceneRef.current;
-    if (!scene) return;
+    if (!scene) {
+      return;
+    }
 
     scene.background = new THREE.Color(isDarkMode ? 0x000000 : 0xffffff);
     scene.fog = new THREE.Fog(isDarkMode ? 0x000000 : 0xffffff, 20, 60);
 
     // You can also update light colors here if needed
-    const hemisphereLight = scene.children.find(c => c instanceof THREE.HemisphereLight) as THREE.HemisphereLight;
+    const hemisphereLight = scene.children.find(
+      (c) => c instanceof THREE.HemisphereLight,
+    ) as THREE.HemisphereLight;
     if (hemisphereLight) {
       hemisphereLight.color.set(isDarkMode ? 0x6688cc : 0xffffff);
       hemisphereLight.groundColor.set(isDarkMode ? 0x334455 : 0x444444);
     }
-
   }, [isDarkMode]);
 
   // --- Update grid visibility ---
   useEffect(() => {
     const scene = sceneRef.current;
-    if (!scene) return;
+    if (!scene) {
+      return;
+    }
 
     const existingGrid = scene.getObjectByName('gridHelper');
     if (existingGrid) {
@@ -3659,19 +4192,25 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     if (gridEnabled) {
       // Determine grid size based on current room bounds
       let size = 40;
-      let centerX = 0, centerZ = 0;
+      let centerX = 0,
+        centerZ = 0;
       const poly = polygonRef.current;
       if (poly && poly.length >= 3) {
-        const minX = Math.min(...poly.map(v=>v.x));
-        const maxX = Math.max(...poly.map(v=>v.x));
-        const minZ = Math.min(...poly.map(v=>v.z));
-        const maxZ = Math.max(...poly.map(v=>v.z));
-        size = Math.max(maxX-minX, maxZ-minZ) + 2; // small margin
-        centerX = (minX + maxX)/2;
-        centerZ = (minZ + maxZ)/2;
+        const minX = Math.min(...poly.map((v) => v.x));
+        const maxX = Math.max(...poly.map((v) => v.x));
+        const minZ = Math.min(...poly.map((v) => v.z));
+        const maxZ = Math.max(...poly.map((v) => v.z));
+        size = Math.max(maxX - minX, maxZ - minZ) + 2; // small margin
+        centerX = (minX + maxX) / 2;
+        centerZ = (minZ + maxZ) / 2;
       }
       const divisions = Math.max(1, Math.floor(size));
-      const gridHelper = new THREE.GridHelper(size, divisions, isDarkMode ? 0x444444 : 0xcccccc, isDarkMode ? 0x222222 : 0xeeeeee);
+      const gridHelper = new THREE.GridHelper(
+        size,
+        divisions,
+        isDarkMode ? 0x444444 : 0xcccccc,
+        isDarkMode ? 0x222222 : 0xeeeeee,
+      );
       gridHelper.name = 'gridHelper';
       gridHelper.position.set(centerX, -0.009, centerZ);
       scene.add(gridHelper);
@@ -3693,23 +4232,29 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       currentProcessedWalls = AdvancedGeometryEngine.snapVertices(currentProcessedWalls);
 
       // 2. Detect and fix non-planar wall segments
-      currentProcessedWalls = AdvancedGeometryEngine.fixNonPlanarWalls(currentProcessedWalls);
+      currentProcessedWalls =
+        AdvancedGeometryEngine.fixNonPlanarWalls(currentProcessedWalls);
 
       // 3. Realign diagonals to rational angles
-      currentProcessedWalls = AdvancedGeometryEngine.realignDiagonals(currentProcessedWalls);
+      currentProcessedWalls =
+        AdvancedGeometryEngine.realignDiagonals(currentProcessedWalls);
 
       // 4. Smooth wall transitions and joints
-      currentProcessedWalls = AdvancedGeometryEngine.smoothWallTransitions(currentProcessedWalls);
+      currentProcessedWalls =
+        AdvancedGeometryEngine.smoothWallTransitions(currentProcessedWalls);
 
       // 5. Eliminate Z-fighting and rendering artifacts
-      currentProcessedWalls = AdvancedGeometryEngine.eliminateZFighting(currentProcessedWalls);
+      currentProcessedWalls =
+        AdvancedGeometryEngine.eliminateZFighting(currentProcessedWalls);
 
       // 7. Validate polygon topology
-      const topologyValidation = AdvancedGeometryEngine.validateTopology(currentProcessedWalls);
+      const topologyValidation =
+        AdvancedGeometryEngine.validateTopology(currentProcessedWalls);
       console.log('Topology validation:', topologyValidation);
 
       // 9. Perform visual consistency check
-      const consistencyReport = AdvancedGeometryEngine.performConsistencyCheck(currentProcessedWalls);
+      const consistencyReport =
+        AdvancedGeometryEngine.performConsistencyCheck(currentProcessedWalls);
       console.log('Consistency report:', consistencyReport);
     }
 
@@ -3717,16 +4262,16 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     setProcessedWalls(currentProcessedWalls);
 
     // Store polygon vertices for later collision checks
-    const polygonVerticesCalculated = ensureCounterClockwise(getOrderedVertices(currentProcessedWalls));
+    const polygonVerticesCalculated = ensureCounterClockwise(
+      getOrderedVertices(currentProcessedWalls),
+    );
     polygonRef.current = polygonVerticesCalculated;
 
     // Extract wall segments for distance calculations
-    wallSegmentsRef.current = currentProcessedWalls.map(w => ({
+    wallSegmentsRef.current = currentProcessedWalls.map((w) => ({
       start: { x: w.start.x, z: w.start.z },
-      end: { x: w.end.x, z: w.end.z }
+      end: { x: w.end.x, z: w.end.z },
     }));
-
-
 
     // --- Simple Floor Rendering ---
     const renderFloor = () => {
@@ -3739,14 +4284,14 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         // Create a default 10x10 floor at origin
         const defaultGeometry = new THREE.PlaneGeometry(10, 10);
         defaultGeometry.rotateX(Math.PI / 2);
-        
+
         const material = new THREE.MeshStandardMaterial({
           color: 0xf0f0f0, // Light gray
           roughness: 0.6,
           metalness: 0.0,
-          side: THREE.DoubleSide
+          side: THREE.DoubleSide,
         });
-        
+
         const floor = new THREE.Mesh(defaultGeometry, material);
         floor.name = 'floor-default';
         floor.position.set(0, -0.01, 0);
@@ -3758,10 +4303,10 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
       try {
         // Get room bounds from walls
-        const allVertices: {x: number, z: number}[] = [];
-        currentProcessedWalls.forEach(wall => {
-          allVertices.push({x: wall.start.x, z: wall.start.z});
-          allVertices.push({x: wall.end.x, z: wall.end.z});
+        const allVertices: { x: number; z: number }[] = [];
+        currentProcessedWalls.forEach((wall) => {
+          allVertices.push({ x: wall.start.x, z: wall.start.z });
+          allVertices.push({ x: wall.end.x, z: wall.end.z });
         });
 
         if (allVertices.length === 0) {
@@ -3770,7 +4315,9 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         }
 
         // 1️⃣ Attempt accurate polygon-shaped floor that matches wall outline
-        const orderedVertices = ensureCounterClockwise(getOrderedVertices(currentProcessedWalls));
+        const orderedVertices = ensureCounterClockwise(
+          getOrderedVertices(currentProcessedWalls),
+        );
         if (orderedVertices.length >= 3) {
           const shape = new THREE.Shape();
           shape.moveTo(orderedVertices[0].x, orderedVertices[0].z);
@@ -3783,15 +4330,25 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           floorGeometry.rotateX(Math.PI / 2);
 
           const floorMaterial = new THREE.MeshStandardMaterial({
-            color: floorType === 'wood' ? 0xdeb887 :
-                   floorType === 'tile' ? 0xf5f5f5 :
-                   floorType === 'marble' ? 0xffffff :
-                   floorType === 'concrete' ? 0xd3d3d3 :
-                   floorType === 'carpet' ? 0xcd853f :
-                   0xf0f0f0,
+            color: (() => {
+              switch (floorType) {
+                case 'wood':
+                  return 0xdeb887;
+                case 'tile':
+                  return 0xf5f5f5;
+                case 'marble':
+                  return 0xffffff;
+                case 'concrete':
+                  return 0xd3d3d3;
+                case 'carpet':
+                  return 0xcd853f;
+                default:
+                  return 0xf0f0f0;
+              }
+            })(),
             roughness: 0.6,
             metalness: 0.0,
-            side: THREE.DoubleSide
+            side: THREE.DoubleSide,
           });
 
           const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
@@ -3802,8 +4359,8 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           console.log('✅ Polygon floor created');
 
           // Add area sprite at center
-          const xs = orderedVertices.map(v => v.x);
-          const zs = orderedVertices.map(v => v.z);
+          const xs = orderedVertices.map((v) => v.x);
+          const zs = orderedVertices.map((v) => v.z);
           const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
           const centerZ = (Math.min(...zs) + Math.max(...zs)) / 2;
           const roomArea = calculateRoomArea(orderedVertices);
@@ -3821,7 +4378,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           const spriteMaterial = new THREE.SpriteMaterial({
             map: texture,
             transparent: true,
-            alphaTest: 0.1
+            alphaTest: 0.1,
           });
           const sprite = new THREE.Sprite(spriteMaterial);
           sprite.position.set(centerX, 0.1, centerZ);
@@ -3832,17 +4389,19 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         }
 
         // Calculate bounds
-        const minX = Math.min(...allVertices.map(v => v.x));
-        const maxX = Math.max(...allVertices.map(v => v.x));
-        const minZ = Math.min(...allVertices.map(v => v.z));
-        const maxZ = Math.max(...allVertices.map(v => v.z));
-        
+        const minX = Math.min(...allVertices.map((v) => v.x));
+        const maxX = Math.max(...allVertices.map((v) => v.x));
+        const minZ = Math.min(...allVertices.map((v) => v.z));
+        const maxZ = Math.max(...allVertices.map((v) => v.z));
+
         const width = maxX - minX;
         const depth = maxZ - minZ;
         const centerX = (minX + maxX) / 2;
         const centerZ = (minZ + maxZ) / 2;
 
-        console.log(`📐 Floor bounds: ${width.toFixed(2)}x${depth.toFixed(2)} at (${centerX.toFixed(2)}, ${centerZ.toFixed(2)})`);
+        console.log(
+          `📐 Floor bounds: ${width.toFixed(2)}x${depth.toFixed(2)} at (${centerX.toFixed(2)}, ${centerZ.toFixed(2)})`,
+        );
 
         // Create simple rectangular floor
         const floorGeometry = new THREE.PlaneGeometry(width, depth);
@@ -3850,15 +4409,25 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
         // Create visible material with better colors
         const floorMaterial = new THREE.MeshStandardMaterial({
-          color: floorType === 'wood' ? 0xdeb887 :      // Light wood
-                 floorType === 'tile' ? 0xf5f5f5 :      // Light gray tile
-                 floorType === 'marble' ? 0xffffff :     // White marble
-                 floorType === 'concrete' ? 0xd3d3d3 :   // Light concrete
-                 floorType === 'carpet' ? 0xcd853f :     // Tan carpet
-                 0xf0f0f0,                               // Default light gray
+          color: (() => {
+            switch (floorType) {
+              case 'wood':
+                return 0xdeb887; // Light wood
+              case 'tile':
+                return 0xf5f5f5; // Light gray tile
+              case 'marble':
+                return 0xffffff; // White marble
+              case 'concrete':
+                return 0xd3d3d3; // Light concrete
+              case 'carpet':
+                return 0xcd853f; // Tan carpet
+              default:
+                return 0xf0f0f0; // Default light gray
+            }
+          })(),
           roughness: 0.6,
           metalness: 0.0,
-          side: THREE.DoubleSide
+          side: THREE.DoubleSide,
         });
 
         const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
@@ -3866,10 +4435,10 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         floorMesh.position.set(centerX, -0.01, centerZ); // Slightly below walls
         floorMesh.receiveShadow = true;
         floorMesh.castShadow = false;
-        
+
         floorGroup.add(floorMesh);
         console.log('✅ Simple floor created and added to group');
-        
+
         // Add area text
         const roomArea = width * depth;
         if (roomArea > 0) {
@@ -3887,28 +4456,27 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           const spriteMaterial = new THREE.SpriteMaterial({
             map: texture,
             transparent: true,
-            alphaTest: 0.1
+            alphaTest: 0.1,
           });
           const sprite = new THREE.Sprite(spriteMaterial);
           sprite.position.set(centerX, 0.1, centerZ);
           sprite.scale.set(2, 0.5, 1);
           floorGroup.add(sprite);
         }
-
       } catch (error) {
         console.error('❌ Floor rendering error:', error);
-        
+
         // Emergency fallback - always create a floor
         const emergencyGeometry = new THREE.PlaneGeometry(10, 10);
         emergencyGeometry.rotateX(Math.PI / 2);
-        
+
         const emergencyMaterial = new THREE.MeshStandardMaterial({
           color: 0xf0f0f0, // Light gray instead of red
           roughness: 0.6,
           metalness: 0.0,
-          side: THREE.DoubleSide
+          side: THREE.DoubleSide,
         });
-        
+
         const emergencyFloor = new THREE.Mesh(emergencyGeometry, emergencyMaterial);
         emergencyFloor.name = 'floor-emergency';
         emergencyFloor.position.set(0, -0.01, 0);
@@ -3919,7 +4487,9 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
     // Helper function to calculate room area from ordered vertices (matches AdvancedRoomBuilder)
     const calculateRoomArea = (vertices: { x: number; z: number }[]): number => {
-      if (vertices.length < 3) return 0;
+      if (vertices.length < 3) {
+        return 0;
+      }
 
       // Use the same calculation as AdvancedRoomBuilder for consistency
       // This ensures the 3D view shows the same area as the 2D statistics
@@ -3937,52 +4507,83 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
     // --- Render Furniture and Objects ---
     const renderFurniture = () => {
-      if (!wallGroup) return;
-      
-      // Clear existing furniture
-      const existingFurniture = wallGroup.children.filter(child => child.name.startsWith('furniture-'));
-      existingFurniture.forEach(furniture => wallGroup.remove(furniture));
+      if (!wallGroup) {
+        return;
+      }
 
-      if (currentProcessedWalls.length === 0) return;
+      // Clear existing furniture
+      const existingFurniture = wallGroup.children.filter((child) =>
+        child.name.startsWith('furniture-'),
+      );
+      existingFurniture.forEach((furniture) => wallGroup.remove(furniture));
+
+      if (currentProcessedWalls.length === 0) {
+        return;
+      }
 
       // Get room dimensions for furniture placement
-      const { walls: optimizedWalls } = AdvancedGeometryEngine.optimizeWindowPlacements(currentProcessedWalls);
+      const { walls: optimizedWalls } =
+        AdvancedGeometryEngine.optimizeWindowPlacements(currentProcessedWalls);
       const isValid = isValidFloorplan(optimizedWalls);
-      
-      if (!isValid || optimizedWalls.length < 3) return;
+
+      if (!isValid || optimizedWalls.length < 3) {
+        return;
+      }
 
       const orderedVertices = getOrderedVertices(optimizedWalls);
-      if (orderedVertices.length < 3) return;
+      if (orderedVertices.length < 3) {
+        return;
+      }
 
       // Calculate room center and bounds
-      const centerX = orderedVertices.reduce((sum, v) => sum + v.x, 0) / orderedVertices.length;
-      const centerZ = orderedVertices.reduce((sum, v) => sum + v.z, 0) / orderedVertices.length;
-      
-      const minX = Math.min(...orderedVertices.map(v => v.x));
-      const maxX = Math.max(...orderedVertices.map(v => v.x));
-      const minZ = Math.min(...orderedVertices.map(v => v.z));
-      const maxZ = Math.max(...orderedVertices.map(v => v.z));
-      
+      const centerX =
+        orderedVertices.reduce((sum, v) => sum + v.x, 0) / orderedVertices.length;
+      const centerZ =
+        orderedVertices.reduce((sum, v) => sum + v.z, 0) / orderedVertices.length;
+
+      const minX = Math.min(...orderedVertices.map((v) => v.x));
+      const maxX = Math.max(...orderedVertices.map((v) => v.x));
+      const minZ = Math.min(...orderedVertices.map((v) => v.z));
+      const maxZ = Math.max(...orderedVertices.map((v) => v.z));
+
       const roomWidth = maxX - minX;
       const roomDepth = maxZ - minZ;
       const roomArea = calculateRoomArea(orderedVertices);
 
       // Add furniture based on room size and type
-      addRoomFurniture(wallGroup, centerX, centerZ, roomWidth, roomDepth, roomArea, isDarkMode, minX, maxX, minZ, maxZ, orderedVertices);
-      
+      addRoomFurniture(
+        wallGroup,
+        centerX,
+        centerZ,
+        roomWidth,
+        roomDepth,
+        roomArea,
+        isDarkMode,
+        minX,
+        maxX,
+        minZ,
+        maxZ,
+        orderedVertices,
+      );
+
       // Store bounds and draggable objects for furniture dragging
-      boundsRef.current = {minX, maxX, minZ, maxZ};
-      draggableObjectsRef.current = wallGroup.children.filter(c => c.name?.startsWith('furniture-'));
+      boundsRef.current = { minX, maxX, minZ, maxZ };
+      draggableObjectsRef.current = wallGroup.children.filter((c) =>
+        c.name?.startsWith('furniture-'),
+      );
     };
 
     // --- Render Walls ---
     const renderWalls = () => {
       wallGroup.clear();
 
-      if (currentProcessedWalls.length === 0) return;
+      if (currentProcessedWalls.length === 0) {
+        return;
+      }
 
       // 6. Optimize window placements
-      const { walls: wallsWithWindows, windows } = AdvancedGeometryEngine.optimizeWindowPlacements(currentProcessedWalls);
+      const { walls: wallsWithWindows, windows } =
+        AdvancedGeometryEngine.optimizeWindowPlacements(currentProcessedWalls);
 
       // Get ordered vertices to understand room shape
       const orderedVertices = getOrderedVertices(wallsWithWindows);
@@ -3993,34 +4594,40 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         const wallVector = new THREE.Vector3(
           wall.end.x - wall.start.x,
           0,
-          wall.end.z - wall.start.z
+          wall.end.z - wall.start.z,
         );
         const wallLength = wallVector.length();
 
-        if (wallLength < 0.01) return; // Skip very short walls
+        if (wallLength < 0.01) {
+          return;
+        } // Skip very short walls
 
         // Create wall geometry
-        const wallGeometry = new THREE.BoxGeometry(wallLength, wall.height, wall.thickness);
+        const wallGeometry = new THREE.BoxGeometry(
+          wallLength,
+          wall.height,
+          wall.thickness,
+        );
 
         // Enhanced wall material with selected material type
         const wallMaterialMesh = createWallMaterial(wallMaterial, isDarkMode);
 
         const wallMesh = new THREE.Mesh(wallGeometry, wallMaterialMesh);
         wallMesh.name = `wall-${index}`;
-        wallMesh.userData.type='wall';
-        wallMesh.userData.colorable=true;
+        wallMesh.userData.type = 'wall';
+        wallMesh.userData.colorable = true;
 
         // Position wall at center point
         wallMesh.position.set(
           (wall.start.x + wall.end.x) / 2,
           wall.height / 2,
-          (wall.start.z + wall.end.z) / 2
+          (wall.start.z + wall.end.z) / 2,
         );
 
         // Rotate wall to align with wall direction
         wallMesh.quaternion.setFromUnitVectors(
           new THREE.Vector3(1, 0, 0), // BoxGeometry's local X axis
-          wallVector.clone().normalize() // Desired direction
+          wallVector.clone().normalize(), // Desired direction
         );
 
         // Enable shadows
@@ -4031,8 +4638,8 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
         // Add styled windows
         if (showWindows) {
-          const wallWindows = windows.filter(w => w.wallId === wall.id);
-          wallWindows.forEach(windowPlacement => {
+          const wallWindows = windows.filter((w) => w.wallId === wall.id);
+          wallWindows.forEach((windowPlacement) => {
             const windowGroup = createStyledWindow(wall, windowPlacement, windowStyle);
             if (windowGroup.children.length > 0) {
               wallGroup.add(windowGroup);
@@ -4045,7 +4652,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           const midPoint = new THREE.Vector3(
             (wall.start.x + wall.end.x) / 2,
             wall.height + 0.3,
-            (wall.start.z + wall.end.z) / 2
+            (wall.start.z + wall.end.z) / 2,
           );
 
           // Create measurement text
@@ -4063,7 +4670,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           const spriteMaterial = new THREE.SpriteMaterial({
             map: texture,
             transparent: true,
-            alphaTest: 0.1
+            alphaTest: 0.1,
           });
           const sprite = new THREE.Sprite(spriteMaterial);
           sprite.position.copy(midPoint);
@@ -4078,27 +4685,34 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       // Add corner connections for valid rooms
       if (isValidRoom && orderedVertices.length > 2) {
         const cornerMaterial = new THREE.MeshStandardMaterial({
-          color: isDarkMode ? 0x3A4A5A : 0xD2D8E0,
+          color: isDarkMode ? 0x3a4a5a : 0xd2d8e0,
           roughness: 0.9,
-          metalness: 0.1
+          metalness: 0.1,
         });
 
         orderedVertices.forEach((vertex, index) => {
           // Find the average wall thickness at this corner
-          const connectedWalls = wallsWithWindows.filter(wall =>
-            (Math.abs(wall.start.x - vertex.x) < 0.01 && Math.abs(wall.start.z - vertex.z) < 0.01) ||
-            (Math.abs(wall.end.x - vertex.x) < 0.01 && Math.abs(wall.end.z - vertex.z) < 0.01)
+          const connectedWalls = wallsWithWindows.filter(
+            (wall) =>
+              (Math.abs(wall.start.x - vertex.x) < 0.01 &&
+                Math.abs(wall.start.z - vertex.z) < 0.01) ||
+              (Math.abs(wall.end.x - vertex.x) < 0.01 &&
+                Math.abs(wall.end.z - vertex.z) < 0.01),
           );
 
           if (connectedWalls.length >= 2) {
-            const avgThickness = connectedWalls.reduce((sum, w) => sum + w.thickness, 0) / connectedWalls.length;
-            const avgHeight = connectedWalls.reduce((sum, w) => sum + w.height, 0) / connectedWalls.length;
+            const avgThickness =
+              connectedWalls.reduce((sum, w) => sum + w.thickness, 0) /
+              connectedWalls.length;
+            const avgHeight =
+              connectedWalls.reduce((sum, w) => sum + w.height, 0) /
+              connectedWalls.length;
 
             const cornerGeometry = new THREE.CylinderGeometry(
               avgThickness / 2,
               avgThickness / 2,
               avgHeight,
-              8
+              8,
             );
 
             const cornerMesh = new THREE.Mesh(cornerGeometry, cornerMaterial);
@@ -4118,10 +4732,13 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     // --- Center camera on the room ---
     if (camera && controls && currentProcessedWalls.length > 0) {
       // 10. Generate room collider and bounding box
-      const colliderData = AdvancedGeometryEngine.generateColliderAndBounds(currentProcessedWalls);
+      const colliderData =
+        AdvancedGeometryEngine.generateColliderAndBounds(currentProcessedWalls);
 
-      const centerX = (colliderData.boundingBox.min.x + colliderData.boundingBox.max.x) / 2;
-      const centerZ = (colliderData.boundingBox.min.z + colliderData.boundingBox.max.z) / 2;
+      const centerX =
+        (colliderData.boundingBox.min.x + colliderData.boundingBox.max.x) / 2;
+      const centerZ =
+        (colliderData.boundingBox.min.z + colliderData.boundingBox.max.z) / 2;
       const centerY = colliderData.boundingBox.max.y / 2;
 
       controls.target.set(centerX, centerY, centerZ);
@@ -4134,7 +4751,6 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
       camera.position.set(centerX, cameraDistance, centerZ + cameraDistance);
     }
-
   }, [walls, showWindows, isDarkMode, floorType, wallMaterial, windowStyle]);
 
   return (
@@ -4167,20 +4783,40 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           <div className="absolute bottom-4 right-4 bg-black bg-opacity-50 text-white px-3 py-2 rounded-md text-sm z-10 space-y-1">
             <div className="font-semibold">Advanced Room Stats</div>
             <div>Walls: {processedWalls.length}</div>
-            <div>Avg Height: {(processedWalls.reduce((sum, w) => sum + w.height, 0) / processedWalls.length).toFixed(1)}m</div>
-            <div>Perimeter: {processedWalls.reduce((sum, w) => sum + Math.sqrt((w.end.x - w.start.x) ** 2 + (w.end.z - w.start.z) ** 2), 0).toFixed(1)}m</div>
+            <div>
+              Avg Height:{' '}
+              {(
+                processedWalls.reduce((sum, w) => sum + w.height, 0) /
+                processedWalls.length
+              ).toFixed(1)}
+              m
+            </div>
+            <div>
+              Perimeter:{' '}
+              {processedWalls
+                .reduce(
+                  (sum, w) =>
+                    sum +
+                    Math.sqrt((w.end.x - w.start.x) ** 2 + (w.end.z - w.start.z) ** 2),
+                  0,
+                )
+                .toFixed(1)}
+              m
+            </div>
             <div>Vertices: {getOrderedVertices(processedWalls).length}</div>
             <div className="text-green-400">✓ Geometry Optimized</div>
             <div className="text-blue-400">✓ Topology Validated</div>
           </div>
         )}
       </div>
-      
+
       {/* HUD Overlay */}
       <div className="fixed top-2 left-2 z-50 text-xs bg-black/60 text-white px-2 py-1 rounded">
         {hoverName && <div>{hoverName}</div>}
         <div>{`Cam Yaw ${(cameraRef.current?.rotation.y ? cameraRef.current.rotation.y * 57.3 : 0).toFixed(1)}°`}</div>
-        {fpMode && fpControlsRef.current?.isLocked && <div className="text-yellow-300">FP Mode</div>}
+        {fpMode && fpControlsRef.current?.isLocked && (
+          <div className="text-yellow-300">FP Mode</div>
+        )}
       </div>
     </>
   );

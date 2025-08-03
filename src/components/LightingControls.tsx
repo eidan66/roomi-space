@@ -1,12 +1,14 @@
 'use client';
 
 import React from 'react';
+
+import { Lightbulb, Moon, Sun } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import { Button } from '@/components/ui/button';
-import { Sun, Moon, Lightbulb } from 'lucide-react';
 
 interface LightingControlsProps {
   ambientIntensity: number;
@@ -27,11 +29,11 @@ const LightingControls: React.FC<LightingControlsProps> = ({
   shadowsEnabled,
   setShadowsEnabled,
   lightingPreset,
-  setLightingPreset
+  setLightingPreset,
 }) => {
   const applyLightingPreset = (preset: 'day' | 'evening' | 'night') => {
     setLightingPreset(preset);
-    
+
     switch (preset) {
       case 'day':
         setAmbientIntensity(0.4);
@@ -47,6 +49,12 @@ const LightingControls: React.FC<LightingControlsProps> = ({
         setAmbientIntensity(0.8);
         setDirectionalIntensity(0.3);
         setShadowsEnabled(false);
+        break;
+      default:
+        // Default to day preset
+        setAmbientIntensity(0.4);
+        setDirectionalIntensity(1.0);
+        setShadowsEnabled(true);
         break;
     }
   };
@@ -69,7 +77,8 @@ const LightingControls: React.FC<LightingControlsProps> = ({
               onClick={() => applyLightingPreset('day')}
               className="text-xs"
             >
-              <Sun className="w-3 h-3 mr-1" />Day
+              <Sun className="w-3 h-3 mr-1" />
+              Day
             </Button>
             <Button
               variant={lightingPreset === 'evening' ? 'default' : 'outline'}
@@ -85,7 +94,8 @@ const LightingControls: React.FC<LightingControlsProps> = ({
               onClick={() => applyLightingPreset('night')}
               className="text-xs"
             >
-              <Moon className="w-3 h-3 mr-1" />Night
+              <Moon className="w-3 h-3 mr-1" />
+              Night
             </Button>
           </div>
         </div>
