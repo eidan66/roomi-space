@@ -4128,6 +4128,12 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     renderer.domElement.addEventListener('pointerdown', onPointerDown);
     renderer.domElement.addEventListener('pointermove', onPointerMove);
     renderer.domElement.addEventListener('pointerup', onPointerUp);
+    
+    // Prevent page scrolling when zooming in the 3D canvas
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+    };
+    renderer.domElement.addEventListener('wheel', handleWheel, { passive: false });
 
     // --- Cleanup ---
     // Undo/Redo keyboard shortcuts
@@ -4169,6 +4175,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
       renderer.domElement.removeEventListener('pointermove', onPointerMove);
       renderer.domElement.removeEventListener('pointerup', onPointerUp);
+      renderer.domElement.removeEventListener('wheel', handleWheel);
       controls.dispose();
       fpControlsRef.current?.dispose();
       renderer.dispose();

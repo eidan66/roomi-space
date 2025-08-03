@@ -515,6 +515,22 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [finishCurrentMode, selectedPoint]);
 
+  // --- Prevent page scrolling when zooming in 2D canvas ---
+  useEffect(() => {
+    const svgElement = svgRef.current;
+    if (!svgElement) return;
+
+    const handleNativeWheel = (e: WheelEvent) => {
+      e.preventDefault();
+    };
+
+    svgElement.addEventListener('wheel', handleNativeWheel, { passive: false });
+    
+    return () => {
+      svgElement.removeEventListener('wheel', handleNativeWheel);
+    };
+  }, []);
+
   const allDrawablePoints = wallToPoints(walls);
   const wallsToRender = [...walls];
   if (mode === 'draw' && drawingPoints.length > 0 && previewPoint) {

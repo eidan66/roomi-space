@@ -286,9 +286,9 @@ export default function RoomBuilderPage() {
         threeRendererRef={threeRendererRef}
       />
 
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* --- Sidebar --- */}
-        <div className="w-full md:w-80 bg-card border-r border-border overflow-y-auto p-4 space-y-4">
+        <div className="w-full lg:w-80 bg-card border-r border-border overflow-y-auto p-2 lg:p-4 space-y-2 lg:space-y-4 max-h-96 lg:max-h-none">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden bg-white/90">
               <Image
@@ -314,9 +314,9 @@ export default function RoomBuilderPage() {
           />
 
           <Card className="border-0 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center">
-                <View className="w-5 h-5 mr-2" />
+            <CardHeader className="pb-2 lg:pb-3">
+              <CardTitle className="text-base lg:text-lg flex items-center">
+                <View className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
                 {t('sidebar.viewMode')}
               </CardTitle>
             </CardHeader>
@@ -325,17 +325,19 @@ export default function RoomBuilderPage() {
                 <Button
                   variant={viewMode === '2d' ? 'default' : 'outline'}
                   onClick={() => setViewMode('2d')}
-                  className="flex-1"
+                  className="flex-1 text-xs lg:text-sm"
+                  size="sm"
                 >
-                  <PencilRuler className="w-4 h-4 mr-2" />
+                  <PencilRuler className="w-3 h-3 lg:w-4 lg:h-4 mr-1 lg:mr-2" />
                   {t('sidebar.plan2d')}
                 </Button>
                 <Button
                   variant={viewMode === '3d' ? 'default' : 'outline'}
                   onClick={() => setViewMode('3d')}
-                  className="flex-1"
+                  className="flex-1 text-xs lg:text-sm"
+                  size="sm"
                 >
-                  <Move3d className="w-4 h-4 mr-2" />
+                  <Move3d className="w-3 h-3 lg:w-4 lg:h-4 mr-1 lg:mr-2" />
                   {t('sidebar.view3d')}
                 </Button>
               </div>
@@ -344,45 +346,53 @@ export default function RoomBuilderPage() {
 
           {viewMode === '2d' && (
             <Card className="border-0 shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center">
-                  <Square className="w-5 h-5 mr-2" />
+              <CardHeader className="pb-2 lg:pb-3">
+                <CardTitle className="text-base lg:text-lg flex items-center">
+                  <Square className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
                   {t('sidebar.drawingTools')}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <Button
-                  variant={editMode === 'draw' ? 'secondary' : 'outline'}
-                  onClick={() => setEditMode('draw')}
-                  className="w-full justify-start"
-                >
-                  <Building className="w-4 h-4 mr-2" />
-                  {t('sidebar.drawWalls')}
-                </Button>
-                <Button
-                  variant={editMode === 'move' ? 'secondary' : 'outline'}
-                  onClick={() => setEditMode('move')}
-                  className="w-full justify-start"
-                >
-                  <Move className="w-4 h-4 mr-2" />
-                  {t('sidebar.movePoints')}
-                </Button>
-                <div className="flex items-center justify-between pt-2">
-                  <Label className="text-sm">{t('sidebar.showGrid')}</Label>
-                  <Switch checked={gridEnabled} onCheckedChange={setGridEnabled} />
+              <CardContent className="space-y-2 lg:space-y-3">
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-1 lg:gap-0 lg:space-y-2">
+                  <Button
+                    variant={editMode === 'draw' ? 'secondary' : 'outline'}
+                    onClick={() => setEditMode('draw')}
+                    className="justify-start text-xs lg:text-sm"
+                    size="sm"
+                  >
+                    <Building className="w-3 h-3 lg:w-4 lg:h-4 mr-1 lg:mr-2" />
+                    <span className="hidden sm:inline">{t('sidebar.drawWalls')}</span>
+                    <span className="sm:hidden">Draw</span>
+                  </Button>
+                  <Button
+                    variant={editMode === 'move' ? 'secondary' : 'outline'}
+                    onClick={() => setEditMode('move')}
+                    className="justify-start text-xs lg:text-sm"
+                    size="sm"
+                  >
+                    <Move className="w-3 h-3 lg:w-4 lg:h-4 mr-1 lg:mr-2" />
+                    <span className="hidden sm:inline">{t('sidebar.movePoints')}</span>
+                    <span className="sm:hidden">Move</span>
+                  </Button>
                 </div>
-                <div className="flex items-center justify-between pt-2">
-                  <Label className="text-sm">{t('sidebar.gridSnapping')}</Label>
-                  <Switch checked={gridSnapping} onCheckedChange={setGridSnapping} />
+                <div className="grid grid-cols-2 gap-2 pt-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs lg:text-sm">{t('sidebar.showGrid')}</Label>
+                    <Switch checked={gridEnabled} onCheckedChange={setGridEnabled} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs lg:text-sm">{t('sidebar.gridSnapping')}</Label>
+                    <Switch checked={gridSnapping} onCheckedChange={setGridSnapping} />
+                  </div>
                 </div>
               </CardContent>
             </Card>
           )}
 
           <Card className="border-0 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center">
-                <Palette className="w-5 h-5 mr-2" />
+            <CardHeader className="pb-2 lg:pb-3">
+              <CardTitle className="text-base lg:text-lg flex items-center">
+                <Palette className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
                 {t('sidebar.wallProperties')}
               </CardTitle>
             </CardHeader>
@@ -418,127 +428,136 @@ export default function RoomBuilderPage() {
                 <Switch checked={showWindows} onCheckedChange={setShowWindows} />
               </div>
               <div className="pt-2">
-                <Label className="text-sm mb-2 block">{t('sidebar.floorMaterial')}</Label>
-                <div className="grid grid-cols-3 gap-1 mb-2">
+                <Label className="text-xs lg:text-sm mb-2 block">{t('sidebar.floorMaterial')}</Label>
+                <div className="grid grid-cols-5 lg:grid-cols-3 gap-1 mb-2">
                   <Button
                     variant={floorType === 'wood' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setFloorType('wood')}
-                    className="text-xs"
+                    className="text-xs p-1 lg:p-2"
                   >
-                    🪵 {t('material.wood')}
+                    <span className="lg:hidden">🪵</span>
+                    <span className="hidden lg:inline">🪵 {t('material.wood')}</span>
                   </Button>
                   <Button
                     variant={floorType === 'tile' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setFloorType('tile')}
-                    className="text-xs"
+                    className="text-xs p-1 lg:p-2"
                   >
-                    🔲 {t('material.tile')}
+                    <span className="lg:hidden">🔲</span>
+                    <span className="hidden lg:inline">🔲 {t('material.tile')}</span>
                   </Button>
                   <Button
                     variant={floorType === 'concrete' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setFloorType('concrete')}
-                    className="text-xs"
+                    className="text-xs p-1 lg:p-2"
                   >
-                    🏗️ {t('material.concrete')}
+                    <span className="lg:hidden">🏗️</span>
+                    <span className="hidden lg:inline">🏗️ {t('material.concrete')}</span>
                   </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-1">
                   <Button
                     variant={floorType === 'marble' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setFloorType('marble')}
-                    className="text-xs"
+                    className="text-xs p-1 lg:p-2"
                   >
-                    💎 {t('material.marble')}
+                    <span className="lg:hidden">💎</span>
+                    <span className="hidden lg:inline">💎 {t('material.marble')}</span>
                   </Button>
                   <Button
                     variant={floorType === 'carpet' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setFloorType('carpet')}
-                    className="text-xs"
+                    className="text-xs p-1 lg:p-2"
                   >
-                    🧶 {t('material.carpet')}
+                    <span className="lg:hidden">🧶</span>
+                    <span className="hidden lg:inline">🧶 {t('material.carpet')}</span>
                   </Button>
                 </div>
               </div>
 
               <div className="pt-2">
-                <Label className="text-sm mb-2 block">{t('sidebar.wallMaterial')}</Label>
-                <div className="grid grid-cols-3 gap-1 mb-2">
+                <Label className="text-xs lg:text-sm mb-2 block">{t('sidebar.wallMaterial')}</Label>
+                <div className="grid grid-cols-5 lg:grid-cols-3 gap-1 mb-2">
                   <Button
                     variant={wallMaterial === 'paint' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setWallMaterial('paint')}
-                    className="text-xs"
+                    className="text-xs p-1 lg:p-2"
                   >
-                    🎨 {t('material.paint')}
+                    <span className="lg:hidden">🎨</span>
+                    <span className="hidden lg:inline">🎨 {t('material.paint')}</span>
                   </Button>
                   <Button
                     variant={wallMaterial === 'brick' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setWallMaterial('brick')}
-                    className="text-xs"
+                    className="text-xs p-1 lg:p-2"
                   >
-                    🧱 {t('material.brick')}
+                    <span className="lg:hidden">🧱</span>
+                    <span className="hidden lg:inline">🧱 {t('material.brick')}</span>
                   </Button>
                   <Button
                     variant={wallMaterial === 'stone' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setWallMaterial('stone')}
-                    className="text-xs"
+                    className="text-xs p-1 lg:p-2"
                   >
-                    🪨 {t('material.stone')}
+                    <span className="lg:hidden">🪨</span>
+                    <span className="hidden lg:inline">🪨 {t('material.stone')}</span>
                   </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-1">
                   <Button
                     variant={wallMaterial === 'wood' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setWallMaterial('wood')}
-                    className="text-xs"
+                    className="text-xs p-1 lg:p-2"
                   >
-                    🪵 {t('material.wood')}
+                    <span className="lg:hidden">🪵</span>
+                    <span className="hidden lg:inline">🪵 {t('material.wood')}</span>
                   </Button>
                   <Button
                     variant={wallMaterial === 'metal' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setWallMaterial('metal')}
-                    className="text-xs"
+                    className="text-xs p-1 lg:p-2"
                   >
-                    🔩 {t('material.metal')}
+                    <span className="lg:hidden">🔩</span>
+                    <span className="hidden lg:inline">🔩 {t('material.metal')}</span>
                   </Button>
                 </div>
               </div>
 
               <div className="pt-2">
-                <Label className="text-sm mb-2 block">{t('sidebar.windowStyle')}</Label>
+                <Label className="text-xs lg:text-sm mb-2 block">{t('sidebar.windowStyle')}</Label>
                 <div className="grid grid-cols-3 gap-1">
                   <Button
                     variant={windowStyle === 'modern' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setWindowStyle('modern')}
-                    className="text-xs"
+                    className="text-xs p-1 lg:p-2"
                   >
-                    🏢 {t('style.modern')}
+                    <span className="lg:hidden">🏢</span>
+                    <span className="hidden lg:inline">🏢 {t('style.modern')}</span>
                   </Button>
                   <Button
                     variant={windowStyle === 'classic' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setWindowStyle('classic')}
-                    className="text-xs"
+                    className="text-xs p-1 lg:p-2"
                   >
-                    🏛️ {t('style.classic')}
+                    <span className="lg:hidden">🏛️</span>
+                    <span className="hidden lg:inline">🏛️ {t('style.classic')}</span>
                   </Button>
                   <Button
                     variant={windowStyle === 'industrial' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setWindowStyle('industrial')}
-                    className="text-xs"
+                    className="text-xs p-1 lg:p-2"
                   >
-                    🏭 {t('style.industrial')}
+                    <span className="lg:hidden">🏭</span>
+                    <span className="hidden lg:inline">🏭 {t('style.industrial')}</span>
                   </Button>
                 </div>
               </div>
@@ -554,49 +573,55 @@ export default function RoomBuilderPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">{t('sidebar.templates')}</CardTitle>
+          <Card className="border-0 shadow-sm lg:block hidden">
+            <CardHeader className="pb-2 lg:pb-3">
+              <CardTitle className="text-base lg:text-lg">{t('sidebar.templates')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" size="sm" onClick={() => loadTemplate(1)}>
-                  <Home className="w-4 h-4 mr-1" />
-                  {t('sidebar.templateSquare')}
+                <Button variant="outline" size="sm" onClick={() => loadTemplate(1)} className="text-xs">
+                  <Home className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />
+                  <span className="hidden sm:inline">{t('sidebar.templateSquare')}</span>
+                  <span className="sm:hidden">Square</span>
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => loadTemplate(2)}>
-                  <Home className="w-4 h-4 mr-1" />
-                  {t('sidebar.templateLShape')}
+                <Button variant="outline" size="sm" onClick={() => loadTemplate(2)} className="text-xs">
+                  <Home className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />
+                  <span className="hidden sm:inline">{t('sidebar.templateLShape')}</span>
+                  <span className="sm:hidden">L-Shape</span>
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          <ModelCategories />
+          <div className="hidden lg:block">
+            <ModelCategories />
+          </div>
 
-          <MaterialPresets
-            onPresetSelect={handlePresetSelect}
-            currentFloorType={floorType}
-            currentWallMaterial={wallMaterial}
-            currentWindowStyle={windowStyle}
-          />
+          <div className="hidden lg:block">
+            <MaterialPresets
+              onPresetSelect={handlePresetSelect}
+              currentFloorType={floorType}
+              currentWallMaterial={wallMaterial}
+              currentWindowStyle={windowStyle}
+            />
+          </div>
 
           <Card className="border-0 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">{t('sidebar.actions')}</CardTitle>
+            <CardHeader className="pb-2 lg:pb-3">
+              <CardTitle className="text-base lg:text-lg">{t('sidebar.actions')}</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex space-x-2">
+            <CardContent className="space-y-2 lg:space-y-3">
+              <div className="grid grid-cols-4 lg:grid-cols-2 gap-1 lg:gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={undo}
                   disabled={undoStack.length === 0}
-                  className="flex-1"
+                  className="text-xs lg:text-sm p-1 lg:p-2"
                   title={t('sidebar.undo')}
                 >
-                  <Undo className="w-4 h-4 mr-1" />
-                  {t('sidebar.undo')}
+                  <Undo className="w-3 h-3 lg:w-4 lg:h-4 lg:mr-1" />
+                  <span className="hidden lg:inline">{t('sidebar.undo')}</span>
                 </Button>
 
                 <Button
@@ -604,53 +629,57 @@ export default function RoomBuilderPage() {
                   size="sm"
                   onClick={redo}
                   disabled={redoStack.length === 0}
-                  className="flex-1"
+                  className="text-xs lg:text-sm p-1 lg:p-2"
                   title={t('sidebar.redo')}
                 >
-                  <Redo className="w-4 h-4 mr-1" />
-                  {t('sidebar.redo')}
+                  <Redo className="w-3 h-3 lg:w-4 lg:h-4 lg:mr-1" />
+                  <span className="hidden lg:inline">{t('sidebar.redo')}</span>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={clearAll}
+                  className="text-xs lg:text-sm p-1 lg:p-2"
+                  size="sm"
+                  disabled={walls.length === 0}
+                >
+                  <Trash2 className="w-3 h-3 lg:w-4 lg:h-4 lg:mr-1" />
+                  <span className="hidden lg:inline">{t('sidebar.clearAll')}</span>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (walls.length > 0) {
+                      showNotification(t('sidebar.advancedGeometryApplied'), 'success');
+                    }
+                  }}
+                  className="text-xs lg:text-sm p-1 lg:p-2"
+                  size="sm"
+                  disabled={walls.length === 0}
+                  title={t('sidebar.optimizeGeometry')}
+                >
+                  <span className="lg:hidden">⚡</span>
+                  <span className="hidden lg:inline">⚡ {t('sidebar.optimizeGeometry')}</span>
                 </Button>
               </div>
 
               <Button
-                variant="outline"
-                onClick={clearAll}
-                className="w-full"
-                disabled={walls.length === 0}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                {t('sidebar.clearAll')}
-              </Button>
-
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (walls.length > 0) {
-                    showNotification(t('sidebar.advancedGeometryApplied'), 'success');
-                  }
-                }}
-                className="w-full"
-                disabled={walls.length === 0}
-                title={t('sidebar.optimizeGeometry')}
-              >
-                ⚡ {t('sidebar.optimizeGeometry')}
-              </Button>
-
-              <Button
                 onClick={saveRoom}
-                className="w-full bg-gradient-to-r from-blue-500 to-purple-600"
+                className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-xs lg:text-sm"
+                size="sm"
                 disabled={walls.length === 0 || !isRoomValid}
               >
-                <Save className="w-4 h-4 mr-2" />
+                <Save className="w-3 h-3 lg:w-4 lg:h-4 mr-1 lg:mr-2" />
                 {t('sidebar.saveRoom')}
               </Button>
 
               {isRoomValid && walls.length >= 3 && (
                 <Link href="/furnish" className="block">
-                  <Button className="w-full bg-gradient-to-r from-green-500 to-teal-600">
-                    <Move3d className="w-4 h-4 mr-2" />
+                  <Button className="w-full bg-gradient-to-r from-green-500 to-teal-600 text-xs lg:text-sm" size="sm">
+                    <Move3d className="w-3 h-3 lg:w-4 lg:h-4 mr-1 lg:mr-2" />
                     {t('sidebar.startFurnishing')}
-                    <ArrowRight className="w-4 h-4 ml-2" />
+                    <ArrowRight className="w-3 h-3 lg:w-4 lg:h-4 ml-1 lg:ml-2" />
                   </Button>
                 </Link>
               )}
@@ -658,30 +687,30 @@ export default function RoomBuilderPage() {
           </Card>
 
           <Card className="border-0 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center">
-                <Building className="w-5 h-5 mr-2" />
+            <CardHeader className="pb-2 lg:pb-3">
+              <CardTitle className="text-base lg:text-lg flex items-center">
+                <Building className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
                 {t('sidebar.roomStatistics')}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-1 lg:space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">
+                <span className="text-xs lg:text-sm text-muted-foreground">
                   {t('sidebar.wallsBuilt')}
                 </span>
-                <Badge variant="secondary">{roomMetrics.wallCount}</Badge>
+                <Badge variant="secondary" className="text-xs">{roomMetrics.wallCount}</Badge>
               </div>
               {roomMetrics.isValid && (
                 <>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-xs lg:text-sm text-muted-foreground">
                       {t('sidebar.roomArea')}
                     </span>
-                    <Badge variant="outline" className="bg-blue-50">
+                    <Badge variant="outline" className="bg-blue-50 text-xs">
                       {roomMetrics.area.toFixed(2)}m²
                     </Badge>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="hidden lg:flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">
                       {t('sidebar.usableArea')}
                     </span>
@@ -690,14 +719,14 @@ export default function RoomBuilderPage() {
                     </Badge>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-xs lg:text-sm text-muted-foreground">
                       {t('sidebar.perimeter')}
                     </span>
-                    <Badge variant="outline" className="bg-green-50">
+                    <Badge variant="outline" className="bg-green-50 text-xs">
                       {roomMetrics.perimeter.toFixed(2)}m
                     </Badge>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="hidden lg:flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">
                       {t('sidebar.avgWallLength')}
                     </span>
@@ -705,7 +734,7 @@ export default function RoomBuilderPage() {
                       {roomMetrics.averageWallLength.toFixed(2)}m
                     </Badge>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="hidden lg:flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">
                       {t('sidebar.compactness')}
                     </span>
@@ -735,7 +764,9 @@ export default function RoomBuilderPage() {
             </CardContent>
           </Card>
 
-          <RoomQualityAnalyzer metrics={roomMetrics} />
+          <div className="hidden lg:block">
+            <RoomQualityAnalyzer metrics={roomMetrics} />
+          </div>
         </div>
 
         {/* --- Main Canvas Area --- */}
