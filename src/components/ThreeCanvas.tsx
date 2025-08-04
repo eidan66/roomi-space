@@ -3439,42 +3439,82 @@ const addRoomFurniture = (
     wallGroup.add(sink);
   }
 
-  // Medium rooms (8-12m²) - Bedroom setup
+  // Compact rooms (8-12m²) – choose Home-Office vs Bedroom
   else if (roomArea > 8) {
-    // Add bed
-    const bed = createBed(isDarkMode);
-    const bedX = THREE.MathUtils.clamp(
-      centerX,
-      minX + furnitureSpacing,
-      maxX - furnitureSpacing,
-    );
-    const bedZ = THREE.MathUtils.clamp(
-      centerZ - roomDepth * 0.2,
-      minZ + furnitureSpacing,
-      maxZ - furnitureSpacing,
-    );
-    bed.position.set(bedX, 0, bedZ);
-    bed.name = 'furniture-bed';
-    wallGroup.add(bed);
+    if (!_isSquarish) {
+      // ----- Home office with lounge -----
+      // Desk along longer wall
+      const desk = createTable(isDarkMode);
+      desk.scale.set(1.6, 1, 0.6);
+      desk.name = 'furniture-desk';
+      const deskX = THREE.MathUtils.clamp(
+        centerX,
+        minX + furnitureSpacing + 0.8,
+        maxX - furnitureSpacing - 0.8,
+      );
+      const deskZ = minZ + furnitureSpacing;
+      desk.position.set(deskX, 0, deskZ);
+      wallGroup.add(desk);
 
-    // Add side table
-    const sideTable = createTable(isDarkMode);
-    sideTable.scale.set(0.6, 1, 0.6); // Smaller side table
-    const tableX = THREE.MathUtils.clamp(
-      centerX + roomWidth * 0.3,
-      minX + furnitureSpacing,
-      maxX - furnitureSpacing,
-    );
-    const tableZ = THREE.MathUtils.clamp(
-      centerZ - roomDepth * 0.2,
-      minZ + furnitureSpacing,
-      maxZ - furnitureSpacing,
-    );
-    sideTable.position.set(tableX, 0, tableZ);
-    sideTable.name = 'furniture-sidetable';
-    wallGroup.add(sideTable);
+      // Two task chairs
+      const chairL = createChair(isDarkMode);
+      chairL.name = 'furniture-chair1';
+      chairL.position.set(deskX - 0.6, 0, deskZ + 0.7);
+      wallGroup.add(chairL);
+
+      const chairR = createChair(isDarkMode);
+      chairR.name = 'furniture-chair2';
+      chairR.position.set(deskX + 0.6, 0, deskZ + 0.7);
+      wallGroup.add(chairR);
+
+      // Sofa + coffee table opposite desk
+      const sofa = createSofa(isDarkMode);
+      sofa.scale.set(0.8, 1, 0.8);
+      sofa.name = 'furniture-sofa';
+      sofa.position.set(centerX, 0, maxZ - furnitureSpacing - 1.2);
+      wallGroup.add(sofa);
+
+      const coffee = createTable(isDarkMode);
+      coffee.scale.set(0.6, 1, 0.6);
+      coffee.name = 'furniture-coffee';
+      coffee.position.set(centerX, 0, maxZ - furnitureSpacing - 2.0);
+      wallGroup.add(coffee);
+    } else {
+      // ----- Bedroom setup -----
+      // Add bed
+      const bed = createBed(isDarkMode);
+      const bedX = THREE.MathUtils.clamp(
+        centerX,
+        minX + furnitureSpacing,
+        maxX - furnitureSpacing,
+      );
+      const bedZ = THREE.MathUtils.clamp(
+        centerZ - roomDepth * 0.2,
+        minZ + furnitureSpacing,
+        maxZ - furnitureSpacing,
+      );
+      bed.position.set(bedX, 0, bedZ);
+      bed.name = 'furniture-bed';
+      wallGroup.add(bed);
+
+      // Add side table
+      const sideTable = createTable(isDarkMode);
+      sideTable.scale.set(0.6, 1, 0.6); // Smaller side table
+      const tableX = THREE.MathUtils.clamp(
+        centerX + roomWidth * 0.3,
+        minX + furnitureSpacing,
+        maxX - furnitureSpacing,
+      );
+      const tableZ = THREE.MathUtils.clamp(
+        centerZ - roomDepth * 0.2,
+        minZ + furnitureSpacing,
+        maxZ - furnitureSpacing,
+      );
+      sideTable.position.set(tableX, 0, tableZ);
+      sideTable.name = 'furniture-sidetable';
+      wallGroup.add(sideTable);
+    }
   }
-
   // Small rooms (4-8m²) - Bathroom setup
   else if (roomArea > 4 && roomArea <= 8) {
     // Add toilet

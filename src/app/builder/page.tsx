@@ -2,13 +2,22 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Building, Move, Move3d, PencilRuler, Square, View } from 'lucide-react';
+import {
+  Building,
+  Move,
+  Move3d,
+  Paintbrush2,
+  PencilRuler,
+  Square,
+  View,
+} from 'lucide-react';
 import Image from 'next/image';
 import { useTheme } from 'next-themes';
 import { useTranslation } from 'react-i18next';
 import * as THREE from 'three';
 
 import { useAdvancedRoom } from '@/components/AdvancedRoomBuilder';
+import ColorPalette from '@/components/ColorPalette';
 import Floorplan2DCanvas, { Wall } from '@/components/Floorplan2DCanvas';
 import ModelCategories from '@/components/ModelCategories';
 import ThreeCanvas from '@/components/ThreeCanvas';
@@ -17,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { DEFAULT_COLORS } from '@/config/colorPalette';
 import { ROOM_SIZES } from '@/config/roomSizes';
 import { AdvancedRoomCalculator } from '@/lib/advanced-room-calculator';
 
@@ -267,6 +277,25 @@ export default function RoomBuilderPage() {
                     <Switch checked={gridSnapping} onCheckedChange={setGridSnapping} />
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Color Picker (3D mode only) */}
+          {viewMode === '3d' && activeTool === 'paint' && (
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-2 lg:pb-3">
+                <CardTitle className="text-base lg:text-lg flex items-center">
+                  <Paintbrush2 className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
+                  Color Picker
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ColorPalette
+                  colors={DEFAULT_COLORS}
+                  selected={selectedColor}
+                  onSelect={setSelectedColor}
+                />
               </CardContent>
             </Card>
           )}

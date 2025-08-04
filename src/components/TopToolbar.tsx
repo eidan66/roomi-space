@@ -18,9 +18,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import * as THREE from 'three';
 
-import ColorPalette from '@/components/ColorPalette';
 import { Button } from '@/components/ui/button';
-import { DEFAULT_COLORS } from '@/config/colorPalette';
 import { ROOM_SIZES, RoomSizeKey } from '@/config/roomSizes';
 
 export type ToolKey = 'select' | 'drag' | 'paint' | 'delete' | 'resize';
@@ -54,8 +52,8 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
   onPremiumRedirect,
   canvasRef,
   threeCanvasRef,
-  selectedColor,
-  setSelectedColor,
+  _selectedColor,
+  _setSelectedColor,
   threeRendererRef,
 }) => {
   const { t } = useTranslation();
@@ -288,15 +286,6 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
       >
         <ImageIcon size={18} />
       </Button>
-
-      {/* Color palette (shown only in paint mode) */}
-      {activeTool === 'paint' && (
-        <ColorPalette
-          colors={DEFAULT_COLORS}
-          selected={selectedColor}
-          onSelect={setSelectedColor}
-        />
-      )}
     </div>
   );
 };

@@ -447,12 +447,13 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
         return; // Prevent double-clicks
       }
 
-      // Check if clicking near the first point to close the shape
-      const first = drawingPoints[0];
-      if (drawingPoints.length >= 2 && dist(pt, first) < SNAP_THRESHOLD) {
-        addWallSegment(last, first);
-        finishCurrentMode();
-        return;
+      // Check if clicking near any existing point (other than the last one) to close the shape
+      for (let i = 0; i < drawingPoints.length - 1; i++) {
+        if (dist(pt, drawingPoints[i]) < SNAP_THRESHOLD) {
+          addWallSegment(last, drawingPoints[i]);
+          finishCurrentMode();
+          return;
+        }
       }
 
       addWallSegment(last, pt);
