@@ -9,12 +9,14 @@ import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useTranslation } from 'react-i18next';
 
+import { useAuth } from '@/components/AuthProvider';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
@@ -22,6 +24,7 @@ export default function Header() {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const { t } = useTranslation();
+  const { user, logout } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   // Navigation items with translation keys
@@ -99,34 +102,53 @@ export default function Header() {
               {!mounted && <span className="w-4 h-4" />}
             </Button>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full"
-                  aria-label={t('aria.userMenu')}
-                >
-                  <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center">
-                    <User className="w-4 h-4 text-white" />
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-full"
+                    aria-label={t('aria.userMenu')}
+                  >
+                    <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center">
+                      <User className="w-4 h-4 text-white" />
+                    </div>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                    {user.email}
                   </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile" className="flex items-center space-x-2">
+                      <User className="w-4 h-4" />
+                      <span>{t('user.profile')}</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings" className="flex items-center space-x-2">
+                      <Settings className="w-4 h-4" />
+                      <span>{t('user.settings')}</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={logout}>
+                    <span>Sign Out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <Button variant="ghost" asChild>
+                  <Link href="/login">Sign In</Link>
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem asChild>
-                  <Link href="/profile" className="flex items-center space-x-2">
-                    <User className="w-4 h-4" />
-                    <span>{t('user.profile')}</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/settings" className="flex items-center space-x-2">
-                    <Settings className="w-4 h-4" />
-                    <span>{t('user.settings')}</span>
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <Button asChild>
+                  <Link href="/signup">Sign Up</Link>
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>

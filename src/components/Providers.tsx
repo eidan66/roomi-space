@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { ThemeProvider } from 'next-themes';
 import { Provider as ReduxProvider } from 'react-redux';
 
+import { AuthProvider } from '@/components/AuthProvider';
 import { store } from '@/features/store';
 
 // Import i18n but don't initialize until client-side
@@ -36,7 +37,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ReduxProvider store={store}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
+        <Suspense fallback={<div>Loading...</div>}>
+          <AuthProvider>{children}</AuthProvider>
+        </Suspense>
       </ThemeProvider>
     </ReduxProvider>
   );

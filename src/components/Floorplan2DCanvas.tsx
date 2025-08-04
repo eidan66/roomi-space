@@ -57,75 +57,6 @@ const wallToPoints = (walls: Wall[]): Point[] => {
   return points;
 };
 
-// Check if walls form a valid closed room
-const isValidRoom = (walls: Wall[]): boolean => {
-  if (walls.length < 3) {
-    return false;
-  }
-
-  // Build a graph of connections
-  const connections = new Map<string, Set<string>>();
-
-  walls.forEach((wall) => {
-    const startKey = `${wall.start.x},${wall.start.z}`;
-    const endKey = `${wall.end.x},${wall.end.z}`;
-
-    if (!connections.has(startKey)) {
-      connections.set(startKey, new Set());
-    }
-    if (!connections.has(endKey)) {
-      connections.set(endKey, new Set());
-    }
-
-    connections.get(startKey)!.add(endKey);
-    connections.get(endKey)!.add(startKey);
-  });
-
-  // Check that each point has exactly 2 connections (forms a loop)
-  for (const [_, connected] of connections.entries()) {
-    if (connected.size !== 2) {
-      return false;
-    }
-  }
-
-  return true;
-};
-
-// Calculate room area
-const calculateRoomArea = (walls: Wall[]): number => {
-  if (walls.length < 3) {
-    return 0;
-  }
-
-  // Get unique points
-  const points = wallToPoints(walls);
-
-  // Try to order points clockwise
-  const center = points.reduce((acc, pt) => ({ x: acc.x + pt.x, z: acc.z + pt.z }), {
-    x: 0,
-    z: 0,
-  });
-  center.x /= points.length;
-  center.z /= points.length;
-
-  // Sort points clockwise around center
-  const sortedPoints = [...points].sort((a, b) => {
-    const angleA = Math.atan2(a.z - center.z, a.x - center.x);
-    const angleB = Math.atan2(b.z - center.z, b.x - center.x);
-    return angleA - angleB;
-  });
-
-  // Calculate area using Shoelace formula
-  let area = 0;
-  for (let i = 0; i < sortedPoints.length; i++) {
-    const j = (i + 1) % sortedPoints.length;
-    area += sortedPoints[i].x * sortedPoints[j].z;
-    area -= sortedPoints[j].x * sortedPoints[i].z;
-  }
-
-  return Math.abs(area) / 2;
-};
-
 // --- Wall Sub-Component ---
 const WallComponent: React.FC<{ wall: Wall; isPreview?: boolean }> = ({
   wall,
@@ -217,8 +148,6 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
 
   const [selectedPoint, setSelectedPoint] = useState<Point | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [isRoomValid, setIsRoomValid] = useState(false);
-  const [roomArea, setRoomArea] = useState(0);
   const [gridEnabled, setGridEnabled] = useState(true);
 
   const svgRef = useRef<SVGSVGElement>(null);
@@ -306,18 +235,8 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
     return worldPos;
   };
 
-  // --- Room Validation & Area Calculation ---
+  // --- Wall Change Callback ---
   useEffect(() => {
-    const valid = isValidRoom(walls);
-    setIsRoomValid(valid);
-
-    if (valid) {
-      const area = calculateRoomArea(walls);
-      setRoomArea(area);
-    } else {
-      setRoomArea(0);
-    }
-
     if (onWallsChange) {
       onWallsChange();
     }
@@ -684,42 +603,6 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
           </>
         )}
 
-        {/* Room Area Display */}
-        {isRoomValid && roomArea > 0 && (
-          <g>
-            <rect
-              x={viewBox.x + 10}
-              y={viewBox.y + 10}
-              width="200"
-              height="50"
-              fill="rgba(255, 255, 255, 0.9)"
-              stroke="#CBD5E0"
-              strokeWidth="1"
-              rx="5"
-            />
-            <text
-              x={viewBox.x + 20}
-              y={viewBox.y + 30}
-              fontSize="14"
-              fontWeight="bold"
-              fill="#4A5568"
-              style={{ userSelect: 'none' }}
-            >
-              Room Area: {roomArea.toFixed(2)}m²
-            </text>
-            <text
-              x={viewBox.x + 20}
-              y={viewBox.y + 50}
-              fontSize="12"
-              fill="#6B7280"
-              style={{ userSelect: 'none' }}
-            >
-              Walls: {walls.length} | Perimeter:{' '}
-              {walls.reduce((sum, w) => sum + dist(w.start, w.end), 0).toFixed(1)}m
-            </text>
-          </g>
-        )}
-
         {/* Render Walls */}
         {wallsToRender.map((wall) => (
           <WallComponent key={wall.id} wall={wall} isPreview={wall.id === 'preview'} />
@@ -790,13 +673,6 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
             }
             return 'Click on the first point or double-click to close the shape';
           })()}
-        </div>
-      )}
-
-      {/* Invalid Room Warning */}
-      {!isRoomValid && walls.length > 0 && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-yellow-500 text-white px-4 py-2 rounded-md shadow-lg">
-          Room is not closed. Complete the shape to create a valid room.
         </div>
       )}
     </div>

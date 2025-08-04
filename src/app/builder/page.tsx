@@ -20,6 +20,7 @@ import { useAdvancedRoom } from '@/components/AdvancedRoomBuilder';
 import ColorPalette from '@/components/ColorPalette';
 import Floorplan2DCanvas, { Wall } from '@/components/Floorplan2DCanvas';
 import ModelCategories from '@/components/ModelCategories';
+import RoomMetrics from '@/components/RoomMetrics';
 import ThreeCanvas from '@/components/ThreeCanvas';
 import TopToolbar from '@/components/TopToolbar';
 import { Button } from '@/components/ui/button';
@@ -240,50 +241,57 @@ export default function RoomBuilderPage() {
           </Card>
 
           {viewMode === '2d' && (
-            <Card className="border-0 shadow-sm">
-              <CardHeader className="pb-2 lg:pb-3">
-                <CardTitle className="text-base lg:text-lg flex items-center">
-                  <Square className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
-                  {t('sidebar.drawingTools')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 lg:space-y-3">
-                <div className="grid grid-cols-2 gap-2 lg:grid-cols-1 lg:gap-0 lg:space-y-2">
-                  <Button
-                    variant={editMode === 'draw' ? 'secondary' : 'outline'}
-                    onClick={() => setEditMode('draw')}
-                    className="justify-start text-xs lg:text-sm"
-                    size="sm"
-                  >
-                    <Building className="w-3 h-3 lg:w-4 lg:h-4 mr-1 lg:mr-2" />
-                    <span className="hidden sm:inline">{t('sidebar.drawWalls')}</span>
-                    <span className="sm:hidden">Draw</span>
-                  </Button>
-                  <Button
-                    variant={editMode === 'move' ? 'secondary' : 'outline'}
-                    onClick={() => setEditMode('move')}
-                    className="justify-start text-xs lg:text-sm"
-                    size="sm"
-                  >
-                    <Move className="w-3 h-3 lg:w-4 lg:h-4 mr-1 lg:mr-2" />
-                    <span className="hidden sm:inline">{t('sidebar.movePoints')}</span>
-                    <span className="sm:hidden">Move</span>
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-2 pt-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs lg:text-sm">{t('sidebar.showGrid')}</Label>
-                    <Switch checked={gridEnabled} onCheckedChange={setGridEnabled} />
+            <>
+              <Card className="border-0 shadow-sm">
+                <CardHeader className="pb-2 lg:pb-3">
+                  <CardTitle className="text-base lg:text-lg flex items-center">
+                    <Square className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
+                    {t('sidebar.drawingTools')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 lg:space-y-3">
+                  <div className="grid grid-cols-2 gap-2 lg:grid-cols-1 lg:gap-0 lg:space-y-2">
+                    <Button
+                      variant={editMode === 'draw' ? 'secondary' : 'outline'}
+                      onClick={() => setEditMode('draw')}
+                      className="justify-start text-xs lg:text-sm"
+                      size="sm"
+                    >
+                      <Building className="w-3 h-3 lg:w-4 lg:h-4 mr-1 lg:mr-2" />
+                      <span className="hidden sm:inline">{t('sidebar.drawWalls')}</span>
+                      <span className="sm:hidden">Draw</span>
+                    </Button>
+                    <Button
+                      variant={editMode === 'move' ? 'secondary' : 'outline'}
+                      onClick={() => setEditMode('move')}
+                      className="justify-start text-xs lg:text-sm"
+                      size="sm"
+                    >
+                      <Move className="w-3 h-3 lg:w-4 lg:h-4 mr-1 lg:mr-2" />
+                      <span className="hidden sm:inline">{t('sidebar.movePoints')}</span>
+                      <span className="sm:hidden">Move</span>
+                    </Button>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs lg:text-sm">
-                      {t('sidebar.gridSnapping')}
-                    </Label>
-                    <Switch checked={gridSnapping} onCheckedChange={setGridSnapping} />
+                  <div className="grid grid-cols-2 gap-2 pt-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs lg:text-sm">
+                        {t('sidebar.showGrid')}
+                      </Label>
+                      <Switch checked={gridEnabled} onCheckedChange={setGridEnabled} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs lg:text-sm">
+                        {t('sidebar.gridSnapping')}
+                      </Label>
+                      <Switch checked={gridSnapping} onCheckedChange={setGridSnapping} />
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+
+              {/* Room Metrics */}
+              <RoomMetrics metrics={_roomMetrics} />
+            </>
           )}
 
           {/* Color Picker (3D mode only) */}
