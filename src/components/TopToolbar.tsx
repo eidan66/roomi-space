@@ -76,7 +76,7 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
             const domtoimage = await import('dom-to-image');
             const blob = await domtoimage.default.toBlob(container);
             dataURL = URL.createObjectURL(blob);
-          } catch (_domError) {
+          } catch {
             console.warn('DOM-to-image failed, trying html2canvas');
             const html2canvas = await import('html2canvas');
             const canvas = await html2canvas.default(container);
@@ -89,12 +89,17 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
           const renderer = threeRendererRef.current;
           if (renderer) {
             try {
-              if ((renderer as any).takeScreenshot) {
-                dataURL = (renderer as any).takeScreenshot();
+              if (
+                (renderer as THREE.WebGLRenderer & { takeScreenshot?: () => string })
+                  .takeScreenshot
+              ) {
+                dataURL = (
+                  renderer as THREE.WebGLRenderer & { takeScreenshot: () => string }
+                ).takeScreenshot();
               } else {
                 dataURL = renderer.domElement.toDataURL('image/png');
               }
-            } catch (_err) {
+            } catch {
               console.warn(
                 'Renderer toDataURL failed, falling back to container capture',
               );
@@ -111,7 +116,7 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
             try {
               // Try to get data URL directly
               dataURL = canvas.toDataURL('image/png');
-            } catch (_corsError) {
+            } catch {
               console.warn('Canvas CORS issue, trying alternative methods');
             }
           }

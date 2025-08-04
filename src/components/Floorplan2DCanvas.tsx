@@ -531,7 +531,7 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [finishCurrentMode, selectedPoint]);
+  }, [finishCurrentMode, selectedPoint, setWalls]);
 
   // --- Prevent page scrolling when zooming in 2D canvas ---
   useEffect(() => {

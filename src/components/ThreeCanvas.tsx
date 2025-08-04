@@ -321,7 +321,7 @@ const isValidFloorplan = (walls: Wall[]): boolean => {
   });
 
   // Check that each point has exactly 2 connections (forms a loop)
-  for (const [key, connected] of connections.entries()) {
+  for (const [_key, connected] of connections.entries()) {
     if (connected.size !== 2) {
       return false;
     }
@@ -1334,7 +1334,10 @@ const createEnhancedFloorMaterial = (
   floorType: string,
   isDarkMode: boolean,
 ): THREE.MeshStandardMaterial => {
-  const baseMaterial = createFloorMaterialByType(floorType as any, isDarkMode);
+  const baseMaterial = createFloorMaterialByType(
+    floorType as 'wood' | 'tile' | 'concrete' | 'marble' | 'carpet',
+    isDarkMode,
+  );
 
   // Enhance material properties based on type
   switch (floorType) {
@@ -1342,6 +1345,8 @@ const createEnhancedFloorMaterial = (
       baseMaterial.roughness = 0.7;
       baseMaterial.metalness = 0.02;
       baseMaterial.normalScale = new THREE.Vector2(0.8, 0.8);
+      break;
+    default:
       break;
     case 'tile':
       baseMaterial.roughness = 0.2;
@@ -2811,7 +2816,7 @@ const _createWindow = (
 
 interface ThreeCanvasProps {
   walls: Wall[];
-  _objects?: any[];
+  _objects?: unknown[];
   gridEnabled: boolean;
   isDarkMode: boolean;
   showWindows?: boolean;
@@ -3614,7 +3619,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         .load(['px.jpg', 'nx.jpg', 'py.jpg', 'ny.jpg', 'pz.jpg', 'nz.jpg']);
       scene.background = tex;
       scene.environment = tex; // PBR reflections
-    } catch (_e) {
+    } catch {
       // Fallback to solid color if skybox fails
       scene.background = new THREE.Color(isDarkMode ? 0x000000 : 0xffffff);
       scene.fog = new THREE.Fog(isDarkMode ? 0x000000 : 0xffffff, 20, 60);
@@ -3643,7 +3648,9 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
     // Expose screenshot method
     if (onScreenshot) {
-      (renderer as any).takeScreenshot = () => {
+      (
+        renderer as THREE.WebGLRenderer & { takeScreenshot?: () => string | null }
+      ).takeScreenshot = () => {
         try {
           // Force a render to ensure everything is up to date
           renderer.render(scene, camera);
@@ -3676,7 +3683,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     const walkKeys: Record<string, boolean> = { w: false, a: false, s: false, d: false };
 
     // Handle pointer lock errors
-    fpControls.addEventListener('error' as any, () => {
+    fpControls.addEventListener('error' as const, () => {
       console.log('Pointer lock failed - user may have denied permission');
       setFpMode(false);
       controls.enabled = true;
@@ -4054,9 +4061,14 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
             }
 
             // Clone the material once so we are not mutating a material that may be shared
-            if (!(mat as any).userData?._cloned) {
+            if (
+              !(mat as THREE.Material & { userData?: { _cloned?: boolean } }).userData
+                ?._cloned
+            ) {
               mesh.material = mat.clone();
-              (mesh.material as any).userData._cloned = true;
+              (
+                mesh.material as THREE.Material & { userData: { _cloned: boolean } }
+              ).userData._cloned = true;
             }
 
             // Visual feedback – white if legal, red if illegal
@@ -4188,7 +4200,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         }
       }
     };
-  }, []); // Empty dependency array ensures this runs only once
+  }, [fpMode, isDarkMode, objRedo, objUndo, onScreenshot, rendererRef]); // Empty dependency array ensures this runs only once
 
   // --- Update lighting and background on theme change ---
   useEffect(() => {
@@ -4248,7 +4260,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       gridHelper.position.set(centerX, -0.009, centerZ);
       scene.add(gridHelper);
     }
-  }, [gridEnabled, walls]);
+  }, [gridEnabled, walls, isDarkMode]);
 
   // --- Update walls and floor when wall data changes ---
   useEffect(() => {
