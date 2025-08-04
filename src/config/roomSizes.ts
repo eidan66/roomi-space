@@ -12,5 +12,5 @@ export const ROOM_SIZES: RoomSizeConfig[] = [
   { key: 's', labelKey: 'roomSize.s', width: 10, length: 5 },
   { key: 'm', labelKey: 'roomSize.m', width: 12, length: 6 },
   { key: 'l', labelKey: 'roomSize.l', width: 16, length: 8 },
-  { key: 'xl', labelKey: 'roomSize.xl', width: 24, length: 12 },
+  { key: 'xl', labelKey: 'roomSize.xl', width: 20, length: 10 },
 ];
