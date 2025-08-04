@@ -2837,6 +2837,7 @@ interface ThreeCanvasProps {
   ) => void;
   apiRef?: React.Ref<{
     addObject: (type: string, position?: { x: number; z: number }) => void;
+    getObjects: () => THREE.Object3D[];
   }>;
 }
 
@@ -3764,7 +3765,20 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     console.log('Object added successfully:', type, obj.position);
   };
 
-  useImperativeHandle(apiRef, () => ({ addObject }));
+  useImperativeHandle(apiRef, () => ({
+    addObject,
+    getObjects: () => {
+      const objects: THREE.Object3D[] = [];
+      if (sceneRef.current) {
+        sceneRef.current.traverse((child) => {
+          if (child.userData?.isObject && child.userData?.type) {
+            objects.push(child);
+          }
+        });
+      }
+      return objects;
+    },
+  }));
   const activeToolRef = useRef(activeTool);
   useEffect(() => {
     activeToolRef.current = activeTool;

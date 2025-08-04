@@ -21,6 +21,7 @@ import ColorPalette from '@/components/ColorPalette';
 import Floorplan2DCanvas, { Wall } from '@/components/Floorplan2DCanvas';
 import ModelCategories from '@/components/ModelCategories';
 import RoomMetrics from '@/components/RoomMetrics';
+import SaveDesignModal from '@/components/SaveDesignModal';
 import ThreeCanvas from '@/components/ThreeCanvas';
 import TopToolbar from '@/components/TopToolbar';
 import { Button } from '@/components/ui/button';
@@ -89,9 +90,11 @@ export default function RoomBuilderPage() {
 
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
   const [showObjectsModal, setShowObjectsModal] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
 
   const threeApiRef = useRef<{
     addObject: (type: string, position?: { x: number; z: number }) => void;
+    getObjects: () => THREE.Object3D[];
   } | null>(null);
   const [screenshotUrl, setScreenshotUrl] = useState<string>('');
 
@@ -176,6 +179,7 @@ export default function RoomBuilderPage() {
           }
           showNotification(t('notifications.screenshotCaptured'), 'success');
         }}
+        onSave={() => setShowSaveModal(true)}
         onPremiumRedirect={() => (window.location.href = '/premium')}
         canvasRef={canvas2DRef}
         threeCanvasRef={canvas3DRef}
@@ -456,6 +460,18 @@ export default function RoomBuilderPage() {
           </div>
         </div>
       )}
+
+      <SaveDesignModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        onSave={(_designId) => {
+          showNotification('Design saved successfully!', 'success');
+          setShowSaveModal(false);
+        }}
+        walls={walls}
+        objects={threeApiRef.current?.getObjects() || []}
+        roomMetrics={_roomMetrics}
+      />
 
       {notification.visible && (
         <div

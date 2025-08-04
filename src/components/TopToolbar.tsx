@@ -10,6 +10,7 @@ import {
   Lock,
   MousePointer2,
   Paintbrush2,
+  Save,
   StretchHorizontal as ResizeIcon,
   Rotate3D,
   Trash2,
@@ -32,6 +33,7 @@ export interface TopToolbarProps {
   activeTool: ToolKey;
   setActiveTool: (tool: ToolKey) => void;
   onScreenshot: (url: string) => void;
+  onSave: () => void;
   onPremiumRedirect: () => void;
   canvasRef?: React.RefObject<HTMLDivElement | null>;
   _selectedColor: string;
@@ -49,6 +51,7 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
   activeTool,
   setActiveTool,
   onScreenshot,
+  onSave,
   onPremiumRedirect,
   canvasRef,
   threeCanvasRef,
@@ -285,6 +288,11 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
         title={t('toolbar.screenshot')}
       >
         <ImageIcon size={18} />
+      </Button>
+
+      {/* Save Design */}
+      <Button variant="outline" size="icon" onClick={onSave} title="Save Design">
+        <Save size={18} />
       </Button>
     </div>
   );
