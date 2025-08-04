@@ -4869,7 +4869,6 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       {/* HUD Overlay */}
       <div className="fixed top-2 left-2 z-50 text-xs bg-black/60 text-white px-2 py-1 rounded">
         {hoverName && <div>{hoverName}</div>}
-        <div>{`Cam Yaw ${(cameraRef.current?.rotation.y ? cameraRef.current.rotation.y * 57.3 : 0).toFixed(1)}°`}</div>
         {fpMode && fpControlsRef.current?.isLocked && (
           <div className="text-yellow-300">FP Mode</div>
         )}
