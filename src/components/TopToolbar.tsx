@@ -52,8 +52,8 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
   onPremiumRedirect,
   canvasRef,
   threeCanvasRef,
-  _selectedColor,
-  _setSelectedColor,
+  selectedColor,
+  setSelectedColor,
   threeRendererRef,
 }) => {
   const { t } = useTranslation();

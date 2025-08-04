@@ -3663,8 +3663,8 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       scene.environment = tex; // PBR reflections
     } catch {
       // Fallback to solid color if skybox fails
-      scene.background = new THREE.Color(isDarkMode ? 0x000000 : 0xffffff);
-      scene.fog = new THREE.Fog(isDarkMode ? 0x000000 : 0xffffff, 20, 60);
+      scene.background = new THREE.Color(0xffffff); // Always white background
+      scene.fog = new THREE.Fog(0xffffff, 20, 60);
     }
 
     const camera = new THREE.PerspectiveCamera(
@@ -4250,8 +4250,8 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       return;
     }
 
-    scene.background = new THREE.Color(isDarkMode ? 0x000000 : 0xffffff);
-    scene.fog = new THREE.Fog(isDarkMode ? 0x000000 : 0xffffff, 20, 60);
+    scene.background = new THREE.Color(0xffffff); // Always white background
+    scene.fog = new THREE.Fog(0xffffff, 20, 60);
 
     // You can also update light colors here if needed
     const hemisphereLight = scene.children.find(
