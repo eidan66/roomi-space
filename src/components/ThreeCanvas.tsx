@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
@@ -2835,6 +2835,9 @@ interface ThreeCanvasProps {
     objectId: string,
     newPosition: { x: number; y: number; z: number },
   ) => void;
+  apiRef?: React.Ref<{
+    addObject: (type: string, position?: { x: number; z: number }) => void;
+  }>;
 }
 
 // Furniture Creation Functions
@@ -2898,6 +2901,13 @@ const finalizeObject = (group: THREE.Group, type: string, canPlaceOn: string[] =
   // store bounding box height for stacking
   const box = new THREE.Box3().setFromObject(group);
   group.userData.height = box.max.y - box.min.y;
+  group.userData.minY = box.min.y;
+
+  // Calculate radius for collision detection
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  group.userData.radius = Math.max(size.x, size.z) / 2;
+
   return group;
 };
 
@@ -3600,8 +3610,161 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   onScreenshot,
   activeTool = 'select',
   selectedColor = '#ffffff',
+  apiRef,
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
+
+  // --- API exposed to parent components ---
+  const addObject = (type: string, position?: { x: number; z: number }) => {
+    console.log('ThreeCanvas addObject called:', type, position);
+    if (!sceneRef.current) {
+      console.log('No scene available');
+      return;
+    }
+
+    let obj: THREE.Group | null = null;
+    switch (type) {
+      case 'chair':
+        obj = finalizeObject(createChair(isDarkMode), 'chair');
+        break;
+      case 'table':
+        obj = finalizeObject(createTable(isDarkMode), 'table');
+        break;
+      case 'sofa':
+        obj = finalizeObject(createSofa(isDarkMode), 'sofa');
+        break;
+      case 'plant':
+        obj = finalizeObject(createPlant(isDarkMode), 'decor');
+        break;
+      case 'lamp':
+        obj = finalizeObject(createLamp(isDarkMode), 'lamp');
+        break;
+      case 'carpet': {
+        const geom = new THREE.PlaneGeometry(2, 3);
+        const mat = new THREE.MeshStandardMaterial({
+          color: 0xaa5533,
+          side: THREE.DoubleSide,
+        });
+        const mesh = new THREE.Mesh(geom, mat);
+        mesh.rotation.x = -Math.PI / 2;
+        obj = finalizeObject(new THREE.Group().add(mesh) as THREE.Group, 'carpet');
+        break;
+      }
+      case 'fridge':
+        obj = finalizeObject(createRefrigerator(isDarkMode), 'fridge');
+        break;
+      case 'paint': {
+        const cube = new THREE.Mesh(
+          new THREE.BoxGeometry(0.4, 0.4, 0.4),
+          new THREE.MeshStandardMaterial({ color: 0x888888 }),
+        );
+        obj = finalizeObject(new THREE.Group().add(cube) as THREE.Group, 'box');
+        break;
+      }
+      case 'floor': {
+        const tile = new THREE.Mesh(
+          new THREE.BoxGeometry(1, 0.05, 1),
+          new THREE.MeshStandardMaterial({ color: 0x999999 }),
+        );
+        obj = finalizeObject(new THREE.Group().add(tile) as THREE.Group, 'tile');
+        break;
+      }
+      default:
+        console.warn(`Unsupported object type: ${type}`);
+        return;
+    }
+
+    // Find a random position that doesn't overlap with existing objects
+    const findValidPosition = (): { x: number; z: number } => {
+      const roomBounds = boundsRef.current;
+      if (!roomBounds) {
+        return { x: 0, z: 0 };
+      }
+
+      const objRadius = obj.userData.radius ?? 0.5;
+      const minDistance = objRadius + 0.5; // Minimum distance between objects
+      const maxAttempts = 50;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        // Random position within room bounds with margin
+        const margin = 1.0;
+        const x =
+          roomBounds.minX +
+          margin +
+          Math.random() * (roomBounds.maxX - roomBounds.minX - 2 * margin);
+        const z =
+          roomBounds.minZ +
+          margin +
+          Math.random() * (roomBounds.maxZ - roomBounds.minZ - 2 * margin);
+
+        // Check if position is valid (not overlapping with existing objects)
+        const isValid = draggableObjectsRef.current.every((existingObj) => {
+          if (existingObj === obj) {
+            return true;
+          }
+          const existingRadius = existingObj.userData.radius ?? 0.5;
+          const distance = Math.hypot(
+            x - existingObj.position.x,
+            z - existingObj.position.z,
+          );
+          return distance >= objRadius + existingRadius + minDistance;
+        });
+
+        if (isValid) {
+          return { x, z };
+        }
+      }
+
+      // Fallback: find position with least overlap
+      let bestPosition = { x: 0, z: 0 };
+      let minOverlap = Infinity;
+
+      for (let i = 0; i < 10; i++) {
+        const margin = 1.0;
+        const x =
+          roomBounds.minX +
+          margin +
+          Math.random() * (roomBounds.maxX - roomBounds.minX - 2 * margin);
+        const z =
+          roomBounds.minZ +
+          margin +
+          Math.random() * (roomBounds.maxZ - roomBounds.minZ - 2 * margin);
+
+        let totalOverlap = 0;
+        draggableObjectsRef.current.forEach((existingObj) => {
+          if (existingObj === obj) {
+            return;
+          }
+          const existingRadius = existingObj.userData.radius ?? 0.5;
+          const distance = Math.hypot(
+            x - existingObj.position.x,
+            z - existingObj.position.z,
+          );
+          const overlap = Math.max(
+            0,
+            objRadius + existingRadius + minDistance - distance,
+          );
+          totalOverlap += overlap;
+        });
+
+        if (totalOverlap < minOverlap) {
+          minOverlap = totalOverlap;
+          bestPosition = { x, z };
+        }
+      }
+
+      return bestPosition;
+    };
+
+    const finalPosition = position || findValidPosition();
+    const minY = obj.userData.minY ?? 0;
+    obj.position.set(finalPosition.x, -minY, finalPosition.z);
+    sceneRef.current.add(obj);
+    draggableObjectsRef.current.push(obj);
+    console.log('Object added successfully:', type, obj.position);
+  };
+
+  useImperativeHandle(apiRef, () => ({ addObject }));
   const activeToolRef = useRef(activeTool);
   useEffect(() => {
     activeToolRef.current = activeTool;
@@ -4120,7 +4283,9 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         });
 
         if (legal) {
-          draggedRef.current.position.set(newX, draggedRef.current.position.y, newZ);
+          // Set position but maintain proper floor placement
+          const floorY = -(draggedRef.current.userData.minY ?? 0);
+          draggedRef.current.position.set(newX, floorY, newZ);
         }
       }
     };
@@ -4147,16 +4312,15 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
             }
             if (target.userData && canPlaceOn.includes(target.userData.type)) {
               const targetHeight = target.userData.height ?? 1;
-              const objHeight = obj.userData.height ?? 1;
-              obj.position.y =
-                target.position.y + targetHeight / 2 + objHeight / 2 + 0.01;
+              const objMinY = obj.userData.minY ?? 0;
+              obj.position.y = target.position.y + targetHeight / 2 - objMinY + 0.01;
               break;
             }
           }
         } else {
-          // place on floor
-          const objHeight = obj.userData.height ?? 1;
-          obj.position.y = objHeight / 2;
+          // place on floor - position so bottom of object touches floor
+          const objMinY = obj.userData.minY ?? 0;
+          obj.position.y = -objMinY;
         }
 
         // Restore original color

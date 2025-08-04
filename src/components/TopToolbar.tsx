@@ -34,8 +34,8 @@ export interface TopToolbarProps {
   onScreenshot: (url: string) => void;
   onPremiumRedirect: () => void;
   canvasRef?: React.RefObject<HTMLDivElement | null>;
-  selectedColor: string;
-  setSelectedColor: (c: string) => void;
+  _selectedColor: string;
+  _setSelectedColor: (c: string) => void;
   threeCanvasRef?: React.RefObject<HTMLDivElement | null>;
   threeRendererRef?: React.RefObject<THREE.WebGLRenderer | null>;
 }
@@ -52,8 +52,8 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
   onPremiumRedirect,
   canvasRef,
   threeCanvasRef,
-  selectedColor,
-  setSelectedColor,
+  _selectedColor,
+  _setSelectedColor,
   threeRendererRef,
 }) => {
   const { t } = useTranslation();

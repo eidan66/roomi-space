@@ -24,7 +24,12 @@ const CATEGORIES: Category[] = [
   },
 ];
 
-const ModelCategories: React.FC = () => {
+interface ModelCategoriesProps {
+  onAdd?: (type: string) => void;
+  onShowMore?: () => void;
+}
+
+const ModelCategories: React.FC<ModelCategoriesProps> = ({ onAdd, onShowMore }) => {
   const [open, setOpen] = useState<string | null>(null);
   return (
     <Card className="border-0 shadow-sm">
@@ -40,7 +45,13 @@ const ModelCategories: React.FC = () => {
             <Button
               variant="ghost"
               className="w-full flex justify-between"
-              onClick={() => setOpen(open === cat.name ? null : cat.name)}
+              onClick={() => {
+                if (cat.sub.length === 0 && onAdd) {
+                  onAdd(cat.name.toLowerCase());
+                } else {
+                  setOpen(open === cat.name ? null : cat.name);
+                }
+              }}
             >
               {cat.name}
               {cat.sub.length > 0 &&
@@ -57,7 +68,7 @@ const ModelCategories: React.FC = () => {
                     key={s}
                     variant="ghost"
                     className="w-full justify-start text-sm opacity-80"
-                    disabled
+                    onClick={() => onAdd && onAdd(s.toLowerCase())}
                   >
                     • {s}
                   </Button>
@@ -66,6 +77,9 @@ const ModelCategories: React.FC = () => {
             )}
           </div>
         ))}
+        <Button variant="outline" className="w-full mt-2" onClick={onShowMore}>
+          Show more
+        </Button>
       </CardContent>
     </Card>
   );

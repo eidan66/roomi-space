@@ -87,6 +87,11 @@ export default function RoomBuilderPage() {
   }, [roomSize]);
 
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+  const [showObjectsModal, setShowObjectsModal] = useState(false);
+
+  const threeApiRef = useRef<{
+    addObject: (type: string, position?: { x: number; z: number }) => void;
+  } | null>(null);
   const [screenshotUrl, setScreenshotUrl] = useState<string>('');
 
   // Canvas refs for screenshot
@@ -161,8 +166,8 @@ export default function RoomBuilderPage() {
         setViewMode={setViewMode}
         activeTool={activeTool}
         setActiveTool={setActiveTool}
-        selectedColor={selectedColor}
-        setSelectedColor={setSelectedColor}
+        _selectedColor={selectedColor}
+        _setSelectedColor={setSelectedColor}
         onScreenshot={(url) => {
           if (url) {
             setScreenshotUrl(url);
@@ -301,7 +306,28 @@ export default function RoomBuilderPage() {
           )}
 
           <div>
-            <ModelCategories />
+            <ModelCategories
+              onAdd={(cat) => {
+                const map: Record<string, string> = {
+                  furniture: 'chair',
+                  carpets: 'carpet',
+                  lamps: 'lamp',
+                  appliances: 'fridge',
+                  'decorative items': 'plant',
+                  walls: 'paint',
+                  floors: 'floor',
+                  textile: 'sofa',
+                };
+                const type = map[cat] ?? cat;
+                console.log('Adding object:', cat, 'mapped to', type);
+                if (viewMode === '3d' && threeApiRef.current) {
+                  threeApiRef.current.addObject(type);
+                } else {
+                  showNotification('Switch to 3D mode to add objects', 'info');
+                }
+              }}
+              onShowMore={() => setShowObjectsModal(true)}
+            />
           </div>
         </div>
 
@@ -323,6 +349,7 @@ export default function RoomBuilderPage() {
           ) : (
             <div ref={canvas3DRef} className="w-full h-full">
               <ThreeCanvas
+                apiRef={threeApiRef}
                 walls={walls}
                 gridEnabled={gridEnabled && editMode !== 'idle'}
                 isDarkMode={theme === 'dark'}
@@ -340,6 +367,41 @@ export default function RoomBuilderPage() {
         </div>
       </div>
       {/* Notification Toast */}
+      {showObjectsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card p-6 rounded-lg shadow-lg max-w-md w-full space-y-4">
+            <h2 className="text-lg font-semibold text-foreground">Add Object</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {['chair', 'table', 'sofa', 'plant', 'lamp'].map((obj) => (
+                <Button
+                  key={obj}
+                  variant="default"
+                  onClick={() => {
+                    console.log('Modal adding object:', obj);
+                    if (viewMode === '3d' && threeApiRef.current) {
+                      threeApiRef.current.addObject(obj);
+                      setShowObjectsModal(false);
+                    } else {
+                      showNotification('Switch to 3D mode to add objects', 'info');
+                      setShowObjectsModal(false);
+                    }
+                  }}
+                >
+                  {obj.charAt(0).toUpperCase() + obj.slice(1)}
+                </Button>
+              ))}
+            </div>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setShowObjectsModal(false)}
+            >
+              Close
+            </Button>
+          </div>
+        </div>
+      )}
+
       {showScreenshotModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-card p-6 rounded-lg shadow-lg max-w-md w-full space-y-4">
