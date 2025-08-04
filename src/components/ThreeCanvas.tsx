@@ -31,7 +31,7 @@ const ensureCounterClockwise = (
 };
 
 // Create floor geometry using manual triangulation
-const createManualFloorGeometry = (
+const _createManualFloorGeometry = (
   vertices: { x: number; z: number }[],
 ): THREE.BufferGeometry => {
   const geometry = new THREE.BufferGeometry();
@@ -854,7 +854,7 @@ class AdvancedFloorEngine {
 }
 
 // Main function using the advanced engine
-const createAdvancedInteriorFloor = (
+const _createAdvancedInteriorFloor = (
   walls: Wall[],
   exteriorVertices: { x: number; z: number }[],
 ): { x: number; z: number }[] =>
@@ -863,7 +863,7 @@ const createAdvancedInteriorFloor = (
 // Advanced Geometry Creation Methods
 
 // Method 1: Constrained Delaunay Triangulation (most robust)
-const createConstrainedDelaunayGeometry = (
+const _createConstrainedDelaunayGeometry = (
   vertices: { x: number; z: number }[],
 ): THREE.BufferGeometry => {
   const geometry = new THREE.BufferGeometry();
@@ -912,7 +912,7 @@ const createConstrainedDelaunayGeometry = (
 };
 
 // Method 2: Advanced Shape Geometry with Holes Support
-const createAdvancedShapeGeometry = (
+const _createAdvancedShapeGeometry = (
   vertices: { x: number; z: number }[],
 ): THREE.BufferGeometry => {
   const shape = new THREE.Shape();
@@ -1238,7 +1238,7 @@ const isVertexConvex = (vertices: { x: number; z: number }[], index: number): bo
 };
 
 // Polygon offset algorithm for creating interior boundaries
-const offsetPolygon = (
+const _offsetPolygon = (
   vertices: { x: number; z: number }[],
   offset: number,
 ): { x: number; z: number }[] => {
@@ -1309,11 +1309,11 @@ const offsetPolygon = (
 };
 
 // Advanced Floor System with Multiple Layers and Details
-const createAdvancedFloorSystem = (
+const _createAdvancedFloorSystem = (
   baseGeometry: THREE.BufferGeometry,
   floorType: string,
   isDarkMode: boolean,
-  vertices: { x: number; z: number }[],
+  _vertices: { x: number; z: number }[],
 ): THREE.Mesh[] => {
   const floorMeshes: THREE.Mesh[] = [];
 
@@ -1369,7 +1369,7 @@ const createEnhancedFloorMaterial = (
 };
 
 // Height Variation Layer for Realistic Surface Imperfections
-const createHeightVariationLayer = (
+const _createHeightVariationLayer = (
   baseGeometry: THREE.BufferGeometry,
   floorType: string,
   isDarkMode: boolean,
@@ -1403,11 +1403,11 @@ const createHeightVariationLayer = (
 };
 
 // Procedural Details (wear patterns, scratches, stains)
-const createProceduralDetails = (
+const _createProceduralDetails = (
   baseGeometry: THREE.BufferGeometry,
   floorType: string,
   isDarkMode: boolean,
-  vertices: { x: number; z: number }[],
+  _vertices: { x: number; z: number }[],
 ): THREE.Mesh | null => {
   // Create detail texture based on floor type
   const canvas = document.createElement('canvas');
@@ -1454,7 +1454,7 @@ const createProceduralDetails = (
 };
 
 // Ambient Occlusion Layer for Enhanced Depth
-const createAmbientOcclusionLayer = (
+const _createAmbientOcclusionLayer = (
   baseGeometry: THREE.BufferGeometry,
   vertices: { x: number; z: number }[],
   isDarkMode: boolean,
@@ -1499,7 +1499,7 @@ const createAmbientOcclusionLayer = (
 };
 
 // Edge Finishing (baseboards, transitions)
-const createEdgeFinishing = (
+const _createEdgeFinishing = (
   vertices: { x: number; z: number }[],
   isDarkMode: boolean,
 ): THREE.Mesh[] => {
@@ -1642,7 +1642,7 @@ const pointToLineDistance = (
 };
 
 // Create realistic floor material with procedural textures
-const createFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+const _createFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
   // Create procedural wood floor texture
   const canvas = document.createElement('canvas');
   canvas.width = 512;
@@ -1765,7 +1765,9 @@ const createFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial =>
 };
 
 // Create concrete floor material
-const createConcreteFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+const _createConcreteFloorMaterial = (
+  isDarkMode: boolean,
+): THREE.MeshStandardMaterial => {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
   canvas.height = 512;
@@ -1823,7 +1825,7 @@ const createConcreteFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMat
 };
 
 // Create marble floor material
-const createMarbleFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+const _createMarbleFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
   canvas.height = 512;
@@ -1897,7 +1899,7 @@ const createMarbleFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMater
 };
 
 // Create carpet floor material
-const createCarpetFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+const _createCarpetFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 256;
@@ -1997,7 +1999,7 @@ const createFloorMaterialByType = (
 };
 
 // Create alternative tile floor material
-const createTileFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+const _createTileFloorMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 256;
@@ -2090,7 +2092,7 @@ const createWallMaterials = (
 };
 
 // Create paint wall material
-const createPaintWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial =>
+const _createPaintWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial =>
   new THREE.MeshStandardMaterial({
     color: isDarkMode ? '#4A5568' : '#E2E8F0',
     roughness: 0.8,
@@ -2099,7 +2101,7 @@ const createPaintWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMateria
   });
 
 // Create brick wall material
-const createBrickWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+const _createBrickWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 256;
@@ -2159,7 +2161,7 @@ const createBrickWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMateria
 };
 
 // Create stone wall material
-const createStoneWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+const _createStoneWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 256;
@@ -2201,7 +2203,7 @@ const createStoneWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMateria
 };
 
 // Create wood wall material
-const createWoodWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
+const _createWoodWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial => {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 256;
@@ -2246,7 +2248,7 @@ const createWoodWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial
 };
 
 // Create metal wall material
-const createMetalWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial =>
+const _createMetalWallMaterial = (isDarkMode: boolean): THREE.MeshStandardMaterial =>
   new THREE.MeshStandardMaterial({
     color: isDarkMode ? '#2F4F4F' : '#C0C0C0',
     roughness: 0.2,
@@ -2578,7 +2580,7 @@ const createIndustrialWindow = (
 };
 
 // Create optimized windows based on advanced geometry engine
-const createOptimizedWindow = (
+const _createOptimizedWindow = (
   wall: Wall,
   windowPlacement: WindowPlacement,
 ): THREE.Group => {
@@ -2689,7 +2691,7 @@ const createOptimizedWindow = (
 };
 
 // Create windows in walls with enhanced visual details (legacy function)
-const createWindow = (
+const _createWindow = (
   wall: Wall,
   windowHeight: number = 1.2,
   windowWidth: number = 1.5,
@@ -2720,7 +2722,7 @@ const createWindow = (
   );
 
   // Window opening (cut into wall)
-  const openingGeometry = new THREE.BoxGeometry(
+  const _openingGeometry = new THREE.BoxGeometry(
     actualWindowWidth + 0.1,
     windowHeight + 0.1,
     wall.thickness + 0.1,
@@ -2809,7 +2811,7 @@ const createWindow = (
 
 interface ThreeCanvasProps {
   walls: Wall[];
-  objects?: any[];
+  _objects?: any[];
   gridEnabled: boolean;
   isDarkMode: boolean;
   showWindows?: boolean;
@@ -3353,7 +3355,7 @@ const addRoomFurniture = (
 
   // Determine room type based on size and shape
   const aspectRatio = roomWidth / roomDepth;
-  const isSquarish = Math.abs(aspectRatio - 1) < 0.3;
+  const _isSquarish = Math.abs(aspectRatio - 1) < 0.3;
 
   // Large rooms (>20m²) - Living room setup
   if (roomArea > 20) {
@@ -3540,7 +3542,7 @@ const OBJECT_SPACING = 1.0; // Minimum gap between furniture objects
 
 const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   walls,
-  objects = [],
+  _objects = [],
   gridEnabled,
   isDarkMode,
   showWindows = true,
@@ -3587,7 +3589,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   const selectedObjectRef = useRef<THREE.Object3D | null>(null);
   const isRotatingRef = useRef<boolean>(false);
 
-  const [isFloorplanValid, setIsFloorplanValid] = useState(false);
+  const [isFloorplanValid, _setIsFloorplanValid] = useState(false);
   const [processedWalls, setProcessedWalls] = useState<Wall[]>([]);
   const [hoverName, setHoverName] = useState<string>('');
   const [fpMode, setFpMode] = useState(false);
@@ -3612,7 +3614,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         .load(['px.jpg', 'nx.jpg', 'py.jpg', 'ny.jpg', 'pz.jpg', 'nz.jpg']);
       scene.background = tex;
       scene.environment = tex; // PBR reflections
-    } catch (e) {
+    } catch (_e) {
       // Fallback to solid color if skybox fails
       scene.background = new THREE.Color(isDarkMode ? 0x000000 : 0xffffff);
       scene.fog = new THREE.Fog(isDarkMode ? 0x000000 : 0xffffff, 20, 60);
@@ -4357,8 +4359,20 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           }
           shape.lineTo(orderedVertices[0].x, orderedVertices[0].z);
 
-          const floorGeometry = new THREE.ShapeGeometry(shape);
-          floorGeometry.rotateX(Math.PI / 2);
+          let floorGeometry: THREE.BufferGeometry | null = null;
+          try {
+            floorGeometry = new THREE.ShapeGeometry(shape);
+            floorGeometry.rotateX(Math.PI / 2);
+            // Validate geometry
+            floorGeometry.computeBoundingBox();
+            if (!floorGeometry.boundingBox || floorGeometry.boundingBox.isEmpty()) {
+              throw new Error('Empty floor bounding box');
+            }
+          } catch (err) {
+            console.warn('⚠️ ShapeGeometry failed, falling back to ear-clipping:', err);
+            floorGeometry = createOptimizedEarClippingGeometry(orderedVertices);
+            floorGeometry.rotateX(Math.PI / 2);
+          }
 
           const floorMaterial = new THREE.MeshStandardMaterial({
             color: (() => {
@@ -4732,7 +4746,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           metalness: 0.1,
         });
 
-        orderedVertices.forEach((vertex, index) => {
+        orderedVertices.forEach((vertex, _index) => {
           // Find the average wall thickness at this corner
           const connectedWalls = wallsWithWindows.filter(
             (wall) =>

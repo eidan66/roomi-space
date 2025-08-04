@@ -2,39 +2,20 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  ArrowRight,
-  Building,
-  Home,
-  Move,
-  Move3d,
-  Palette,
-  PencilRuler,
-  Redo,
-  Save,
-  Square,
-  Trash2,
-  Undo,
-  View,
-} from 'lucide-react';
+import { Building, Move, Move3d, PencilRuler, Square, View } from 'lucide-react';
 import Image from 'next/image';
-import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { useTranslation } from 'react-i18next';
 import * as THREE from 'three';
 
 import { useAdvancedRoom } from '@/components/AdvancedRoomBuilder';
 import Floorplan2DCanvas, { Wall } from '@/components/Floorplan2DCanvas';
-import MaterialPresets, { MaterialPreset } from '@/components/MaterialPresets';
 import ModelCategories from '@/components/ModelCategories';
-import RoomQualityAnalyzer from '@/components/RoomQualityAnalyzer';
 import ThreeCanvas from '@/components/ThreeCanvas';
 import TopToolbar from '@/components/TopToolbar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { ROOM_SIZES } from '@/config/roomSizes';
 import { AdvancedRoomCalculator } from '@/lib/advanced-room-calculator';
@@ -43,34 +24,22 @@ import { AdvancedRoomCalculator } from '@/lib/advanced-room-calculator';
 
 export default function RoomBuilderPage() {
   const { t } = useTranslation();
-  const { walls, setWalls, clearWalls, generateRectangularRoom, generateLShapedRoom } =
-    useAdvancedRoom([]);
+  const { walls, setWalls, clearWalls, generateRectangularRoom } = useAdvancedRoom([]);
 
   // Calculate advanced metrics using the new calculator
-  const roomMetrics = useMemo(
+  const _roomMetrics = useMemo(
     () => AdvancedRoomCalculator.calculateRoomMetrics(walls),
     [walls],
   );
-
-  const isRoomValid = roomMetrics.isValid;
 
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [editMode, setEditMode] = useState<'draw' | 'move' | 'delete' | 'idle'>('idle');
 
   const [gridEnabled, setGridEnabled] = useState(true);
   const [gridSnapping, setGridSnapping] = useState(true);
-  const [showWindows, setShowWindows] = useState(true);
-  const [wallHeight, setWallHeight] = useState(2.8);
-  const [wallThickness, setWallThickness] = useState(0.25);
-  const [floorType, setFloorType] = useState<
-    'wood' | 'tile' | 'concrete' | 'marble' | 'carpet'
-  >('wood');
-  const [wallMaterial, setWallMaterial] = useState<
-    'paint' | 'brick' | 'stone' | 'wood' | 'metal'
-  >('paint');
-  const [windowStyle, setWindowStyle] = useState<'modern' | 'classic' | 'industrial'>(
-    'modern',
-  );
+  const [wallHeight] = useState(2.8);
+  const [wallThickness] = useState(0.25);
+  const [showWindows] = useState(true);
 
   // Top toolbar states
   const [roomSize, setRoomSize] = useState<'xs' | 's' | 'm' | 'l' | 'xl'>('m');
@@ -115,8 +84,8 @@ export default function RoomBuilderPage() {
   const canvas3DRef = useRef<HTMLDivElement>(null);
   const threeRendererRef = useRef<THREE.WebGLRenderer>(null);
 
-  const [undoStack, setUndoStack] = useState<Wall[][]>([]);
-  const [redoStack, setRedoStack] = useState<Wall[][]>([]);
+  const [_undoStack, setUndoStack] = useState<Wall[][]>([]);
+  const [_redoStack, setRedoStack] = useState<Wall[][]>([]);
   const [roomName, setRoomName] = useState('My Dream Room');
   const { theme } = useTheme();
 
@@ -152,99 +121,10 @@ export default function RoomBuilderPage() {
     setRedoStack([]);
   }, [walls]);
 
-  const undo = () => {
-    if (undoStack.length > 0) {
-      const previousState = undoStack[undoStack.length - 1];
-      setRedoStack((prev) => [walls, ...prev]);
-      setUndoStack((prev) => prev.slice(0, -1));
-      setWalls(previousState);
-    }
-  };
-
-  const redo = () => {
-    if (redoStack.length > 0) {
-      const nextState = redoStack[0];
-      setUndoStack((prev) => [...prev, walls]);
-      setRedoStack((prev) => prev.slice(1));
-      setWalls(nextState);
-    }
-  };
-
-  const clearAll = () => {
-    if (walls.length === 0) {
-      return;
-    }
-    recordUndo();
-    clearWalls();
-    showNotification(t('notifications.roomCleared'), 'info');
-  };
-
-  const saveRoom = () => {
-    if (!isRoomValid) {
-      showNotification(t('notifications.cannotSaveInvalid'), 'error');
-      return;
-    }
-
-    // Here you would typically save to a database or localStorage
-    localStorage.setItem(
-      'savedRoom',
-      JSON.stringify({
-        name: roomName,
-        walls,
-        createdAt: new Date().toISOString(),
-      }),
-    );
-
-    showNotification(t('notifications.roomSaved'), 'success');
-  };
-
-  const loadTemplate = (templateIndex: number) => {
-    if (walls.length > 0) {
-      recordUndo();
-    }
-
-    if (templateIndex === 1) {
-      // Square room template
-      generateRectangularRoom(4, 4, wallHeight, wallThickness);
-      showNotification(t('notifications.loadedSquareTemplate'), 'info');
-    } else if (templateIndex === 2) {
-      // L-shaped room template
-      generateLShapedRoom(6, 6, 3, 3, wallHeight, wallThickness);
-      showNotification(t('notifications.loadedLShapedTemplate'), 'info');
-    }
-  };
-
   const handleWallsChange = useCallback(() => {
     // Room validation and area calculation is now handled by useAdvancedRoom hook
     // Both 2D and 3D views use the same wall state for perfect synchronization
   }, []);
-
-  // Apply wall properties to all walls
-  const applyWallProperties = () => {
-    if (walls.length === 0) {
-      return;
-    }
-
-    recordUndo();
-    const updatedWalls = walls.map((wall) => ({
-      ...wall,
-      height: wallHeight,
-      thickness: wallThickness,
-    }));
-
-    setWalls(updatedWalls);
-    showNotification(t('notifications.wallPropertiesApplied'), 'success');
-  };
-
-  const handlePresetSelect = (preset: MaterialPreset) => {
-    setFloorType(preset.floorType);
-    setWallMaterial(preset.wallMaterial);
-    setWindowStyle(preset.windowStyle);
-    showNotification(
-      t('notifications.presetApplied', { preset: preset.name }),
-      'success',
-    );
-  };
 
   // Load saved room from localStorage on initial render
   useEffect(() => {
@@ -391,222 +271,8 @@ export default function RoomBuilderPage() {
             </Card>
           )}
 
-
-
-          <Card className="border-0 shadow-sm lg:block hidden">
-            <CardHeader className="pb-2 lg:pb-3">
-              <CardTitle className="text-base lg:text-lg">
-                {t('sidebar.templates')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => loadTemplate(1)}
-                  className="text-xs"
-                >
-                  <Home className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />
-                  <span className="hidden sm:inline">{t('sidebar.templateSquare')}</span>
-                  <span className="sm:hidden">Square</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => loadTemplate(2)}
-                  className="text-xs"
-                >
-                  <Home className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />
-                  <span className="hidden sm:inline">{t('sidebar.templateLShape')}</span>
-                  <span className="sm:hidden">L-Shape</span>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="hidden lg:block">
+          <div>
             <ModelCategories />
-          </div>
-
-          <div className="hidden lg:block">
-            <MaterialPresets
-              onPresetSelect={handlePresetSelect}
-              currentFloorType={floorType}
-              currentWallMaterial={wallMaterial}
-              currentWindowStyle={windowStyle}
-            />
-          </div>
-
-          <Card className="border-0 shadow-sm">
-            <CardHeader className="pb-2 lg:pb-3">
-              <CardTitle className="text-base lg:text-lg">
-                {t('sidebar.actions')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 lg:space-y-3">
-              <div className="grid grid-cols-4 lg:grid-cols-2 gap-1 lg:gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={undo}
-                  disabled={undoStack.length === 0}
-                  className="text-xs lg:text-sm p-1 lg:p-2"
-                  title={t('sidebar.undo')}
-                >
-                  <Undo className="w-3 h-3 lg:w-4 lg:h-4 lg:mr-1" />
-                  <span className="hidden lg:inline">{t('sidebar.undo')}</span>
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={redo}
-                  disabled={redoStack.length === 0}
-                  className="text-xs lg:text-sm p-1 lg:p-2"
-                  title={t('sidebar.redo')}
-                >
-                  <Redo className="w-3 h-3 lg:w-4 lg:h-4 lg:mr-1" />
-                  <span className="hidden lg:inline">{t('sidebar.redo')}</span>
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={clearAll}
-                  className="text-xs lg:text-sm p-1 lg:p-2"
-                  size="sm"
-                  disabled={walls.length === 0}
-                >
-                  <Trash2 className="w-3 h-3 lg:w-4 lg:h-4 lg:mr-1" />
-                  <span className="hidden lg:inline">{t('sidebar.clearAll')}</span>
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (walls.length > 0) {
-                      showNotification(t('sidebar.advancedGeometryApplied'), 'success');
-                    }
-                  }}
-                  className="text-xs lg:text-sm p-1 lg:p-2"
-                  size="sm"
-                  disabled={walls.length === 0}
-                  title={t('sidebar.optimizeGeometry')}
-                >
-                  <span className="lg:hidden">⚡</span>
-                  <span className="hidden lg:inline">
-                    ⚡ {t('sidebar.optimizeGeometry')}
-                  </span>
-                </Button>
-              </div>
-
-              <Button
-                onClick={saveRoom}
-                className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-xs lg:text-sm"
-                size="sm"
-                disabled={walls.length === 0 || !isRoomValid}
-              >
-                <Save className="w-3 h-3 lg:w-4 lg:h-4 mr-1 lg:mr-2" />
-                {t('sidebar.saveRoom')}
-              </Button>
-
-              {isRoomValid && walls.length >= 3 && (
-                <Link href="/furnish" className="block">
-                  <Button
-                    className="w-full bg-gradient-to-r from-green-500 to-teal-600 text-xs lg:text-sm"
-                    size="sm"
-                  >
-                    <Move3d className="w-3 h-3 lg:w-4 lg:h-4 mr-1 lg:mr-2" />
-                    {t('sidebar.startFurnishing')}
-                    <ArrowRight className="w-3 h-3 lg:w-4 lg:h-4 ml-1 lg:ml-2" />
-                  </Button>
-                </Link>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm">
-            <CardHeader className="pb-2 lg:pb-3">
-              <CardTitle className="text-base lg:text-lg flex items-center">
-                <Building className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
-                {t('sidebar.roomStatistics')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1 lg:space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-xs lg:text-sm text-muted-foreground">
-                  {t('sidebar.wallsBuilt')}
-                </span>
-                <Badge variant="secondary" className="text-xs">
-                  {roomMetrics.wallCount}
-                </Badge>
-              </div>
-              {roomMetrics.isValid && (
-                <>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs lg:text-sm text-muted-foreground">
-                      {t('sidebar.roomArea')}
-                    </span>
-                    <Badge variant="outline" className="bg-blue-50 text-xs">
-                      {roomMetrics.area.toFixed(2)}m²
-                    </Badge>
-                  </div>
-                  <div className="hidden lg:flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">
-                      {t('sidebar.usableArea')}
-                    </span>
-                    <Badge variant="outline" className="bg-blue-100">
-                      {roomMetrics.usableArea.toFixed(2)}m²
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs lg:text-sm text-muted-foreground">
-                      {t('sidebar.perimeter')}
-                    </span>
-                    <Badge variant="outline" className="bg-green-50 text-xs">
-                      {roomMetrics.perimeter.toFixed(2)}m
-                    </Badge>
-                  </div>
-                  <div className="hidden lg:flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">
-                      {t('sidebar.avgWallLength')}
-                    </span>
-                    <Badge variant="outline" className="bg-purple-50">
-                      {roomMetrics.averageWallLength.toFixed(2)}m
-                    </Badge>
-                  </div>
-                  <div className="hidden lg:flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">
-                      {t('sidebar.compactness')}
-                    </span>
-                    <Badge variant="outline" className="bg-orange-50">
-                      {(roomMetrics.compactness * 100).toFixed(1)}%
-                    </Badge>
-                  </div>
-                </>
-              )}
-              {!roomMetrics.isValid && walls.length > 0 && (
-                <div className="space-y-2">
-                  <div className="text-sm text-red-500 font-medium">
-                    ⚠️ {t('sidebar.roomIssuesFound')}
-                  </div>
-                  {roomMetrics.validationErrors.slice(0, 3).map((error, index) => (
-                    <div key={index} className="text-xs text-red-400">
-                      • {error}
-                    </div>
-                  ))}
-                  {roomMetrics.validationErrors.length > 3 && (
-                    <div className="text-xs text-red-300">
-                      +{roomMetrics.validationErrors.length - 3} {t('sidebar.moreIssues')}
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="hidden lg:block">
-            <RoomQualityAnalyzer metrics={roomMetrics} />
           </div>
         </div>
 
@@ -629,12 +295,9 @@ export default function RoomBuilderPage() {
             <div ref={canvas3DRef} className="w-full h-full">
               <ThreeCanvas
                 walls={walls}
-                gridEnabled={gridEnabled}
+                gridEnabled={gridEnabled && editMode !== 'idle'}
                 isDarkMode={theme === 'dark'}
                 showWindows={showWindows}
-                floorType={floorType}
-                wallMaterial={wallMaterial}
-                windowStyle={windowStyle}
                 rendererRef={threeRendererRef}
                 activeTool={activeTool}
                 selectedColor={selectedColor}

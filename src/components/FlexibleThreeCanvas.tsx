@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
@@ -149,9 +149,18 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
 
     // Position camera appropriately
     positionCamera(optimizedWalls);
-  }, [walls, floorType, wallMaterial, windowStyle, showWindows, adaptiveOptions]);
+  }, [
+    walls,
+    floorType,
+    wallMaterial,
+    windowStyle,
+    showWindows,
+    adaptiveOptions,
+    createRoomGeometry,
+    onRenderingNotes,
+  ]);
 
-  const createRoomGeometry = (optimizedWalls: Wall[]) => {
+  const createRoomGeometry = useCallback((optimizedWalls: Wall[]) => {
     if (!sceneRef.current) {
       return;
     }
@@ -185,7 +194,7 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
     });
 
     sceneRef.current.add(roomGroup);
-  };
+  }, [floorType, showWindows]);
 
   const createFloorGeometry = (walls: Wall[]): THREE.BufferGeometry | null => {
     if (walls.length < 3) {
@@ -193,7 +202,6 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
     }
 
     // Extract vertices from walls
-    const vertices: { x: number; z: number }[] = [];
     const vertexMap = new Map<string, { x: number; z: number }>();
 
     walls.forEach((wall) => {
@@ -222,7 +230,7 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
     const uvs: number[] = [];
 
     // Simple fan triangulation from first vertex
-    orderedVertices.forEach((vertex, index) => {
+    orderedVertices.forEach((vertex, _index) => {
       positions.push(vertex.x, 0, vertex.z);
       uvs.push(vertex.x / 10, vertex.z / 10); // Simple UV mapping
     });

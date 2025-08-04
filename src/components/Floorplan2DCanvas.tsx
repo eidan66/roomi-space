@@ -334,10 +334,6 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
 
   const addWallSegment = useCallback(
     (start: Point, end: Point) => {
-      // Restrict to a single closed room
-      if (isValidRoom(walls)) {
-        return; // Room already completed
-      }
       // Don't add walls that are too short
       if (dist(start, end) < 0.1) {
         return;
@@ -352,7 +348,7 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
       };
       setWalls((prevWalls) => [...prevWalls, newWall]);
     },
-    [walls, setWalls, wallHeight, wallThickness],
+    [setWalls, wallHeight, wallThickness],
   );
 
   // --- Mouse Event Handlers ---
@@ -604,7 +600,14 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
         });
       }
     }
-  }, []); // Only run once on first render
+  }, [walls]); // Run when walls change
+
+  // Update walls when they change
+  useEffect(() => {
+    if (onWallsChange) {
+      onWallsChange();
+    }
+  }, [walls, onWallsChange]);
 
   return (
     <div className="relative w-full h-full bg-gray-50">
@@ -661,7 +664,7 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
             />
           </pattern>
         </defs>
-        {gridEnabled && (
+        {gridEnabled && mode !== 'idle' && (
           <>
             <rect
               x={viewBox.x}

@@ -14,8 +14,11 @@ const ColorPalette: React.FC<ColorPaletteProps> = ({ colors, selected, onSelect 
       <button
         key={c}
         onClick={() => onSelect(c)}
-        className={`w-6 h-6 rounded-sm border-2 ${selected === c ? 'border-primary' : 'border-transparent'}`}
-        style={{ backgroundColor: c }}
+        className={`w-6 h-6 border-2 ${selected === c ? 'border-primary' : 'border-transparent'}`}
+        style={{
+          backgroundColor: c,
+          clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)',
+        }}
         title={c}
       />
     ))}
