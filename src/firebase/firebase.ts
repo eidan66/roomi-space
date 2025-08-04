@@ -1,5 +1,6 @@
 import { getApps, initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getDatabase } from 'firebase/database';
 import {
   getFirestore,
   collection,
@@ -32,4 +33,5 @@ const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app);
+export const realtimeDb = getDatabase(app, 'https://roomi-space-default-rtdb.europe-west1.firebasedatabase.app');
 export default app;

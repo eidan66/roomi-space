@@ -93,19 +93,21 @@ const WallComponent: React.FC<{ wall: Wall; isPreview?: boolean }> = ({
         strokeDasharray={isPreview ? '5,5' : 'none'}
       />
 
-      {/* Corner markers - blueprint style */}
-      <circle
-        cx={p1.x}
-        cy={p1.y}
-        r={cornerSize}
+      {/* Corner markers - square style */}
+      <rect
+        x={p1.x - cornerSize}
+        y={p1.y - cornerSize}
+        width={cornerSize * 2}
+        height={cornerSize * 2}
         fill="#1E40AF"
         stroke="#1E3A8A"
         strokeWidth="1"
       />
-      <circle
-        cx={p2.x}
-        cy={p2.y}
-        r={cornerSize}
+      <rect
+        x={p2.x - cornerSize}
+        y={p2.y - cornerSize}
+        width={cornerSize * 2}
+        height={cornerSize * 2}
         fill="#1E40AF"
         stroke="#1E3A8A"
         strokeWidth="1"
@@ -366,8 +368,8 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
         return; // Prevent double-clicks
       }
 
-      // Check if clicking near any existing point (other than the last one) to close the shape
-      for (let i = 0; i < drawingPoints.length - 1; i++) {
+      // Check if clicking near any existing point (including the first one) to close the shape
+      for (let i = 0; i < drawingPoints.length; i++) {
         if (dist(pt, drawingPoints[i]) < SNAP_THRESHOLD) {
           addWallSegment(last, drawingPoints[i]);
           finishCurrentMode();
@@ -407,7 +409,7 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
   // --- Double Click to End Drawing ---
   const handleDoubleClick = (_e: React.MouseEvent) => {
     if (mode === 'draw' && drawingPoints.length >= 3) {
-      // Close the shape
+      // Close the shape by connecting to the first point
       const first = drawingPoints[0];
       const last = drawingPoints[drawingPoints.length - 1];
       if (dist(first, last) > 0.1) {
@@ -649,16 +651,18 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
             />
           ))}
 
-        {/* First Point Highlight (for closing the shape) */}
-        {mode === 'draw' && drawingPoints.length >= 2 && (
-          <circle
-            cx={toCanvas(drawingPoints[0]).x}
-            cy={toCanvas(drawingPoints[0]).y}
-            r="10"
-            className="fill-transparent stroke-green-600 stroke-2"
-            style={{ pointerEvents: 'none' }}
-          />
-        )}
+        {/* All Points Highlight (for closing the room) */}
+        {mode === 'draw' && drawingPoints.length >= 2 &&
+          drawingPoints.map((p, i) => (
+            <circle
+              key={`highlight-${i}`}
+              cx={toCanvas(p).x}
+              cy={toCanvas(p).y}
+              r="10"
+              className="fill-transparent stroke-green-600 stroke-2"
+              style={{ pointerEvents: 'none' }}
+            />
+          ))}
       </svg>
 
       {/* Instruction Overlay */}
@@ -671,7 +675,7 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
             if (drawingPoints.length < 3) {
               return 'Continue clicking to add walls';
             }
-            return 'Click on the first point or double-click to close the shape';
+            return 'Click on any point or double-click to close the room';
           })()}
         </div>
       )}

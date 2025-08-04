@@ -291,45 +291,22 @@ const getOrderedVertices = (walls: Wall[]): { x: number; z: number }[] => {
   return orderedVertices;
 };
 
-// Check if a floor plan is valid (closed shape)
+// Check if a floor plan is valid (closed exterior loop exists)
 const isValidFloorplan = (walls: Wall[]): boolean => {
   if (walls.length < 3) {
     return false;
   }
-
-  // Build a graph of connections with better precision handling
-  const connections = new Map<string, Set<string>>();
-  const PRECISION = 0.001;
-
-  const createKey = (point: { x: number; z: number }) => {
-    const x = Math.round(point.x / PRECISION) * PRECISION;
-    const z = Math.round(point.z / PRECISION) * PRECISION;
-    return `${x.toFixed(3)},${z.toFixed(3)}`;
-  };
-
-  walls.forEach((wall) => {
-    const startKey = createKey(wall.start);
-    const endKey = createKey(wall.end);
-
-    if (!connections.has(startKey)) {
-      connections.set(startKey, new Set());
-    }
-    if (!connections.has(endKey)) {
-      connections.set(endKey, new Set());
-    }
-
-    connections.get(startKey)!.add(endKey);
-    connections.get(endKey)!.add(startKey);
-  });
-
-  // Check that each point has exactly 2 connections (forms a loop)
-  for (const [_key, connected] of connections.entries()) {
-    if (connected.size !== 2) {
-      return false;
-    }
+  const verts = getOrderedVertices(walls);
+  if (verts.length < 3) {
+    return false;
   }
-
-  return true;
+  // Shoelace area – if zero the polygon is degenerate
+  let area = 0;
+  for (let i = 0; i < verts.length; i++) {
+    const j = (i + 1) % verts.length;
+    area += verts[i].x * verts[j].z - verts[j].x * verts[i].z;
+  }
+  return Math.abs(area) > 1e-3; // >1 cm²
 };
 
 // Ultra-Advanced Floor Rendering Engine with Multiple Algorithms
@@ -2897,7 +2874,9 @@ const createChair = (isDarkMode: boolean): THREE.Group => {
 
 // Utility to finalize object metadata
 const finalizeObject = (group: THREE.Group, type: string, canPlaceOn: string[] = []) => {
+  group.name = `furniture-${type}-${Date.now()}`;
   group.userData.type = type;
+  group.userData.isObject = true;
   group.userData.canPlaceOn = canPlaceOn;
   // store bounding box height for stacking
   const box = new THREE.Box3().setFromObject(group);
@@ -4995,12 +4974,8 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
               connectedWalls.reduce((sum, w) => sum + w.height, 0) /
               connectedWalls.length;
 
-            const cornerGeometry = new THREE.CylinderGeometry(
-              avgThickness / 2,
-              avgThickness / 2,
-              avgHeight,
-              8,
-            );
+            // Use a cube instead of cylinder for sharp 90° corner
+            const cornerGeometry = new THREE.BoxGeometry(avgThickness, avgHeight, avgThickness);
 
             const cornerMesh = new THREE.Mesh(cornerGeometry, cornerMaterial);
             cornerMesh.position.set(vertex.x, avgHeight / 2, vertex.z);

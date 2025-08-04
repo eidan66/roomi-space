@@ -10,17 +10,20 @@ import {
   PencilRuler,
   Square,
   View,
+  Save,
+  FolderOpen,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useTheme } from 'next-themes';
 import { useTranslation } from 'react-i18next';
 import * as THREE from 'three';
 
-import { useAdvancedRoom } from '@/components/AdvancedRoomBuilder';
+import { RoomGeometry, useAdvancedRoom } from '@/components/AdvancedRoomBuilder';
+import { useAuth } from '@/components/AuthProvider';
 import ColorPalette from '@/components/ColorPalette';
+import DesignGallery from '@/components/DesignGallery';
 import Floorplan2DCanvas, { Wall } from '@/components/Floorplan2DCanvas';
 import ModelCategories from '@/components/ModelCategories';
-import RoomMetrics from '@/components/RoomMetrics';
 import SaveDesignModal from '@/components/SaveDesignModal';
 import ThreeCanvas from '@/components/ThreeCanvas';
 import TopToolbar from '@/components/TopToolbar';
@@ -30,82 +33,43 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { DEFAULT_COLORS } from '@/config/colorPalette';
 import { ROOM_SIZES } from '@/config/roomSizes';
-import { AdvancedRoomCalculator } from '@/lib/advanced-room-calculator';
+import { designService, SavedDesign } from '@/lib/designService';
 
 // Room templates are now generated dynamically using the advanced room builder
 
 export default function RoomBuilderPage() {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const { walls, setWalls, clearWalls, generateRectangularRoom } = useAdvancedRoom([]);
-
-  // Calculate advanced metrics using the new calculator
-  const _roomMetrics = useMemo(
-    () => AdvancedRoomCalculator.calculateRoomMetrics(walls),
-    [walls],
-  );
-
+  const [objects, setObjects] = useState<THREE.Object3D[]>([]);
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
-  const [editMode, setEditMode] = useState<'draw' | 'move' | 'delete' | 'idle'>('idle');
-
-  const [gridEnabled, setGridEnabled] = useState(true);
+  const [editMode, setEditMode] = useState<'draw' | 'move' | 'delete' | 'idle'>('draw');
+  const [showGrid, setShowGrid] = useState(true);
   const [gridSnapping, setGridSnapping] = useState(true);
+  const [selectedColor, setSelectedColor] = useState(DEFAULT_COLORS[0]);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showGallery, setShowGallery] = useState(false);
+  const [showObjectsModal, setShowObjectsModal] = useState(false);
+  const [currentDesignId, setCurrentDesignId] = useState<string | null>(null);
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
+  const [notifications, setNotifications] = useState<Array<{ id: string; message: string; type: 'success' | 'error' | 'info' }>>([]);
+  const [roomName, setRoomName] = useState('Untitled Room');
+  const [roomSize, setRoomSize] = useState<'xs' | 's' | 'm' | 'l' | 'xl'>('m');
+  const [activeTool, setActiveTool] = useState<'select' | 'drag' | 'paint' | 'delete' | 'resize'>('select');
+  const [screenshotUrl, setScreenshotUrl] = useState<string>('');
+  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
   const [wallHeight] = useState(2.8);
   const [wallThickness] = useState(0.25);
   const [showWindows] = useState(true);
+  const [gridEnabled, setGridEnabled] = useState(true);
+  const threeApiRef = useRef<{ addObject: (type: string, position?: { x: number; z: number }) => void; getObjects: () => THREE.Object3D[] } | null>(null);
+  const threeRendererRef = useRef<THREE.WebGLRenderer | null>(null);
 
-  // Top toolbar states
-  const [roomSize, setRoomSize] = useState<'xs' | 's' | 'm' | 'l' | 'xl'>('m');
-  const [activeTool, setActiveTool] = useState<
-    'select' | 'drag' | 'paint' | 'delete' | 'resize'
-  >('select');
-  const [selectedColor, setSelectedColor] = useState<string>('#ffffff');
-
-  // Sync delete tool with editMode when in 2D view
-  useEffect(() => {
-    if (viewMode === '2d') {
-      if (activeTool === 'delete') {
-        setEditMode('delete');
-      } else if (activeTool === 'drag') {
-        setEditMode('move');
-      } else if (activeTool === 'select') {
-        setEditMode('idle');
-      }
-    }
-  }, [activeTool, viewMode]);
-
-  // Apply room size template when roomSize changes
-  useEffect(() => {
-    const size = ROOM_SIZES.find((s) => s.key === roomSize);
-    if (!size) {
-      return;
-    }
-    // Clear existing and generate new room
-    if (walls.length > 0) {
-      recordUndo();
-    }
-    clearWalls();
-    generateRectangularRoom(size.width, size.length, wallHeight, wallThickness);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomSize]);
-
-  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
-  const [showObjectsModal, setShowObjectsModal] = useState(false);
-  const [showSaveModal, setShowSaveModal] = useState(false);
-
-  const threeApiRef = useRef<{
-    addObject: (type: string, position?: { x: number; z: number }) => void;
-    getObjects: () => THREE.Object3D[];
-  } | null>(null);
-  const [screenshotUrl, setScreenshotUrl] = useState<string>('');
-
-  // Canvas refs for screenshot
   const canvas2DRef = useRef<HTMLDivElement>(null);
   const canvas3DRef = useRef<HTMLDivElement>(null);
-  const threeRendererRef = useRef<THREE.WebGLRenderer>(null);
 
   const [_undoStack, setUndoStack] = useState<Wall[][]>([]);
   const [_redoStack, setRedoStack] = useState<Wall[][]>([]);
-  const [roomName, setRoomName] = useState('My Dream Room');
   const { theme } = useTheme();
 
   // Notification state
@@ -141,9 +105,9 @@ export default function RoomBuilderPage() {
   }, [walls]);
 
   const handleWallsChange = useCallback(() => {
-    // Room validation and area calculation is now handled by useAdvancedRoom hook
-    // Both 2D and 3D views use the same wall state for perfect synchronization
-  }, []);
+    // Auto-optimize wall graph whenever walls change
+    setWalls((prev) => RoomGeometry.optimizeWalls(prev));
+  }, [setWalls]);
 
   // Load saved room from localStorage on initial render
   useEffect(() => {
@@ -159,6 +123,52 @@ export default function RoomBuilderPage() {
       }
     }
   }, [setWalls, t]);
+
+  // Handle design loading
+  const handleLoadDesign = useCallback((design: SavedDesign) => {
+    // Convert 2D coordinates to 3D by adding z=0
+    const wallsWithZ = design.walls.map(wall => ({
+      ...wall,
+      start: { ...wall.start, z: 0 },
+      end: { ...wall.end, z: 0 }
+    }));
+    setWalls(wallsWithZ);
+    setRoomName(design.name);
+    setCurrentDesignId(design.id || null);
+    setShowGallery(false);
+    showNotification(`Loaded design: ${design.name}`, 'success');
+  }, [setWalls]);
+
+  const handleEditDesign = useCallback((designId: string) => {
+    setCurrentDesignId(designId);
+    setShowGallery(false);
+    showNotification('Editing existing design', 'info');
+  }, []);
+
+  const handleSaveDesign = useCallback((designId: string) => {
+    console.log('🔧 SaveDesign called with ID:', designId);
+    setCurrentDesignId(designId);
+    if (autoSaveEnabled) {
+      setAutoSaveEnabled(true);
+    }
+    showNotification('Design saved successfully', 'success');
+  }, [autoSaveEnabled]);
+
+  // Debug: Check user auth status
+  useEffect(() => {
+    console.log('🔧 Builder page - User auth status:', !!user);
+  }, [user]);
+
+  // Test Firebase connection
+  const testFirebaseConnection = async () => {
+    console.log('🔧 Testing Firebase connection...');
+    const isConnected = await designService.testConnection();
+    if (isConnected) {
+      showNotification('Firebase connection successful', 'success');
+    } else {
+      showNotification('Firebase connection failed', 'error');
+    }
+  };
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -186,9 +196,9 @@ export default function RoomBuilderPage() {
         threeRendererRef={threeRendererRef}
       />
 
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* --- Sidebar --- */}
-        <div className="w-full lg:w-80 bg-card border-r border-border overflow-y-auto p-2 lg:p-4 space-y-2 lg:space-y-4 max-h-96 lg:max-h-none">
+        <div className="w-full md:w-72 lg:w-80 bg-card border-r border-border overflow-y-auto p-2 lg:p-4 space-y-2 lg:space-y-4 max-h-96 lg:max-h-none">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden bg-white/90">
               <Image
@@ -212,6 +222,66 @@ export default function RoomBuilderPage() {
             className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             placeholder={t('room.placeholder')}
           />
+
+          {/* Design Management */}
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-2 lg:pb-3">
+              <CardTitle className="text-base lg:text-lg flex items-center">
+                <FolderOpen className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
+                Design Management
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowGallery(!showGallery)}
+                  className="flex-1"
+                >
+                  <FolderOpen className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />
+                  Gallery
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowSaveModal(true)}
+                  className="flex-1"
+                >
+                  <Save className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />
+                  Save
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={testFirebaseConnection}
+                  className="flex-1"
+                >
+                  Test Firebase
+                </Button>
+              </div>
+              {currentDesignId && (
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    checked={autoSaveEnabled}
+                    onCheckedChange={setAutoSaveEnabled}
+                  />
+                  <Label className="text-xs">Auto-save</Label>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {showGallery && (
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-2">
+                <DesignGallery
+                  onLoadDesign={handleLoadDesign}
+                  onEditDesign={handleEditDesign}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-2 lg:pb-3">
@@ -281,12 +351,6 @@ export default function RoomBuilderPage() {
                       <Label className="text-xs lg:text-sm">
                         {t('sidebar.showGrid')}
                       </Label>
-                      <Switch checked={gridEnabled} onCheckedChange={setGridEnabled} />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs lg:text-sm">
-                        {t('sidebar.gridSnapping')}
-                      </Label>
                       <Switch checked={gridSnapping} onCheckedChange={setGridSnapping} />
                     </div>
                   </div>
@@ -294,7 +358,7 @@ export default function RoomBuilderPage() {
               </Card>
 
               {/* Room Metrics */}
-              <RoomMetrics metrics={_roomMetrics} />
+              {/* Removed RoomMetrics import and usage */}
             </>
           )}
 
@@ -346,7 +410,7 @@ export default function RoomBuilderPage() {
         {/* --- Main Canvas Area --- */}
         <div className="flex-1 relative bg-muted">
           {viewMode === '2d' ? (
-            <div ref={canvas2DRef} className="w-full h-full">
+            <div ref={canvas2DRef} className="w-full h-full md:scale-90 md:origin-top-left">
               <Floorplan2DCanvas
                 walls={walls}
                 setWalls={setWalls}
@@ -378,7 +442,38 @@ export default function RoomBuilderPage() {
           )}
         </div>
       </div>
+
+      {/* Save Design Modal */}
+      <SaveDesignModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        onSave={handleSaveDesign}
+        walls={walls}
+        objects={threeApiRef.current?.getObjects() || []}
+
+        autoSave={autoSaveEnabled}
+        existingDesignId={currentDesignId || undefined}
+      />
+
       {/* Notification Toast */}
+      {notification.visible && (
+        <div className="fixed top-4 right-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 z-50">
+          <div className="flex items-center space-x-2">
+            <div
+              className={`w-2 h-2 rounded-full ${
+                notification.type === 'success'
+                  ? 'bg-green-500'
+                  : notification.type === 'error'
+                  ? 'bg-red-500'
+                  : 'bg-blue-500'
+              }`}
+            />
+            <span className="text-sm font-medium">{notification.message}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Objects Modal */}
       {showObjectsModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-card p-6 rounded-lg shadow-lg max-w-md w-full space-y-4">
@@ -414,6 +509,7 @@ export default function RoomBuilderPage() {
         </div>
       )}
 
+      {/* Screenshot Modal */}
       {showScreenshotModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-card p-6 rounded-lg shadow-lg max-w-md w-full space-y-4">
@@ -438,55 +534,24 @@ export default function RoomBuilderPage() {
                   rooms.push({
                     id: Date.now(),
                     name: roomName,
-                    walls,
                     screenshot: screenshotUrl,
-                    createdAt: new Date().toISOString(),
+                    timestamp: new Date().toISOString(),
                   });
                   localStorage.setItem('profileRooms', JSON.stringify(rooms));
-                  showNotification(t('notifications.roomSaved'), 'success');
                   setShowScreenshotModal(false);
+                  showNotification('Screenshot saved to profile', 'success');
                 }}
               >
-                {t('sidebar.saveRoom')}
+                Save to Profile
               </Button>
               <Button
                 variant="outline"
-                className="flex-1"
                 onClick={() => setShowScreenshotModal(false)}
               >
                 Close
               </Button>
             </div>
           </div>
-        </div>
-      )}
-
-      <SaveDesignModal
-        isOpen={showSaveModal}
-        onClose={() => setShowSaveModal(false)}
-        onSave={(_designId) => {
-          showNotification('Design saved successfully!', 'success');
-          setShowSaveModal(false);
-        }}
-        walls={walls}
-        objects={threeApiRef.current?.getObjects() || []}
-        roomMetrics={_roomMetrics}
-      />
-
-      {notification.visible && (
-        <div
-          className={`fixed bottom-4 right-4 px-4 py-2 rounded-md shadow-lg text-white transition-opacity duration-300 ${(() => {
-            switch (notification.type) {
-              case 'success':
-                return 'bg-green-500';
-              case 'error':
-                return 'bg-red-500';
-              default:
-                return 'bg-blue-500';
-            }
-          })()}`}
-        >
-          {notification.message}
         </div>
       )}
     </div>

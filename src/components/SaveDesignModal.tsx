@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
@@ -20,9 +20,10 @@ interface SaveDesignModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (designId: string) => void;
-  walls: any[];
-  objects: any[];
-  roomMetrics?: any;
+  walls: Wall[];
+  objects: THREE.Object3D[];
+  autoSave?: boolean;
+  existingDesignId?: string;
 }
 
 export default function SaveDesignModal({
@@ -31,21 +32,75 @@ export default function SaveDesignModal({
   onSave,
   walls,
   objects,
-  roomMetrics,
+  autoSave = false,
+  existingDesignId,
 }: SaveDesignModalProps) {
   const { user } = useAuth();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  // Auto-save effect
+  useEffect(() => {
+    if (!autoSave || !existingDesignId || !user) return;
+
+    const autoSaveInterval = setInterval(async () => {
+      if (walls.length === 0) return;
+
+      setAutoSaveStatus('saving');
+      try {
+        await designService.autoSaveDesign(existingDesignId, {
+          userId: user.uid,
+          name: name || 'Untitled Design',
+          description: description || undefined,
+          walls: walls.map((wall) => ({
+            id: wall.id,
+            start: wall.start,
+            end: wall.end,
+            height: wall.height,
+            thickness: wall.thickness,
+          })),
+          objects: objects.map((obj) => ({
+            id: obj.id || obj.uuid,
+            type: obj.userData?.type || 'unknown',
+            position: obj.position,
+            rotation: obj.rotation,
+            scale: obj.scale,
+            userData: obj.userData,
+          })),
+          roomMetrics,
+        });
+        setLastSaved(new Date());
+        setAutoSaveStatus('saved');
+        
+        // Reset status after 2 seconds
+        setTimeout(() => setAutoSaveStatus('idle'), 2000);
+      } catch (err) {
+        setAutoSaveStatus('error');
+        console.error('Auto-save failed:', err);
+      }
+    }, 30000); // Auto-save every 30 seconds
+
+    return () => clearInterval(autoSaveInterval);
+  }, [autoSave, existingDesignId, user, walls, objects, name, description]);
 
   const handleSave = async () => {
+    console.log('🔧 SaveDesignModal handleSave called');
+    console.log('🔧 User:', user);
+    console.log('🔧 Walls count:', walls.length);
+    console.log('🔧 Objects count:', objects.length);
+    
     if (!user) {
+      console.log('❌ No user found');
       setError('You must be logged in to save designs');
       return;
     }
 
     if (!name.trim()) {
+      console.log('❌ No name provided');
       setError('Please enter a design name');
       return;
     }
@@ -73,15 +128,31 @@ export default function SaveDesignModal({
           scale: obj.scale,
           userData: obj.userData,
         })),
-        roomMetrics,
       };
 
-      const designId = await designService.saveDesign(designData);
+      console.log('🔧 Design data prepared:', designData);
+
+      let designId: string;
+      if (existingDesignId) {
+        console.log('🔧 Updating existing design:', existingDesignId);
+        await designService.updateDesign(existingDesignId, designData);
+        designId = existingDesignId;
+      } else {
+        console.log('🔧 Creating new design');
+        designId = await designService.saveDesign(designData);
+      }
+
+      console.log('🔧 Design saved with ID:', designId);
+      setLastSaved(new Date());
       onSave(designId);
-      onClose();
-      setName('');
-      setDescription('');
+      
+      if (!autoSave) {
+        onClose();
+        setName('');
+        setDescription('');
+      }
     } catch (err) {
+      console.error('❌ Save error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to save design';
       setError(errorMessage);
     } finally {
@@ -97,16 +168,19 @@ export default function SaveDesignModal({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Save Design</CardTitle>
-          <CardDescription>Save your current room design to your account</CardDescription>
+          <CardTitle>
+            {existingDesignId ? 'Update Design' : 'Save Design'}
+          </CardTitle>
+          <CardDescription>
+            {autoSave && existingDesignId 
+              ? 'Design will auto-save every 30 seconds'
+              : 'Save your room design to your account'
+            }
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {error && (
-            <div className="text-red-500 text-sm bg-red-50 p-2 rounded">{error}</div>
-          )}
-
           <div className="space-y-2">
-            <Label htmlFor="name">Design Name *</Label>
+            <Label htmlFor="name">Design Name</Label>
             <Input
               id="name"
               value={name}
@@ -123,35 +197,37 @@ export default function SaveDesignModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe your design..."
-              rows={3}
               disabled={loading}
             />
           </div>
 
-          <div className="text-sm text-muted-foreground">
-            <p>This design includes:</p>
-            <ul className="list-disc list-inside mt-1 space-y-1">
-              <li>{walls.length} walls</li>
-              <li>{objects.length} objects</li>
-              {roomMetrics && <li>Room area: {roomMetrics.area?.toFixed(2)} m²</li>}
-            </ul>
-          </div>
+          {autoSave && existingDesignId && (
+            <div className="text-sm text-muted-foreground">
+              {autoSaveStatus === 'saving' && '🔄 Auto-saving...'}
+              {autoSaveStatus === 'saved' && '✅ Auto-saved'}
+              {autoSaveStatus === 'error' && '❌ Auto-save failed'}
+              {lastSaved && autoSaveStatus === 'idle' && (
+                <span>Last saved: {lastSaved.toLocaleTimeString()}</span>
+              )}
+            </div>
+          )}
 
-          <div className="flex gap-2 pt-4">
-            <Button
-              variant="outline"
-              onClick={onClose}
-              disabled={loading}
-              className="flex-1"
-            >
-              Cancel
-            </Button>
+          {error && (
+            <div className="text-sm text-red-500 bg-red-50 p-2 rounded">
+              {error}
+            </div>
+          )}
+
+          <div className="flex gap-2">
             <Button
               onClick={handleSave}
               disabled={loading || !name.trim()}
               className="flex-1"
             >
-              {loading ? 'Saving...' : 'Save Design'}
+              {loading ? 'Saving...' : existingDesignId ? 'Update' : 'Save'}
+            </Button>
+            <Button variant="outline" onClick={onClose} disabled={loading}>
+              Cancel
             </Button>
           </div>
         </CardContent>
