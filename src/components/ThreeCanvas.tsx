@@ -6,9 +6,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls';
 
+import { RoomObject } from '@/types/room';
+
 import AdvancedGeometryEngine, { WindowPlacement } from './AdvancedGeometryEngine';
 import { Wall } from './Floorplan2DCanvas';
-import { RoomObject } from '@/types/room';
 
 // --- Advanced geometry helper functions ---
 
@@ -3548,7 +3549,7 @@ const OBJECT_SPACING = 1.0; // Minimum gap between furniture objects
 
 const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   walls,
-  objects = [],
+  objects: _objects = [],
   gridEnabled,
   isDarkMode,
   showWindows = true,
