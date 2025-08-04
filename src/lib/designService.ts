@@ -133,6 +133,17 @@ export const designService = {
       return designs;
     } catch (error) {
       console.error('Error fetching user designs:', error);
+
+      // Handle index error specifically
+      if ((error as Error & { code?: string }).code === 'failed-precondition') {
+        console.error(
+          'Firestore index error. Please create the required index:',
+          (error as Error & { code?: string }).message,
+        );
+        // Return empty array instead of throwing to prevent UI crashes
+        return [];
+      }
+
       throw error;
     }
   },
@@ -148,25 +159,44 @@ export const designService = {
       orderBy('updatedAt', 'desc'),
     );
 
-    const unsubscribe = onSnapshot(userDesignsQuery, (snapshot) => {
-      if (snapshot.empty) {
-        callback([]);
-        return;
-      }
+    const unsubscribe = onSnapshot(
+      userDesignsQuery,
+      (snapshot) => {
+        if (snapshot.empty) {
+          callback([]);
+          return;
+        }
 
-      const designs: SavedDesign[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        designs.push({
-          id: doc.id,
-          ...data,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date(),
-        } as SavedDesign);
-      });
+        const designs: SavedDesign[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          designs.push({
+            id: doc.id,
+            ...data,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date(),
+          } as SavedDesign);
+        });
 
-      callback(designs);
-    });
+        callback(designs);
+      },
+      (error) => {
+        console.error('Error in design subscription:', error);
+
+        // Handle index error specifically
+        if (error.code === 'failed-precondition') {
+          console.error(
+            'Firestore index error. Please create the required index:',
+            error.message,
+          );
+          // Still call callback with empty array to prevent UI from breaking
+          callback([]);
+        } else {
+          // For other errors, still provide empty array to prevent crashes
+          callback([]);
+        }
+      },
+    );
 
     return unsubscribe;
   },

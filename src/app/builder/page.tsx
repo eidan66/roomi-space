@@ -32,7 +32,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { DEFAULT_COLORS } from '@/config/colorPalette';
-import { SavedDesign, designService } from '@/lib/designService';
+import { SavedDesign } from '@/lib/designService';
 
 // Room templates are now generated dynamically using the advanced room builder
 
@@ -133,11 +133,11 @@ export default function RoomBuilderPage() {
   // Handle design loading
   const handleLoadDesign = useCallback(
     (design: SavedDesign) => {
-      // Convert 2D coordinates to 3D by adding z=0
+      // Convert 2D coordinates (x,y) back to 3D coordinates (x,z)
       const wallsWithZ = design.walls.map((wall) => ({
         ...wall,
-        start: { ...wall.start, z: 0 },
-        end: { ...wall.end, z: 0 },
+        start: { x: wall.start.x, z: wall.start.y }, // Map y back to z
+        end: { x: wall.end.x, z: wall.end.y }, // Map y back to z
       }));
       setWalls(wallsWithZ);
       setRoomName(design.name);
@@ -170,17 +170,6 @@ export default function RoomBuilderPage() {
   useEffect(() => {
     console.log('🔧 Builder page - User auth status:', !!user);
   }, [user]);
-
-  // Test Firebase connection
-  const testFirebaseConnection = async () => {
-    console.log('🔧 Testing Firebase connection...');
-    const isConnected = await designService.testConnection();
-    if (isConnected) {
-      showNotification('Firebase connection successful', 'success');
-    } else {
-      showNotification('Firebase connection failed', 'error');
-    }
-  };
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -262,14 +251,6 @@ export default function RoomBuilderPage() {
                 >
                   <Save className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />
                   Save
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={testFirebaseConnection}
-                  className="flex-1"
-                >
-                  Test Firebase
                 </Button>
               </div>
               {currentDesignId && (
