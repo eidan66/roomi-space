@@ -10,9 +10,9 @@ import {
   Lock,
   MousePointer2,
   Paintbrush2,
-  Save,
   StretchHorizontal as ResizeIcon,
   Rotate3D,
+  Save,
   Trash2,
   Unlock,
 } from 'lucide-react';

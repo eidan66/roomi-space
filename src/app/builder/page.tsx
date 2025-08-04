@@ -1,17 +1,17 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   Building,
+  FolderOpen,
   Move,
   Move3d,
   Paintbrush2,
   PencilRuler,
+  Save,
   Square,
   View,
-  Save,
-  FolderOpen,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useTheme } from 'next-themes';
@@ -32,19 +32,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { DEFAULT_COLORS } from '@/config/colorPalette';
-import { ROOM_SIZES } from '@/config/roomSizes';
-import { designService, SavedDesign } from '@/lib/designService';
+import { SavedDesign, designService } from '@/lib/designService';
 
 // Room templates are now generated dynamically using the advanced room builder
 
 export default function RoomBuilderPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { walls, setWalls, clearWalls, generateRectangularRoom } = useAdvancedRoom([]);
-  const [objects, setObjects] = useState<THREE.Object3D[]>([]);
+  const { walls, setWalls } = useAdvancedRoom([]);
+  const [_objects, _setObjects] = useState<THREE.Object3D[]>([]);
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [editMode, setEditMode] = useState<'draw' | 'move' | 'delete' | 'idle'>('draw');
-  const [showGrid, setShowGrid] = useState(true);
+  const [_showGrid, _setShowGrid] = useState(true);
   const [gridSnapping, setGridSnapping] = useState(true);
   const [selectedColor, setSelectedColor] = useState(DEFAULT_COLORS[0]);
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -52,17 +51,24 @@ export default function RoomBuilderPage() {
   const [showObjectsModal, setShowObjectsModal] = useState(false);
   const [currentDesignId, setCurrentDesignId] = useState<string | null>(null);
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
-  const [notifications, setNotifications] = useState<Array<{ id: string; message: string; type: 'success' | 'error' | 'info' }>>([]);
+  const [_notifications, _setNotifications] = useState<
+    Array<{ id: string; message: string; type: 'success' | 'error' | 'info' }>
+  >([]);
   const [roomName, setRoomName] = useState('Untitled Room');
   const [roomSize, setRoomSize] = useState<'xs' | 's' | 'm' | 'l' | 'xl'>('m');
-  const [activeTool, setActiveTool] = useState<'select' | 'drag' | 'paint' | 'delete' | 'resize'>('select');
+  const [activeTool, setActiveTool] = useState<
+    'select' | 'drag' | 'paint' | 'delete' | 'resize'
+  >('select');
   const [screenshotUrl, setScreenshotUrl] = useState<string>('');
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
   const [wallHeight] = useState(2.8);
   const [wallThickness] = useState(0.25);
   const [showWindows] = useState(true);
-  const [gridEnabled, setGridEnabled] = useState(true);
-  const threeApiRef = useRef<{ addObject: (type: string, position?: { x: number; z: number }) => void; getObjects: () => THREE.Object3D[] } | null>(null);
+  const [gridEnabled, _setGridEnabled] = useState(true);
+  const threeApiRef = useRef<{
+    addObject: (type: string, position?: { x: number; z: number }) => void;
+    getObjects: () => THREE.Object3D[];
+  } | null>(null);
   const threeRendererRef = useRef<THREE.WebGLRenderer | null>(null);
 
   const canvas2DRef = useRef<HTMLDivElement>(null);
@@ -99,7 +105,7 @@ export default function RoomBuilderPage() {
     }, 3000);
   };
 
-  const recordUndo = useCallback(() => {
+  const _recordUndo = useCallback(() => {
     setUndoStack((prev) => [...prev, walls]);
     setRedoStack([]);
   }, [walls]);
@@ -125,19 +131,22 @@ export default function RoomBuilderPage() {
   }, [setWalls, t]);
 
   // Handle design loading
-  const handleLoadDesign = useCallback((design: SavedDesign) => {
-    // Convert 2D coordinates to 3D by adding z=0
-    const wallsWithZ = design.walls.map(wall => ({
-      ...wall,
-      start: { ...wall.start, z: 0 },
-      end: { ...wall.end, z: 0 }
-    }));
-    setWalls(wallsWithZ);
-    setRoomName(design.name);
-    setCurrentDesignId(design.id || null);
-    setShowGallery(false);
-    showNotification(`Loaded design: ${design.name}`, 'success');
-  }, [setWalls]);
+  const handleLoadDesign = useCallback(
+    (design: SavedDesign) => {
+      // Convert 2D coordinates to 3D by adding z=0
+      const wallsWithZ = design.walls.map((wall) => ({
+        ...wall,
+        start: { ...wall.start, z: 0 },
+        end: { ...wall.end, z: 0 },
+      }));
+      setWalls(wallsWithZ);
+      setRoomName(design.name);
+      setCurrentDesignId(design.id || null);
+      setShowGallery(false);
+      showNotification(`Loaded design: ${design.name}`, 'success');
+    },
+    [setWalls],
+  );
 
   const handleEditDesign = useCallback((designId: string) => {
     setCurrentDesignId(designId);
@@ -145,14 +154,17 @@ export default function RoomBuilderPage() {
     showNotification('Editing existing design', 'info');
   }, []);
 
-  const handleSaveDesign = useCallback((designId: string) => {
-    console.log('🔧 SaveDesign called with ID:', designId);
-    setCurrentDesignId(designId);
-    if (autoSaveEnabled) {
-      setAutoSaveEnabled(true);
-    }
-    showNotification('Design saved successfully', 'success');
-  }, [autoSaveEnabled]);
+  const handleSaveDesign = useCallback(
+    (designId: string) => {
+      console.log('🔧 SaveDesign called with ID:', designId);
+      setCurrentDesignId(designId);
+      if (autoSaveEnabled) {
+        setAutoSaveEnabled(true);
+      }
+      showNotification('Design saved successfully', 'success');
+    },
+    [autoSaveEnabled],
+  );
 
   // Debug: Check user auth status
   useEffect(() => {
@@ -410,7 +422,10 @@ export default function RoomBuilderPage() {
         {/* --- Main Canvas Area --- */}
         <div className="flex-1 relative bg-muted">
           {viewMode === '2d' ? (
-            <div ref={canvas2DRef} className="w-full h-full md:scale-90 md:origin-top-left">
+            <div
+              ref={canvas2DRef}
+              className="w-full h-full md:scale-90 md:origin-top-left"
+            >
               <Floorplan2DCanvas
                 walls={walls}
                 setWalls={setWalls}
@@ -450,7 +465,6 @@ export default function RoomBuilderPage() {
         onSave={handleSaveDesign}
         walls={walls}
         objects={threeApiRef.current?.getObjects() || []}
-
         autoSave={autoSaveEnabled}
         existingDesignId={currentDesignId || undefined}
       />
@@ -460,13 +474,15 @@ export default function RoomBuilderPage() {
         <div className="fixed top-4 right-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 z-50">
           <div className="flex items-center space-x-2">
             <div
-              className={`w-2 h-2 rounded-full ${
-                notification.type === 'success'
-                  ? 'bg-green-500'
-                  : notification.type === 'error'
-                  ? 'bg-red-500'
-                  : 'bg-blue-500'
-              }`}
+              className={`w-2 h-2 rounded-full ${(() => {
+                if (notification.type === 'success') {
+                  return 'bg-green-500';
+                }
+                if (notification.type === 'error') {
+                  return 'bg-red-500';
+                }
+                return 'bg-blue-500';
+              })()}`}
             />
             <span className="text-sm font-medium">{notification.message}</span>
           </div>
@@ -544,10 +560,7 @@ export default function RoomBuilderPage() {
               >
                 Save to Profile
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => setShowScreenshotModal(false)}
-              >
+              <Button variant="outline" onClick={() => setShowScreenshotModal(false)}>
                 Close
               </Button>
             </div>

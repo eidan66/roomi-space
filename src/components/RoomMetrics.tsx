@@ -12,7 +12,7 @@ interface RoomMetricsProps {
   metrics: RoomMetrics;
 }
 
-export default function RoomMetrics({ metrics }: RoomMetricsProps) {
+export default function RoomMetricsComponent({ metrics }: RoomMetricsProps) {
   if (!metrics.isValid) {
     return (
       <Card className="border-0 shadow-sm">

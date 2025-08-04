@@ -4975,7 +4975,11 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
               connectedWalls.length;
 
             // Use a cube instead of cylinder for sharp 90° corner
-            const cornerGeometry = new THREE.BoxGeometry(avgThickness, avgHeight, avgThickness);
+            const cornerGeometry = new THREE.BoxGeometry(
+              avgThickness,
+              avgHeight,
+              avgThickness,
+            );
 
             const cornerMesh = new THREE.Mesh(cornerGeometry, cornerMaterial);
             cornerMesh.position.set(vertex.x, avgHeight / 2, vertex.z);

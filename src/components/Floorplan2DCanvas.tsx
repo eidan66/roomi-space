@@ -652,7 +652,8 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
           ))}
 
         {/* All Points Highlight (for closing the room) */}
-        {mode === 'draw' && drawingPoints.length >= 2 &&
+        {mode === 'draw' &&
+          drawingPoints.length >= 2 &&
           drawingPoints.map((p, i) => (
             <circle
               key={`highlight-${i}`}

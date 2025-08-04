@@ -1,17 +1,18 @@
 import {
-  ref,
-  set,
-  get,
-  push,
-  update,
-  remove,
-  query,
-  orderByChild,
   equalTo,
-  onValue,
+  get,
   off,
+  onValue,
+  orderByChild,
+  push,
+  query,
+  ref,
+  remove,
   serverTimestamp,
+  set,
+  update,
 } from 'firebase/database';
+
 import { realtimeDb } from '@/firebase/firebase';
 
 export interface SavedDesign {
@@ -32,7 +33,7 @@ export interface SavedDesign {
     position: { x: number; y: number; z: number };
     rotation: { x: number; y: number; z: number };
     scale: { x: number; y: number; z: number };
-    userData: any;
+    userData: Record<string, unknown>;
   }>;
 
   createdAt?: Date;
@@ -47,7 +48,7 @@ export const designService = {
       const testRef = ref(realtimeDb, 'test');
       await get(testRef);
       console.log('✅ Realtime Database read access OK');
-      
+
       console.log('🔧 Testing Realtime Database write access...');
       const testData = {
         test: true,
@@ -55,11 +56,11 @@ export const designService = {
       };
       await set(ref(realtimeDb, 'test'), testData);
       console.log('✅ Realtime Database write access OK');
-      
+
       // Clean up test data
       await remove(ref(realtimeDb, 'test'));
       console.log('✅ Test data cleaned up');
-      
+
       return true;
     } catch (error) {
       console.error('❌ Realtime Database test failed:', error);
@@ -71,7 +72,7 @@ export const designService = {
     design: Omit<SavedDesign, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<string> {
     console.log('🔧 designService.saveDesign called with:', design);
-    
+
     try {
       const designData = {
         ...design,
@@ -87,15 +88,15 @@ export const designService = {
       return newDesignRef.key!;
     } catch (error) {
       console.error('❌ Realtime Database error:', error);
-      console.error('❌ Error code:', (error as any)?.code);
-      console.error('❌ Error message:', (error as any)?.message);
+      console.error('❌ Error code:', (error as Error & { code?: string })?.code);
+      console.error('❌ Error message:', (error as Error)?.message);
       throw error;
     }
   },
 
   async updateDesign(designId: string, design: Partial<SavedDesign>): Promise<void> {
     console.log('🔧 designService.updateDesign called with ID:', designId);
-    
+
     const designRef = ref(realtimeDb, `designs/${designId}`);
     await update(designRef, {
       ...design,
@@ -109,7 +110,7 @@ export const designService = {
       const designsRef = ref(realtimeDb, 'designs');
       const userDesignsQuery = query(designsRef, orderByChild('userId'), equalTo(userId));
       const snapshot = await get(userDesignsQuery);
-      
+
       if (!snapshot.exists()) {
         return [];
       }
@@ -119,12 +120,18 @@ export const designService = {
         designs.push({
           id: childSnapshot.key!,
           ...childSnapshot.val(),
-          createdAt: childSnapshot.val().createdAt ? new Date(childSnapshot.val().createdAt) : new Date(),
-          updatedAt: childSnapshot.val().updatedAt ? new Date(childSnapshot.val().updatedAt) : new Date(),
+          createdAt: childSnapshot.val().createdAt
+            ? new Date(childSnapshot.val().createdAt)
+            : new Date(),
+          updatedAt: childSnapshot.val().updatedAt
+            ? new Date(childSnapshot.val().updatedAt)
+            : new Date(),
         });
       });
 
-      return designs.sort((a, b) => (b.updatedAt?.getTime() || 0) - (a.updatedAt?.getTime() || 0));
+      return designs.sort(
+        (a, b) => (b.updatedAt?.getTime() || 0) - (a.updatedAt?.getTime() || 0),
+      );
     } catch (error) {
       console.error('Error fetching user designs:', error);
       throw error;
@@ -137,7 +144,7 @@ export const designService = {
   ): () => void {
     const designsRef = ref(realtimeDb, 'designs');
     const userDesignsQuery = query(designsRef, orderByChild('userId'), equalTo(userId));
-    
+
     const unsubscribe = onValue(userDesignsQuery, (snapshot) => {
       if (!snapshot.exists()) {
         callback([]);
@@ -149,20 +156,31 @@ export const designService = {
         designs.push({
           id: childSnapshot.key!,
           ...childSnapshot.val(),
-          createdAt: childSnapshot.val().createdAt ? new Date(childSnapshot.val().createdAt) : new Date(),
-          updatedAt: childSnapshot.val().updatedAt ? new Date(childSnapshot.val().updatedAt) : new Date(),
+          createdAt: childSnapshot.val().createdAt
+            ? new Date(childSnapshot.val().createdAt)
+            : new Date(),
+          updatedAt: childSnapshot.val().updatedAt
+            ? new Date(childSnapshot.val().updatedAt)
+            : new Date(),
         });
       });
 
-             callback(designs.sort((a, b) => (b.updatedAt?.getTime() || 0) - (a.updatedAt?.getTime() || 0)));
+      callback(
+        designs.sort(
+          (a, b) => (b.updatedAt?.getTime() || 0) - (a.updatedAt?.getTime() || 0),
+        ),
+      );
     });
 
     return () => off(designsRef, 'value', unsubscribe);
   },
 
-  subscribeToDesign(designId: string, callback: (design: SavedDesign | null) => void): () => void {
+  subscribeToDesign(
+    designId: string,
+    callback: (design: SavedDesign | null) => void,
+  ): () => void {
     const designRef = ref(realtimeDb, `designs/${designId}`);
-    
+
     const unsubscribe = onValue(designRef, (snapshot) => {
       if (!snapshot.exists()) {
         callback(null);
@@ -172,8 +190,12 @@ export const designService = {
       const design: SavedDesign = {
         id: snapshot.key!,
         ...snapshot.val(),
-        createdAt: snapshot.val().createdAt ? new Date(snapshot.val().createdAt) : new Date(),
-        updatedAt: snapshot.val().updatedAt ? new Date(snapshot.val().updatedAt) : new Date(),
+        createdAt: snapshot.val().createdAt
+          ? new Date(snapshot.val().createdAt)
+          : new Date(),
+        updatedAt: snapshot.val().updatedAt
+          ? new Date(snapshot.val().updatedAt)
+          : new Date(),
       };
 
       callback(design);
@@ -190,7 +212,9 @@ export const designService = {
     });
   },
 
-  async createDesignWithAutoSave(design: Omit<SavedDesign, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+  async createDesignWithAutoSave(
+    design: Omit<SavedDesign, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<string> {
     const designData = {
       ...design,
       createdAt: serverTimestamp(),

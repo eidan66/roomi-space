@@ -1,19 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Trash2, Edit, Eye, Download } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
+import { Download, Edit, Eye, Trash2 } from 'lucide-react';
 
 import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { designService, SavedDesign } from '@/lib/designService';
+import { SavedDesign, designService } from '@/lib/designService';
 
 interface DesignGalleryProps {
   onLoadDesign: (design: SavedDesign) => void;
   onEditDesign: (designId: string) => void;
 }
 
-export default function DesignGallery({ onLoadDesign, onEditDesign }: DesignGalleryProps) {
+export default function DesignGallery({
+  onLoadDesign,
+  onEditDesign,
+}: DesignGalleryProps) {
   const { user } = useAuth();
   const [designs, setDesigns] = useState<SavedDesign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,16 +31,21 @@ export default function DesignGallery({ onLoadDesign, onEditDesign }: DesignGall
     }
 
     // Subscribe to real-time updates
-    const unsubscribe = designService.subscribeToUserDesigns(user.uid, (updatedDesigns) => {
-      setDesigns(updatedDesigns);
-      setLoading(false);
-    });
+    const unsubscribe = designService.subscribeToUserDesigns(
+      user.uid,
+      (updatedDesigns) => {
+        setDesigns(updatedDesigns);
+        setLoading(false);
+      },
+    );
 
     return () => unsubscribe();
   }, [user]);
 
   const handleDeleteDesign = async (designId: string) => {
-    if (!confirm('Are you sure you want to delete this design?')) return;
+    if (!confirm('Are you sure you want to delete this design?')) {
+      return;
+    }
 
     try {
       await designService.deleteDesign(designId);
@@ -93,11 +102,7 @@ export default function DesignGallery({ onLoadDesign, onEditDesign }: DesignGall
         </div>
       </div>
 
-      {error && (
-        <div className="text-sm text-red-500 bg-red-50 p-2 rounded">
-          {error}
-        </div>
-      )}
+      {error && <div className="text-sm text-red-500 bg-red-50 p-2 rounded">{error}</div>}
 
       {designs.length === 0 ? (
         <Card>
@@ -128,8 +133,10 @@ export default function DesignGallery({ onLoadDesign, onEditDesign }: DesignGall
                 <div className="text-xs text-muted-foreground mb-3">
                   <div>Walls: {design.walls.length}</div>
                   <div>Objects: {design.objects.length}</div>
-                  
-                  <div>Updated: {design.updatedAt.toLocaleDateString()}</div>
+
+                  <div>
+                    Updated: {design.updatedAt?.toLocaleDateString() || 'Unknown'}
+                  </div>
                 </div>
 
                 <div className="flex gap-2">
@@ -172,4 +179,4 @@ export default function DesignGallery({ onLoadDesign, onEditDesign }: DesignGall
       )}
     </div>
   );
-} 
+}
