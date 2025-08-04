@@ -55,8 +55,9 @@ export type RoomObject = {
   id: string;
   type: string; // e.g., "chair", "lamp"
   position: { x: number; y: number; z: number };
-  rotation: number;
-  scale: number;
+  rotation: { x: number; y: number; z: number };
+  scale: { x: number; y: number; z: number };
+  color: string;
 };
 
 export type Room = {

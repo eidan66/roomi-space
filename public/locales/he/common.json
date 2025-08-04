@@ -2,7 +2,7 @@
   "welcome": "ברוכים הבאים לסטודיו חדר החלומות!",
   "navigation.home": "בית",
   "navigation.builder": "בונה חדרים",
-  "navigation.furnish": "ריהוט",
+
   "navigation.academy": "אקדמיה",
   "navigation.profile": "פרופיל",
   "navigation.settings": "הגדרות",
@@ -142,8 +142,7 @@
   "homepage.features.subtitle": "משרטוט הקיר הראשון ועד יצירות מופת, כל שלב מעוצב כדי לעורר יצירתיות ולמידה.",
   "homepage.features.buildRoom": "בנו את החדר שלכם",
   "homepage.features.buildRoomDesc": "שרטטו קירות, הוסיפו דלתות וחלונות עם כלים תלת-ממדיים אינטואיטיביים",
-  "homepage.features.furnishDecorate": "ריהוט ועיצוב",
-  "homepage.features.furnishDecorateDesc": "גררו ושחררו ריהוט עם פיזיקה ריאליסטית",
+
   "homepage.features.shareCreations": "שתפו יצירות",
   "homepage.features.shareCreationsDesc": "צלמו תמונות ושתפו את חדרי החלומות שלכם עם חברים",
   "homepage.features.earnRewards": "זכו בפרסים",
@@ -254,7 +253,7 @@
   "sidebar.redo": "חזר",
   "sidebar.optimizeGeometry": "אופטימיזציית גאומטריה",
   "sidebar.saveRoom": "שמור חדר",
-  "sidebar.startFurnishing": "התחל ריהוט",
+
   "sidebar.drawWalls": "צייר קירות",
   "sidebar.movePoints": "הזז נקודות",
   "sidebar.showGrid": "הצג רשת",

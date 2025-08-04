@@ -17,7 +17,6 @@ import {
   Send,
   Shield,
   Users,
-  Zap,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -127,15 +126,7 @@ export default function Footer() {
                       {t('navigation.builder')}
                     </Link>
                   </li>
-                  <li>
-                    <Link
-                      href="/furnish"
-                      className="text-sm text-muted-foreground hover:text-foreground hover:translate-x-1 rtl:hover:-translate-x-1 transition-all duration-200 flex items-center gap-2 cursor-pointer group"
-                    >
-                      <Zap className="w-4 h-4 group-hover:scale-110 transition-transform duration-200" />
-                      {t('navigation.furnish')}
-                    </Link>
-                  </li>
+
                   <li>
                     <Link
                       href="/academy"

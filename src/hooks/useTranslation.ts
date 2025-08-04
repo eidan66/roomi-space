@@ -8,7 +8,7 @@ type TranslationKeys =
   | 'welcome'
   | 'navigation.home'
   | 'navigation.builder'
-  | 'navigation.furnish'
+
   | 'navigation.academy'
   | 'navigation.profile'
   | 'navigation.settings'
@@ -93,8 +93,7 @@ type TranslationKeys =
   | 'homepage.features.subtitle'
   | 'homepage.features.buildRoom'
   | 'homepage.features.buildRoomDesc'
-  | 'homepage.features.furnishDecorate'
-  | 'homepage.features.furnishDecorateDesc'
+
   | 'homepage.features.shareCreations'
   | 'homepage.features.shareCreationsDesc'
   | 'homepage.features.earnRewards'

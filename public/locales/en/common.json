@@ -2,7 +2,7 @@
   "welcome": "Welcome to Roomi-Space!",
   "navigation.home": "Home",
   "navigation.builder": "Builder",
-  "navigation.furnish": "Furnish",
+
   "navigation.academy": "Academy",
   "navigation.profile": "Profile",
   "navigation.settings": "Settings",
@@ -142,8 +142,7 @@
   "homepage.features.subtitle": "From drawing your first wall to sharing masterpieces, every step is designed to spark creativity and learning.",
   "homepage.features.buildRoom": "Build Your Room",
   "homepage.features.buildRoomDesc": "Draw walls, add doors and windows with intuitive 3D tools",
-  "homepage.features.furnishDecorate": "Furnish & Decorate",
-  "homepage.features.furnishDecorateDesc": "Drag and drop furniture with realistic physics",
+
   "homepage.features.shareCreations": "Share Creations",
   "homepage.features.shareCreationsDesc": "Take screenshots and share your dream rooms with friends",
   "homepage.features.earnRewards": "Earn Rewards",
@@ -254,7 +253,7 @@
   "sidebar.redo": "Redo",
   "sidebar.optimizeGeometry": "Optimize Geometry",
   "sidebar.saveRoom": "Save Room",
-  "sidebar.startFurnishing": "Start Furnishing",
+
   "sidebar.drawWalls": "Draw Walls",
   "sidebar.movePoints": "Move Points",
   "sidebar.showGrid": "Show Grid",

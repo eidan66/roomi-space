@@ -8,6 +8,7 @@ import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockCont
 
 import AdvancedGeometryEngine, { WindowPlacement } from './AdvancedGeometryEngine';
 import { Wall } from './Floorplan2DCanvas';
+import { RoomObject } from '@/types/room';
 
 // --- Advanced geometry helper functions ---
 
@@ -2816,7 +2817,7 @@ const _createWindow = (
 
 interface ThreeCanvasProps {
   walls: Wall[];
-  _objects?: unknown[];
+  objects?: RoomObject[];
   gridEnabled: boolean;
   isDarkMode: boolean;
   showWindows?: boolean;
@@ -3547,7 +3548,7 @@ const OBJECT_SPACING = 1.0; // Minimum gap between furniture objects
 
 const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   walls,
-  _objects = [],
+  objects = [],
   gridEnabled,
   isDarkMode,
   showWindows = true,
@@ -3682,12 +3683,12 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     fpControlsRef.current = fpControls;
     const walkKeys: Record<string, boolean> = { w: false, a: false, s: false, d: false };
 
-    // Handle pointer lock errors
-    fpControls.addEventListener('error' as const, () => {
+    // Handle pointer lock errors - use try-catch instead of event listener
+    const handlePointerLockError = () => {
       console.log('Pointer lock failed - user may have denied permission');
       setFpMode(false);
       controls.enabled = true;
-    });
+    };
 
     // Handle pointer lock changes
     fpControls.addEventListener('lock', () => {
@@ -3710,8 +3711,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
               fpControls.lock();
             } catch (err) {
               console.log('Failed to lock pointer:', err);
-              setFpMode(false);
-              controls.enabled = true;
+              handlePointerLockError();
             }
           } else {
             fpControls.unlock();
