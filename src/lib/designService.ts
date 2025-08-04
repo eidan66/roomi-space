@@ -1,19 +1,19 @@
 import {
-  equalTo,
-  get,
-  off,
-  onValue,
-  orderByChild,
-  push,
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  onSnapshot,
+  orderBy,
   query,
-  ref,
-  remove,
   serverTimestamp,
-  set,
-  update,
-} from 'firebase/database';
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
 
-import { realtimeDb } from '@/firebase/firebase';
+import { db } from '@/firebase/firebase';
 
 export interface SavedDesign {
   id?: string;
@@ -41,29 +41,30 @@ export interface SavedDesign {
 }
 
 export const designService = {
-  // Test function to check Realtime Database access
+  // Test function to check Firestore access
   async testConnection(): Promise<boolean> {
     try {
-      console.log('🔧 Testing Realtime Database read access...');
-      const testRef = ref(realtimeDb, 'test');
-      await get(testRef);
-      console.log('✅ Realtime Database read access OK');
+      console.log('🔧 Testing Firestore read access...');
+      const testCollection = collection(db, 'test');
+      await getDocs(testCollection);
+      console.log('✅ Firestore read access OK');
 
-      console.log('🔧 Testing Realtime Database write access...');
+      console.log('🔧 Testing Firestore write access...');
       const testData = {
         test: true,
         timestamp: serverTimestamp(),
       };
-      await set(ref(realtimeDb, 'test'), testData);
-      console.log('✅ Realtime Database write access OK');
+      const testDocRef = doc(db, 'test', 'connection-test');
+      await setDoc(testDocRef, testData);
+      console.log('✅ Firestore write access OK');
 
       // Clean up test data
-      await remove(ref(realtimeDb, 'test'));
+      await deleteDoc(testDocRef);
       console.log('✅ Test data cleaned up');
 
       return true;
     } catch (error) {
-      console.error('❌ Realtime Database test failed:', error);
+      console.error('❌ Firestore test failed:', error);
       return false;
     }
   },
@@ -80,14 +81,13 @@ export const designService = {
         updatedAt: serverTimestamp(),
       };
 
-      console.log('🔧 Adding document to Realtime Database...');
-      const designsRef = ref(realtimeDb, 'designs');
-      const newDesignRef = push(designsRef);
-      await set(newDesignRef, designData);
-      console.log('🔧 Document added with ID:', newDesignRef.key);
-      return newDesignRef.key!;
+      console.log('🔧 Adding document to Firestore...');
+      const designsCollection = collection(db, 'designs');
+      const docRef = await addDoc(designsCollection, designData);
+      console.log('🔧 Document added with ID:', docRef.id);
+      return docRef.id;
     } catch (error) {
-      console.error('❌ Realtime Database error:', error);
+      console.error('❌ Firestore error:', error);
       console.error('❌ Error code:', (error as Error & { code?: string })?.code);
       console.error('❌ Error message:', (error as Error)?.message);
       throw error;
@@ -97,8 +97,8 @@ export const designService = {
   async updateDesign(designId: string, design: Partial<SavedDesign>): Promise<void> {
     console.log('🔧 designService.updateDesign called with ID:', designId);
 
-    const designRef = ref(realtimeDb, `designs/${designId}`);
-    await update(designRef, {
+    const designRef = doc(db, 'designs', designId);
+    await updateDoc(designRef, {
       ...design,
       updatedAt: serverTimestamp(),
     });
@@ -107,31 +107,30 @@ export const designService = {
 
   async getUserDesigns(userId: string): Promise<SavedDesign[]> {
     try {
-      const designsRef = ref(realtimeDb, 'designs');
-      const userDesignsQuery = query(designsRef, orderByChild('userId'), equalTo(userId));
-      const snapshot = await get(userDesignsQuery);
+      const designsCollection = collection(db, 'designs');
+      const userDesignsQuery = query(
+        designsCollection,
+        where('userId', '==', userId),
+        orderBy('updatedAt', 'desc'),
+      );
+      const snapshot = await getDocs(userDesignsQuery);
 
-      if (!snapshot.exists()) {
+      if (snapshot.empty) {
         return [];
       }
 
       const designs: SavedDesign[] = [];
-      snapshot.forEach((childSnapshot) => {
+      snapshot.forEach((doc) => {
+        const data = doc.data();
         designs.push({
-          id: childSnapshot.key!,
-          ...childSnapshot.val(),
-          createdAt: childSnapshot.val().createdAt
-            ? new Date(childSnapshot.val().createdAt)
-            : new Date(),
-          updatedAt: childSnapshot.val().updatedAt
-            ? new Date(childSnapshot.val().updatedAt)
-            : new Date(),
-        });
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
+        } as SavedDesign);
       });
 
-      return designs.sort(
-        (a, b) => (b.updatedAt?.getTime() || 0) - (a.updatedAt?.getTime() || 0),
-      );
+      return designs;
     } catch (error) {
       console.error('Error fetching user designs:', error);
       throw error;
@@ -142,71 +141,65 @@ export const designService = {
     userId: string,
     callback: (designs: SavedDesign[]) => void,
   ): () => void {
-    const designsRef = ref(realtimeDb, 'designs');
-    const userDesignsQuery = query(designsRef, orderByChild('userId'), equalTo(userId));
+    const designsCollection = collection(db, 'designs');
+    const userDesignsQuery = query(
+      designsCollection,
+      where('userId', '==', userId),
+      orderBy('updatedAt', 'desc'),
+    );
 
-    const unsubscribe = onValue(userDesignsQuery, (snapshot) => {
-      if (!snapshot.exists()) {
+    const unsubscribe = onSnapshot(userDesignsQuery, (snapshot) => {
+      if (snapshot.empty) {
         callback([]);
         return;
       }
 
       const designs: SavedDesign[] = [];
-      snapshot.forEach((childSnapshot) => {
+      snapshot.forEach((doc) => {
+        const data = doc.data();
         designs.push({
-          id: childSnapshot.key!,
-          ...childSnapshot.val(),
-          createdAt: childSnapshot.val().createdAt
-            ? new Date(childSnapshot.val().createdAt)
-            : new Date(),
-          updatedAt: childSnapshot.val().updatedAt
-            ? new Date(childSnapshot.val().updatedAt)
-            : new Date(),
-        });
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
+        } as SavedDesign);
       });
 
-      callback(
-        designs.sort(
-          (a, b) => (b.updatedAt?.getTime() || 0) - (a.updatedAt?.getTime() || 0),
-        ),
-      );
+      callback(designs);
     });
 
-    return () => off(designsRef, 'value', unsubscribe);
+    return unsubscribe;
   },
 
   subscribeToDesign(
     designId: string,
     callback: (design: SavedDesign | null) => void,
   ): () => void {
-    const designRef = ref(realtimeDb, `designs/${designId}`);
+    const designRef = doc(db, 'designs', designId);
 
-    const unsubscribe = onValue(designRef, (snapshot) => {
-      if (!snapshot.exists()) {
+    const unsubscribe = onSnapshot(designRef, (doc) => {
+      if (!doc.exists()) {
         callback(null);
         return;
       }
 
+      const data = doc.data();
       const design: SavedDesign = {
-        id: snapshot.key!,
-        ...snapshot.val(),
-        createdAt: snapshot.val().createdAt
-          ? new Date(snapshot.val().createdAt)
-          : new Date(),
-        updatedAt: snapshot.val().updatedAt
-          ? new Date(snapshot.val().updatedAt)
-          : new Date(),
-      };
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date(),
+      } as SavedDesign;
 
       callback(design);
     });
 
-    return () => off(designRef, 'value', unsubscribe);
+    return unsubscribe;
   },
 
   async autoSaveDesign(designId: string, design: Partial<SavedDesign>): Promise<void> {
-    const designRef = ref(realtimeDb, `designs/${designId}`);
-    await update(designRef, {
+    const designRef = doc(db, 'designs', designId);
+    await updateDoc(designRef, {
       ...design,
       updatedAt: serverTimestamp(),
     });
@@ -221,14 +214,13 @@ export const designService = {
       updatedAt: serverTimestamp(),
     };
 
-    const designsRef = ref(realtimeDb, 'designs');
-    const newDesignRef = push(designsRef);
-    await set(newDesignRef, designData);
-    return newDesignRef.key!;
+    const designsCollection = collection(db, 'designs');
+    const docRef = await addDoc(designsCollection, designData);
+    return docRef.id;
   },
 
   async deleteDesign(designId: string): Promise<void> {
-    const designRef = ref(realtimeDb, `designs/${designId}`);
-    await remove(designRef);
+    const designRef = doc(db, 'designs', designId);
+    await deleteDoc(designRef);
   },
 };
