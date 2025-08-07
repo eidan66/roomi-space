@@ -29,12 +29,7 @@ export default function HomePage() {
       description: t('homepage.features.buildRoomDesc'),
       color: 'from-primary to-secondary',
     },
-    {
-      icon: Palette,
-      title: t('homepage.features.furnishDecorate'),
-      description: t('homepage.features.furnishDecorateDesc'),
-      color: 'from-secondary to-accent',
-    },
+
     {
       icon: Share2,
       title: t('homepage.features.shareCreations'),

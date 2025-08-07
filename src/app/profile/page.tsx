@@ -12,7 +12,9 @@ import {
   Trophy,
   User,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
+import { useAuth } from '@/components/AuthProvider';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,16 +22,41 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function ProfilePage() {
-  const [user] = useState({
-    name: 'Young Creator',
-    email: 'creator@example.com',
-    joinDate: 'January 2025',
+  const { user, logout } = useAuth();
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+
+  // Redirect if not authenticated
+  if (!user) {
+    router.push('/login');
+    return null;
+  }
+
+  const handleLogout = async () => {
+    setLoading(true);
+    try {
+      await logout();
+      router.push('/');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Mock user stats (in real app, these would come from Firestore)
+  const userStats = {
+    name: user.displayName || user.email?.split('@')[0] || 'User',
+    email: user.email || '',
+    joinDate: user.metadata?.creationTime
+      ? new Date(user.metadata.creationTime).toLocaleDateString()
+      : 'Recently',
     level: 5,
     totalRooms: 8,
     totalShares: 12,
     achievements: 6,
     coins: 1200,
-  });
+  };
 
   const achievements = [
     {
@@ -110,19 +137,19 @@ export default function ProfilePage() {
   const stats = [
     {
       label: 'Rooms Built',
-      value: user.totalRooms,
+      value: userStats.totalRooms,
       icon: Building,
       color: 'text-blue-600',
     },
     {
       label: 'Screenshots Shared',
-      value: user.totalShares,
+      value: userStats.totalShares,
       icon: Share2,
       color: 'text-green-600',
     },
     {
       label: 'Achievements',
-      value: user.achievements,
+      value: userStats.achievements,
       icon: Trophy,
       color: 'text-purple-600',
     },
@@ -137,7 +164,7 @@ export default function ProfilePage() {
               <div className="relative">
                 <Avatar className="w-24 h-24 border-4 border-card shadow-lg">
                   <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-primary-foreground text-2xl font-bold">
-                    {user.name
+                    {userStats.name
                       .split(' ')
                       .map((n) => n[0])
                       .join('')}
@@ -150,25 +177,35 @@ export default function ProfilePage() {
 
               <div className="flex-1 text-center md:text-left space-y-4">
                 <div>
-                  <h1 className="text-3xl font-bold text-foreground">{user.name}</h1>
-                  <p className="text-lg text-muted-foreground">{user.email}</p>
+                  <h1 className="text-3xl font-bold text-foreground">{userStats.name}</h1>
+                  <p className="text-lg text-muted-foreground">{userStats.email}</p>
                   <p className="text-sm text-muted-foreground">
-                    Member since {user.joinDate}
+                    Member since {userStats.joinDate}
                   </p>
                 </div>
 
                 <div className="flex flex-wrap justify-center md:justify-start gap-2">
                   <Badge className="bg-primary text-primary-foreground">
-                    {user.level}
+                    {userStats.level}
                   </Badge>
-                  <Badge variant="outline">{user.totalRooms} Rooms Created</Badge>
-                  <Badge variant="outline">{user.coins} Coins</Badge>
+                  <Badge variant="outline">{userStats.totalRooms} Rooms Created</Badge>
+                  <Badge variant="outline">{userStats.coins} Coins</Badge>
                 </div>
 
-                <Button className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90">
-                  <User className="w-4 h-4 mr-2" />
-                  Edit Profile
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90">
+                    <User className="w-4 h-4 mr-2" />
+                    Edit Profile
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleLogout}
+                    disabled={loading}
+                    className="border-red-200 text-red-600 hover:bg-red-50"
+                  >
+                    {loading ? 'Signing out...' : 'Sign Out'}
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>
