@@ -352,6 +352,8 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
       }
       if (wallToDelete) {
         setWalls((prev) => prev.filter((w) => w.id !== wallToDelete!.id));
+        // stay in delete mode for consecutive deletions
+        setMode('delete');
       }
       return;
     }

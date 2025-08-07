@@ -8,7 +8,10 @@ import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockCont
 
 import { RoomObject } from '@/types/room';
 
-import AdvancedGeometryEngine, { WindowPlacement } from './AdvancedGeometryEngine';
+import AdvancedGeometryEngine, {
+  DoorPlacement,
+  WindowPlacement,
+} from './AdvancedGeometryEngine';
 import { Wall } from './Floorplan2DCanvas';
 
 // --- Advanced geometry helper functions ---
@@ -2674,6 +2677,66 @@ const _createOptimizedWindow = (
   return windowGroup;
 };
 
+// Create a simple hinged door with swing arc indicator
+const createDoor = (wall: Wall, door: DoorPlacement): THREE.Group => {
+  const group = new THREE.Group();
+
+  // Door leaf
+  const thickness = Math.max(0.035, wall.thickness * 0.6);
+  const leafGeom = new THREE.BoxGeometry(door.width, door.height, thickness);
+  const leafMat = new THREE.MeshStandardMaterial({
+    color: 0xdddddd,
+    metalness: 0.05,
+    roughness: 0.6,
+  });
+  const leaf = new THREE.Mesh(leafGeom, leafMat);
+  leaf.castShadow = true;
+  leaf.receiveShadow = true;
+
+  // Position leaf so its hinge aligns to local left/right
+  const hingeOffset = (door.hinge === 'left' ? -1 : 1) * (door.width / 2);
+  leaf.position.x = hingeOffset;
+  leaf.position.y = door.height / 2;
+
+  // Hinge pivot
+  const pivot = new THREE.Group();
+  pivot.add(leaf);
+
+  // World placement
+  const pos = new THREE.Vector3(
+    door.position.x,
+    door.bottomHeight + door.height / 2,
+    door.position.z,
+  );
+  pivot.position.copy(pos);
+  // orient pivot to wall direction
+  const dir = new THREE.Vector3(
+    wall.end.x - wall.start.x,
+    0,
+    wall.end.z - wall.start.z,
+  ).normalize();
+  pivot.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir);
+
+  // Apply swing angle as preview rotation (about Y)
+  leaf.rotation.y = door.swingAngle;
+
+  // Simple handle
+  const handleGeom = new THREE.CylinderGeometry(0.01, 0.01, 0.12, 8);
+  const handleMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8 });
+  const handle = new THREE.Mesh(handleGeom, handleMat);
+  handle.position.set(
+    (door.hinge === 'left' ? 1 : -1) * (door.width / 2 - 0.05),
+    door.height * 0.9 - door.bottomHeight,
+    0,
+  );
+  handle.rotation.z = Math.PI / 2;
+  pivot.add(handle);
+
+  group.add(pivot);
+  group.name = `door-${wall.id}`;
+  return group;
+};
+
 // Create windows in walls with enhanced visual details (legacy function)
 const _createWindow = (
   wall: Wall,
@@ -4112,6 +4175,15 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           while (obj.parent && !obj.name?.startsWith('furniture-')) {
             obj = obj.parent;
           }
+          // If we hit a wall, delete wall instead
+          if (obj.name?.startsWith('wall-')) {
+            const wallIdx = parseInt(obj.name.split('-')[1] || '-1', 10);
+            if (!Number.isNaN(wallIdx)) {
+              // remove from scene only; walls source of truth is parent component
+              obj.parent?.remove(obj);
+              return;
+            }
+          }
           draggableObjectsRef.current = draggableObjectsRef.current.filter(
             (o) => o !== obj,
           );
@@ -4558,11 +4630,69 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         }
 
         // 1️⃣ Attempt accurate polygon-shaped floor that matches wall outline
+        // If multiple interior loops exist, fill them all similar to Blueprint3D
+        const loops = AdvancedGeometryEngine.findFloorLoops(currentProcessedWalls);
+        if (loops.length > 0) {
+          loops.forEach((loop) => {
+            const orderedVertices = ensureCounterClockwise(loop.vertices);
+            const shape = new THREE.Shape();
+            shape.moveTo(orderedVertices[0].x, orderedVertices[0].z);
+            for (let i = 1; i < orderedVertices.length; i++) {
+              shape.lineTo(orderedVertices[i].x, orderedVertices[i].z);
+            }
+            shape.lineTo(orderedVertices[0].x, orderedVertices[0].z);
+
+            let floorGeometry: THREE.BufferGeometry | null = null;
+            try {
+              floorGeometry = new THREE.ShapeGeometry(shape);
+              floorGeometry.rotateX(Math.PI / 2);
+              floorGeometry.computeBoundingBox();
+            } catch {
+              floorGeometry = createOptimizedEarClippingGeometry(orderedVertices);
+              floorGeometry.rotateX(Math.PI / 2);
+            }
+
+            const floorMaterial = new THREE.MeshStandardMaterial({
+              color: (() => {
+                switch (floorType) {
+                  case 'wood':
+                    return 0xdeb887;
+                  case 'tile':
+                    return 0xf5f5f5;
+                  case 'marble':
+                    return 0xffffff;
+                  case 'concrete':
+                    return 0xd3d3d3;
+                  case 'carpet':
+                    return 0xcd853f;
+                  default:
+                    return 0xf0f0f0;
+                }
+              })(),
+              roughness: 0.6,
+              metalness: 0.0,
+              side: THREE.DoubleSide,
+            });
+
+            const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
+            floorMesh.name = 'floor-shape';
+            floorMesh.position.y = -0.01;
+            floorMesh.receiveShadow = true;
+            floorGroup.add(floorMesh);
+          });
+
+          // validity based on at least one loop
+          setIsFloorplanValid(true);
+          console.log('✅ Polygon floors created for loops:', loops.length);
+          return;
+        }
+
         const orderedVertices = ensureCounterClockwise(
           getOrderedVertices(currentProcessedWalls),
         );
         // Update validity flag used by UI banner (based on walls only)
-        const validNow = orderedVertices.length >= 3 && isValidFloorplan(currentProcessedWalls);
+        const validNow =
+          orderedVertices.length >= 3 && isValidFloorplan(currentProcessedWalls);
         setIsFloorplanValid(validNow);
         if (orderedVertices.length >= 3) {
           const shape = new THREE.Shape();
@@ -4843,6 +4973,9 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       // 6. Optimize window placements
       const { walls: wallsWithWindows, windows } =
         AdvancedGeometryEngine.optimizeWindowPlacements(currentProcessedWalls);
+      // 6b. Optimize door placements
+      const { doors } =
+        AdvancedGeometryEngine.optimizeDoorPlacements(currentProcessedWalls);
 
       // Get ordered vertices to understand room shape
       const orderedVertices = getOrderedVertices(wallsWithWindows);
@@ -4916,6 +5049,13 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
             }
           });
         }
+
+        // Add doors (always render if present)
+        const wallDoors = doors.filter((d) => d.wallId === wall.id);
+        wallDoors.forEach((door) => {
+          const doorGroup = createDoor(wall, door);
+          wallGroup.add(doorGroup);
+        });
 
         // Add wall length measurements
         if (wallLength > 0.5) {

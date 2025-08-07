@@ -212,7 +212,13 @@ export default function RoomBuilderPage() {
         viewMode={viewMode}
         setViewMode={setViewMode}
         activeTool={activeTool}
-        setActiveTool={setActiveTool}
+        setActiveTool={(tool) => {
+          setActiveTool(tool);
+          // Bridge delete tool to 2D canvas when in 2D view
+          if (viewMode === '2d' && tool === 'delete') {
+            setEditMode('delete');
+          }
+        }}
         _selectedColor={selectedColor}
         _setSelectedColor={setSelectedColor}
         onScreenshot={(url) => {
