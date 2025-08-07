@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "lint:fix": "next lint --fix",
     "deploy:firebase-indexes": "node deploy-firebase-indexes.js"
   },
   "dependencies": {
