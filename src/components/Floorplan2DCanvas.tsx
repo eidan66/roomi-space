@@ -383,6 +383,12 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
   };
 
   const handleWheel = (e: React.WheelEvent) => {
+    // Disable zooming when in drawing mode to prevent interference
+    if (mode === 'draw') {
+      e.preventDefault();
+      return;
+    }
+
     e.preventDefault();
     const zoomFactor = 1.1;
     const scale = e.deltaY > 0 ? zoomFactor : 1 / zoomFactor;
@@ -487,7 +493,7 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
 
   // --- Auto-center on first render ---
   useEffect(() => {
-    if (walls.length > 0 && svgRef.current) {
+    if (walls.length > 0 && svgRef.current && mode !== 'draw') {
       // Calculate bounding box
       let minX = Infinity,
         maxX = -Infinity,
@@ -522,7 +528,7 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
         });
       }
     }
-  }, [walls]); // Run when walls change
+  }, [walls, mode]); // Run when walls change or mode changes
 
   // Update walls when they change
   useEffect(() => {
