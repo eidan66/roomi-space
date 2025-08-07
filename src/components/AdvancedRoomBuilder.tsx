@@ -273,13 +273,160 @@ export class RoomGeometry {
 
   // Optimize wall connections (merge collinear walls, fix gaps)
   static optimizeWalls(walls: Wall[]): Wall[] {
-    // TODO: Implement wall optimization algorithms
-    // - Merge collinear walls
-    // - Fix small gaps
-    // - Remove duplicate walls
-    // - Ensure proper connections
+    if (walls.length === 0) {
+      return walls;
+    }
 
-    return walls;
+    const SNAP_EPS = Math.max(this.PRECISION, 0.005); // 5mm snap for gap fixing
+    const COLLINEAR_EPS = 1e-3; // cross-product threshold for collinearity
+
+    // 1) Snap near endpoints together to fix small gaps
+    const clusterKey = (p: { x: number; z: number }) => {
+      const x = Math.round(p.x / SNAP_EPS) * SNAP_EPS;
+      const z = Math.round(p.z / SNAP_EPS) * SNAP_EPS;
+      return `${x.toFixed(3)},${z.toFixed(3)}`;
+    };
+
+    const representatives = new Map<string, { x: number; z: number }>();
+    const getRep = (p: { x: number; z: number }) => {
+      const key = clusterKey(p);
+      if (!representatives.has(key)) {
+        representatives.set(key, {
+          x: Math.round(p.x / SNAP_EPS) * SNAP_EPS,
+          z: Math.round(p.z / SNAP_EPS) * SNAP_EPS,
+        });
+      }
+      return representatives.get(key)!;
+    };
+
+    let fixed = walls.map((w) => ({
+      ...w,
+      start: getRep(w.start),
+      end: getRep(w.end),
+    }));
+
+    // 2) Remove zero/very short segments and duplicates
+    const normalizeWall = (w: Wall) => {
+      const a = w.start;
+      const b = w.end;
+      // Direction-independent key
+      const key1 = `${this.createPointKey(a)}|${this.createPointKey(b)}`;
+      const key2 = `${this.createPointKey(b)}|${this.createPointKey(a)}`;
+      return key1 < key2 ? key1 : key2;
+    };
+
+    const unique = new Map<string, Wall>();
+    fixed.forEach((w) => {
+      const length = this.distance(w.start, w.end);
+      if (length < 0.05) {
+        return; // drop too short
+      }
+      const key = normalizeWall(w);
+      if (!unique.has(key)) {
+        unique.set(key, w);
+      }
+    });
+    fixed = Array.from(unique.values());
+
+    // 3) Merge collinear contiguous segments iteratively
+    const pointKey = (p: { x: number; z: number }) => this.createPointKey(p);
+
+    const vector = (a: { x: number; z: number }, b: { x: number; z: number }) => ({
+      x: b.x - a.x,
+      z: b.z - a.z,
+    });
+    const isCollinearForward = (
+      a1: { x: number; z: number },
+      a2: { x: number; z: number },
+      b1: { x: number; z: number },
+      b2: { x: number; z: number },
+    ) => {
+      // a2==b1 shared point. Check if (a2-a1) and (b2-b1) are collinear and pointing same way
+      const v1 = vector(a1, a2);
+      const v2 = vector(b1, b2);
+      const cross = v1.x * v2.z - v1.z * v2.x;
+      const dot = v1.x * v2.x + v1.z * v2.z;
+      return Math.abs(cross) < COLLINEAR_EPS && dot > 0;
+    };
+
+    let merged = true;
+    while (merged) {
+      merged = false;
+
+      // Build adjacency: for each point, which wall indices start/end there
+      const startsAt = new Map<string, number[]>();
+      const endsAt = new Map<string, number[]>();
+      fixed.forEach((w, i) => {
+        const sk = pointKey(w.start);
+        const ek = pointKey(w.end);
+        if (!startsAt.has(sk)) {
+          startsAt.set(sk, []);
+        }
+        if (!endsAt.has(ek)) {
+          endsAt.set(ek, []);
+        }
+        startsAt.get(sk)!.push(i);
+        endsAt.get(ek)!.push(i);
+      });
+
+      const toRemove = new Set<number>();
+      const toReplace: Array<{ idx: number; wall: Wall }> = [];
+
+      for (let i = 0; i < fixed.length; i++) {
+        if (toRemove.has(i)) {
+          continue;
+        }
+        const w = fixed[i];
+        const jointKey = pointKey(w.end);
+        const outgoing = startsAt.get(jointKey) || [];
+        const incoming = endsAt.get(jointKey) || [];
+
+        // Only merge if simple chain: exactly one incoming (our w) and one outgoing (candidate)
+        if (outgoing.length === 1 && incoming.length === 1) {
+          const j = outgoing[0];
+          if (j !== i && !toRemove.has(j)) {
+            const w2 = fixed[j];
+            if (
+              this.pointsEqual(w.end, w2.start) &&
+              isCollinearForward(w.start, w.end, w2.start, w2.end)
+            ) {
+              // Merge into [w.start -> w2.end]
+              const mergedWall: Wall = {
+                ...w,
+                end: w2.end,
+              };
+              toRemove.add(i);
+              toRemove.add(j);
+              toReplace.push({ idx: i, wall: mergedWall });
+            }
+          }
+        }
+      }
+
+      if (toRemove.size > 0) {
+        // Rebuild fixed: replace first occurrence, drop the rest
+        const kept: Wall[] = [];
+        fixed.forEach((w, idx) => {
+          if (toRemove.has(idx)) {
+            return;
+          }
+          kept.push(w);
+        });
+        // Add replacements
+        kept.push(...toReplace.map((r) => r.wall));
+        fixed = kept;
+        merged = true;
+      }
+    }
+
+    // 4) Final pass: ensure every connection uses snapped representatives again
+    fixed = fixed.map((w) => ({
+      ...w,
+      start: getRep(w.start),
+      end: getRep(w.end),
+    }));
+
+    return fixed;
   }
 
   // Generate room statistics

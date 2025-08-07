@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { Search } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '@/components/AuthProvider';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ export default function DesignGallery({
   onLoadDesign,
   onEditDesign,
 }: DesignGalleryProps) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [designs, setDesigns] = useState<SavedDesign[]>([]);
   const [filteredDesigns, setFilteredDesigns] = useState<SavedDesign[]>([]);
@@ -54,7 +56,7 @@ export default function DesignGallery({
         args[0]?.includes?.('failed-precondition')
       ) {
         setIndexError(true);
-        setError('Firebase index not configured. Please contact support.');
+        setError(t('design.gallery.databaseError'));
       }
       originalError.apply(console, args);
     };
@@ -66,7 +68,7 @@ export default function DesignGallery({
   }, [user]);
 
   const handleDeleteDesign = async (designId: string) => {
-    if (!confirm('Are you sure you want to delete this design?')) {
+    if (!confirm(t('design.deleteConfirm'))) {
       return;
     }
 
@@ -74,7 +76,7 @@ export default function DesignGallery({
       await designService.deleteDesign(designId);
       // Real-time listener will automatically update the list
     } catch (err) {
-      setError('Failed to delete design');
+      setError(t('design.deleteFailed'));
       console.error('Delete error:', err);
     }
   };
@@ -113,20 +115,20 @@ export default function DesignGallery({
 
   const formatDate = (date: Date | undefined) => {
     if (!date) {
-      return 'Unknown';
+      return t('design.gallery.unknown');
     }
     const now = new Date();
     const diffTime = Math.abs(now.getTime() - date.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays === 1) {
-      return 'Today';
+      return t('design.gallery.today');
     }
     if (diffDays === 2) {
-      return 'Yesterday';
+      return t('design.gallery.yesterday');
     }
     if (diffDays <= 7) {
-      return `${diffDays - 1} days ago`;
+      return t('design.gallery.daysAgo', { days: diffDays - 1 });
     }
     return date.toLocaleDateString();
   };
@@ -135,11 +137,11 @@ export default function DesignGallery({
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">My Designs</h2>
+          <h2 className="text-lg font-semibold">{t('design.gallery.title')}</h2>
         </div>
         <Card>
           <CardContent className="p-6 text-center">
-            <p className="text-muted-foreground">Please sign in to view your designs</p>
+            <p className="text-muted-foreground">{t('design.gallery.signInRequired')}</p>
           </CardContent>
         </Card>
       </div>
@@ -184,9 +186,9 @@ export default function DesignGallery({
     <div className="space-y-4">
       {/* Simple Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">My Designs</h2>
+        <h2 className="text-lg font-semibold">{t('design.gallery.title')}</h2>
         <span className="text-sm text-muted-foreground">
-          {filteredDesigns.length} design{filteredDesigns.length !== 1 ? 's' : ''}
+          {t('design.gallery.designCount', { count: filteredDesigns.length })}
         </span>
       </div>
 
@@ -194,7 +196,7 @@ export default function DesignGallery({
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
         <Input
-          placeholder="Find a design..."
+          placeholder={t('design.gallery.search')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-10"
@@ -209,7 +211,7 @@ export default function DesignGallery({
                 <p className="text-sm text-red-700">{error}</p>
                 {indexError && (
                   <p className="text-xs text-red-600 mt-1">
-                    Database setup required. Contact support.
+                    {t('design.gallery.databaseError')}
                   </p>
                 )}
               </div>
@@ -232,7 +234,7 @@ export default function DesignGallery({
                 }}
                 className="border-red-300 text-red-700 hover:bg-red-100"
               >
-                Retry
+                {t('design.gallery.retry')}
               </Button>
             </div>
           </CardContent>
@@ -243,11 +245,13 @@ export default function DesignGallery({
         <Card>
           <CardContent className="p-6 text-center">
             <p className="text-muted-foreground">
-              {searchTerm ? 'No designs found' : 'No designs yet'}
+              {searchTerm
+                ? t('design.gallery.noDesignsFound')
+                : t('design.gallery.noDesigns')}
             </p>
             {!searchTerm && (
               <p className="text-sm text-muted-foreground mt-1">
-                Create your first room design to get started
+                {t('design.gallery.createFirst')}
               </p>
             )}
           </CardContent>
@@ -267,8 +271,12 @@ export default function DesignGallery({
                       {design.name}
                     </h3>
                     <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                      <span>{design.walls.length} walls</span>
-                      <span>{design.objects.length} objects</span>
+                      <span>
+                        {t('design.gallery.walls', { count: design.walls.length })}
+                      </span>
+                      <span>
+                        {t('design.gallery.objects', { count: design.objects.length })}
+                      </span>
                       <span>{formatDate(design.updatedAt)}</span>
                     </div>
                   </div>
@@ -281,7 +289,7 @@ export default function DesignGallery({
                         onEditDesign(design.id!);
                       }}
                     >
-                      Edit
+                      {t('design.edit')}
                     </Button>
                     <Button
                       size="sm"
@@ -292,7 +300,7 @@ export default function DesignGallery({
                       }}
                       className="text-red-500 hover:text-red-700"
                     >
-                      Delete
+                      {t('design.delete')}
                     </Button>
                   </div>
                 </div>
