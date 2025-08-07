@@ -3792,7 +3792,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   const selectedObjectRef = useRef<THREE.Object3D | null>(null);
   const isRotatingRef = useRef<boolean>(false);
 
-  const [isFloorplanValid, _setIsFloorplanValid] = useState(false);
+  const [isFloorplanValid, setIsFloorplanValid] = useState(false);
   const [processedWalls, setProcessedWalls] = useState<Wall[]>([]);
   const [hoverName, setHoverName] = useState<string>('');
   const [fpMode, setFpMode] = useState(false);
@@ -4561,6 +4561,9 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         const orderedVertices = ensureCounterClockwise(
           getOrderedVertices(currentProcessedWalls),
         );
+        // Update validity flag used by UI banner (based on walls only)
+        const validNow = orderedVertices.length >= 3 && isValidFloorplan(currentProcessedWalls);
+        setIsFloorplanValid(validNow);
         if (orderedVertices.length >= 3) {
           const shape = new THREE.Shape();
           shape.moveTo(orderedVertices[0].x, orderedVertices[0].z);
@@ -4780,6 +4783,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       const { walls: optimizedWalls } =
         AdvancedGeometryEngine.optimizeWindowPlacements(currentProcessedWalls);
       const isValid = isValidFloorplan(optimizedWalls);
+      setIsFloorplanValid(isValid);
 
       if (!isValid || optimizedWalls.length < 3) {
         return;
@@ -5023,13 +5027,13 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     <>
       <div ref={mountRef} className="w-full h-full relative">
         {/* Status indicators */}
-        {!isFloorplanValid && walls.length > 0 && (
+        {!isFloorplanValid && processedWalls.length > 0 && (
           <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-md shadow-lg z-10">
             Invalid floor plan: Walls must form a closed shape
           </div>
         )}
 
-        {isFloorplanValid && walls.length > 0 && (
+        {isFloorplanValid && processedWalls.length > 0 && (
           <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-md shadow-lg text-sm z-10">
             ✓ Valid Room ({walls.length} walls)
           </div>

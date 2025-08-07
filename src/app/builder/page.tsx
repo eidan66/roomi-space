@@ -110,10 +110,43 @@ export default function RoomBuilderPage() {
     setRedoStack([]);
   }, [walls]);
 
+  const areWallsEqual = useCallback((a: Wall[], b: Wall[]) => {
+    if (a === b) {
+      return true;
+    }
+    if (a.length !== b.length) {
+      return false;
+    }
+    const EPS = 1e-3;
+    const numEq = (x: number, y: number) => Math.abs(x - y) < EPS;
+    for (let i = 0; i < a.length; i++) {
+      const wa = a[i];
+      const wb = b[i];
+      if (!wa || !wb) {
+        return false;
+      }
+      if (
+        wa.id !== wb.id ||
+        !numEq(wa.start.x, wb.start.x) ||
+        !numEq(wa.start.z, wb.start.z) ||
+        !numEq(wa.end.x, wb.end.x) ||
+        !numEq(wa.end.z, wb.end.z) ||
+        !numEq(wa.height, wb.height) ||
+        !numEq(wa.thickness, wb.thickness)
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }, []);
+
   const handleWallsChange = useCallback(() => {
     // Auto-optimize wall graph whenever walls change
-    setWalls((prev) => RoomGeometry.optimizeWalls(prev));
-  }, [setWalls]);
+    const optimized = RoomGeometry.optimizeWalls(walls);
+    if (!areWallsEqual(walls, optimized)) {
+      setWalls(optimized);
+    }
+  }, [walls, setWalls, areWallsEqual]);
 
   // Load saved room from localStorage on initial render
   useEffect(() => {

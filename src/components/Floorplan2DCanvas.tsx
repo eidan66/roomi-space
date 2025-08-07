@@ -242,7 +242,8 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
     if (onWallsChange) {
       onWallsChange();
     }
-  }, [walls, onWallsChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walls]);
 
   // --- State & Mode Management ---
   const finishCurrentMode = useCallback(() => {
@@ -351,9 +352,6 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
       }
       if (wallToDelete) {
         setWalls((prev) => prev.filter((w) => w.id !== wallToDelete!.id));
-        if (onWallsChange) {
-          onWallsChange();
-        }
       }
       return;
     }
@@ -530,12 +528,7 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
     }
   }, [walls, mode]); // Run when walls change or mode changes
 
-  // Update walls when they change
-  useEffect(() => {
-    if (onWallsChange) {
-      onWallsChange();
-    }
-  }, [walls, onWallsChange]);
+  // Removed duplicate walls change effect to prevent double-calls
 
   return (
     <div className="relative w-full h-full bg-gray-50">
