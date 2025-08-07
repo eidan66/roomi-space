@@ -174,7 +174,6 @@ export default function RoomBuilderPage() {
   return (
     <div className="h-screen flex flex-col bg-background">
       <TopToolbar
-        isPremium={false}
         roomSize={roomSize}
         setRoomSize={setRoomSize}
         viewMode={viewMode}
@@ -191,7 +190,6 @@ export default function RoomBuilderPage() {
           showNotification(t('notifications.screenshotCaptured'), 'success');
         }}
         onSave={() => setShowSaveModal(true)}
-        onPremiumRedirect={() => (window.location.href = '/premium')}
         canvasRef={canvas2DRef}
         threeCanvasRef={canvas3DRef}
         threeRendererRef={threeRendererRef}

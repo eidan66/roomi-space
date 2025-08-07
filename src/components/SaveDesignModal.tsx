@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
+import { useTranslation } from 'react-i18next';
 import * as THREE from 'three';
 
 import { useAuth } from '@/components/AuthProvider';
@@ -39,6 +40,7 @@ export default function SaveDesignModal({
   autoSave = false,
   existingDesignId,
 }: SaveDesignModalProps) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -106,13 +108,13 @@ export default function SaveDesignModal({
 
     if (!user) {
       console.log('❌ No user found');
-      setError('You must be logged in to save designs');
+      setError(t('design.mustBeLoggedIn'));
       return;
     }
 
     if (!name.trim()) {
       console.log('❌ No name provided');
-      setError('Please enter a design name');
+      setError(t('design.enterNameError'));
       return;
     }
 
@@ -164,7 +166,7 @@ export default function SaveDesignModal({
       }
     } catch (err) {
       console.error('❌ Save error:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to save design';
+      const errorMessage = err instanceof Error ? err.message : t('design.saveFailed');
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -179,32 +181,34 @@ export default function SaveDesignModal({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>{existingDesignId ? 'Update Design' : 'Save Design'}</CardTitle>
+          <CardTitle>
+            {existingDesignId ? t('design.update') : t('design.save')}
+          </CardTitle>
           <CardDescription>
             {autoSave && existingDesignId
-              ? 'Design will auto-save every 30 seconds'
-              : 'Save your room design to your account'}
+              ? t('design.autoSave')
+              : t('design.saveToAccount')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Design Name</Label>
+            <Label htmlFor="name">{t('design.name')}</Label>
             <Input
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Enter design name"
+              placeholder={t('design.enterName')}
               disabled={loading}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Description (Optional)</Label>
+            <Label htmlFor="description">{t('design.descriptionOptional')}</Label>
             <Textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe your design..."
+              placeholder={t('design.describeDesign')}
               disabled={loading}
             />
           </div>
