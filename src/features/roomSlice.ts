@@ -62,7 +62,13 @@ const recalculateMetrics = (walls: Wall[]): RoomMetrics =>
 // Helper to sync legacy walls with room system
 const syncLegacyWalls = (state: RoomState): void => {
   state.walls = AdvancedRoomDrawing.getAllWalls(state);
-  state.metrics = recalculateMetrics(state.walls);
+  // When multiple rooms exist, compute aggregate metrics per-room instead of flattening
+  if (state.rooms && state.rooms.length > 0) {
+    const roomWallsList = state.rooms.map((r) => r.walls);
+    state.metrics = AdvancedRoomCalculator.calculateAggregateMetrics(roomWallsList);
+  } else {
+    state.metrics = recalculateMetrics(state.walls);
+  }
 };
 
 const roomSlice = createSlice({

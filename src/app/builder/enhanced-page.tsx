@@ -144,7 +144,6 @@ export default function EnhancedRoomBuilderPage() {
     <div className="flex flex-col h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       {/* Top Toolbar */}
       <TopToolbar
-        isPremium={false}
         roomSize="m"
         setRoomSize={() => {}}
         viewMode={viewMode}
@@ -153,7 +152,6 @@ export default function EnhancedRoomBuilderPage() {
         setActiveTool={() => {}}
         onScreenshot={() => {}}
         onSave={() => setShowSaveModal(true)}
-        onPremiumRedirect={() => {}}
         _selectedColor={selectedColor}
         _setSelectedColor={setSelectedColor}
       />

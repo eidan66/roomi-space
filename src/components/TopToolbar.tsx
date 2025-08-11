@@ -7,14 +7,12 @@ import {
   EyeOff,
   Hand,
   Image as ImageIcon,
-  Lock,
   MousePointer2,
   Paintbrush2,
   StretchHorizontal as ResizeIcon,
   Rotate3D,
   Save,
   Trash2,
-  Unlock,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import * as THREE from 'three';
@@ -25,7 +23,6 @@ import { ROOM_SIZES, RoomSizeKey } from '@/config/roomSizes';
 export type ToolKey = 'select' | 'drag' | 'paint' | 'delete' | 'resize';
 
 export interface TopToolbarProps {
-  isPremium: boolean;
   roomSize: RoomSizeKey;
   setRoomSize: (size: RoomSizeKey) => void;
   viewMode: '2d' | '3d';
@@ -34,7 +31,6 @@ export interface TopToolbarProps {
   setActiveTool: (tool: ToolKey) => void;
   onScreenshot: (url: string) => void;
   onSave: () => void;
-  onPremiumRedirect: () => void;
   canvasRef?: React.RefObject<HTMLDivElement | null>;
   _selectedColor: string;
   _setSelectedColor: (c: string) => void;
@@ -43,7 +39,6 @@ export interface TopToolbarProps {
 }
 
 const TopToolbar: React.FC<TopToolbarProps> = ({
-  isPremium,
   roomSize,
   setRoomSize,
   viewMode,
@@ -52,7 +47,6 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
   setActiveTool,
   onScreenshot,
   onSave,
-  onPremiumRedirect,
   canvasRef,
   threeCanvasRef,
   _selectedColor,
@@ -198,16 +192,6 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
           ))}
         </select>
       </div>
-
-      {/* Premium Mode */}
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={!isPremium ? onPremiumRedirect : undefined}
-        title={isPremium ? t('toolbar.premium') : t('toolbar.premiumMode')}
-      >
-        {isPremium ? <Unlock size={18} /> : <Lock size={18} />}
-      </Button>
 
       {/* View Mode Switch */}
       <Button

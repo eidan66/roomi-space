@@ -250,17 +250,33 @@ export class EnhancedFloorRenderer {
     // Ensure counter-clockwise winding
     const orderedVertices = this.ensureCounterClockwise(vertices);
 
+    // Filter out nearly duplicate consecutive vertices to avoid skinny triangles
+    const deduped: Point[] = [];
+    for (let i = 0; i < orderedVertices.length; i++) {
+      const a = orderedVertices[i];
+      const b = orderedVertices[(i + 1) % orderedVertices.length];
+      const dx = a.x - b.x;
+      const dz = a.z - b.z;
+      if (Math.sqrt(dx * dx + dz * dz) > this.PRECISION * 2) {
+        deduped.push(a);
+      }
+    }
+    const vertsPre = deduped.length >= 3 ? deduped : orderedVertices;
+    // Inset slightly to avoid overshoot under walls
+    const insetDistance = 0.01; // 1 cm
+    const verts = this.insetPolygonCCW(vertsPre, insetDistance);
+
     // Triangulate
     const triangles = useAdvancedTriangulation
-      ? this.advancedEarClipping(orderedVertices)
-      : this.simpleTriangulation(orderedVertices);
+      ? this.advancedEarClipping(verts)
+      : this.simpleTriangulation(verts);
 
     if (triangles.length === 0) {
       return null;
     }
 
     // Calculate bounding box for UV mapping
-    const bounds = this.calculateBounds(orderedVertices);
+    const bounds = this.calculateBounds(verts);
 
     const positions: number[] = [];
     const indices: number[] = [];
@@ -268,7 +284,7 @@ export class EnhancedFloorRenderer {
     const uvs: number[] = [];
 
     // Add vertices
-    orderedVertices.forEach((vertex, _index) => {
+    verts.forEach((vertex, _index) => {
       positions.push(vertex.x, 0, vertex.z);
       normals.push(0, 1, 0); // Floor normal points up
 
@@ -280,16 +296,16 @@ export class EnhancedFloorRenderer {
 
     // Add triangle indices
     triangles.forEach((triangle) => {
-      // Find indices of triangle vertices in orderedVertices
-      const idx0 = orderedVertices.findIndex(
+      // Find indices of triangle vertices in verts
+      const idx0 = verts.findIndex(
         (v) =>
           Math.abs(v.x - triangle[0].x) < 0.001 && Math.abs(v.z - triangle[0].z) < 0.001,
       );
-      const idx1 = orderedVertices.findIndex(
+      const idx1 = verts.findIndex(
         (v) =>
           Math.abs(v.x - triangle[1].x) < 0.001 && Math.abs(v.z - triangle[1].z) < 0.001,
       );
-      const idx2 = orderedVertices.findIndex(
+      const idx2 = verts.findIndex(
         (v) =>
           Math.abs(v.x - triangle[2].x) < 0.001 && Math.abs(v.z - triangle[2].z) < 0.001,
       );
@@ -648,6 +664,89 @@ export class EnhancedFloorRenderer {
     });
   }
 
+  // Offset a CCW polygon inward by distance using offset-line intersections
+  private static insetPolygonCCW(vertices: Point[], inset: number): Point[] {
+    if (vertices.length < 3 || inset <= 0) {
+      return vertices;
+    }
+    const n = vertices.length;
+    const lines: Array<{ a: Point; b: Point }> = [];
+    for (let i = 0; i < n; i++) {
+      const v0 = vertices[i];
+      const v1 = vertices[(i + 1) % n];
+      const dx = v1.x - v0.x;
+      const dz = v1.z - v0.z;
+      const len = Math.hypot(dx, dz) || 1;
+      const nx = -dz / len;
+      const nz = dx / len;
+      const a = { x: v0.x + nx * inset, z: v0.z + nz * inset };
+      const b = { x: v1.x + nx * inset, z: v1.z + nz * inset };
+      lines.push({ a, b });
+    }
+    const result: Point[] = [];
+    for (let i = 0; i < n; i++) {
+      const prev = lines[(i - 1 + n) % n];
+      const curr = lines[i];
+      const ip = this.intersectLines(prev.a, prev.b, curr.a, curr.b);
+      result.push(ip ?? curr.a);
+    }
+    return this.ensureCounterClockwise(this.simplifyPolygon(result));
+  }
+
+  private static intersectLines(
+    p1: Point,
+    p2: Point,
+    q1: Point,
+    q2: Point,
+  ): Point | null {
+    const r = { x: p2.x - p1.x, z: p2.z - p1.z };
+    const s = { x: q2.x - q1.x, z: q2.z - q1.z };
+    const denom = r.x * s.z - r.z * s.x;
+    if (Math.abs(denom) < 1e-8) {
+      return null;
+    }
+    const t = ((q1.x - p1.x) * s.z - (q1.z - p1.z) * s.x) / denom;
+    return { x: p1.x + t * r.x, z: p1.z + t * r.z };
+  }
+
+  private static simplifyPolygon(vertices: Point[], epsilon = 1e-3): Point[] {
+    if (vertices.length < 3) {
+      return vertices;
+    }
+    // Dedup consecutive near-equal
+    const dedup: Point[] = [];
+    for (let i = 0; i < vertices.length; i++) {
+      const a = vertices[i];
+      const b = vertices[(i + 1) % vertices.length];
+      const dx = a.x - b.x;
+      const dz = a.z - b.z;
+      if (Math.hypot(dx, dz) > epsilon) {
+        dedup.push(a);
+      }
+    }
+    if (dedup.length < 3) {
+      return vertices;
+    }
+    // Remove collinear
+    const out: Point[] = [];
+    for (let i = 0; i < dedup.length; i++) {
+      const p0 = dedup[(i - 1 + dedup.length) % dedup.length];
+      const p1 = dedup[i];
+      const p2 = dedup[(i + 1) % dedup.length];
+      const v1x = p1.x - p0.x;
+      const v1z = p1.z - p0.z;
+      const v2x = p2.x - p1.x;
+      const v2z = p2.z - p1.z;
+      const cross = v1x * v2z - v1z * v2x;
+      const dot = v1x * v2x + v1z * v2z;
+      if (Math.abs(cross) < epsilon && dot > 0) {
+        continue;
+      }
+      out.push(p1);
+    }
+    return out.length >= 3 ? out : dedup;
+  }
+
   /**
    * Check if vertex is an ear (can be clipped) - legacy method
    */
@@ -701,26 +800,36 @@ export class EnhancedFloorRenderer {
    * Ensure counter-clockwise winding
    */
   private static ensureCounterClockwise(vertices: Point[]): Point[] {
-    const signedArea = this.calculateSignedArea(vertices);
-    return signedArea < 0 ? vertices : [...vertices].reverse();
+    // Standard shoelace formula in XZ-plane
+    let twiceArea = 0;
+    for (let i = 0; i < vertices.length; i++) {
+      const j = (i + 1) % vertices.length;
+      twiceArea += vertices[i].x * vertices[j].z - vertices[j].x * vertices[i].z;
+    }
+    return twiceArea > 0 ? vertices : [...vertices].reverse();
   }
 
   /**
    * Ensure clockwise winding
    */
   private static ensureClockwise(vertices: Point[]): Point[] {
-    const signedArea = this.calculateSignedArea(vertices);
-    return signedArea > 0 ? vertices : [...vertices].reverse();
+    let twiceArea = 0;
+    for (let i = 0; i < vertices.length; i++) {
+      const j = (i + 1) % vertices.length;
+      twiceArea += vertices[i].x * vertices[j].z - vertices[j].x * vertices[i].z;
+    }
+    return twiceArea < 0 ? vertices : [...vertices].reverse();
   }
 
   /**
    * Calculate signed area of polygon
    */
   private static calculateSignedArea(vertices: Point[]): number {
+    // Shoelace formula where positive indicates CCW
     let area = 0;
     for (let i = 0; i < vertices.length; i++) {
       const j = (i + 1) % vertices.length;
-      area += (vertices[j].x - vertices[i].x) * (vertices[j].z + vertices[i].z);
+      area += vertices[i].x * vertices[j].z - vertices[j].x * vertices[i].z;
     }
     return area / 2;
   }

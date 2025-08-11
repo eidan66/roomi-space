@@ -165,7 +165,11 @@ export const EnhancedThreeCanvas: React.FC<EnhancedThreeCanvasProps> = ({
 
   // Create floor material
   const createFloorMaterial = useCallback((type: string): THREE.Material => {
-    const material = new THREE.MeshLambertMaterial();
+    const material = new THREE.MeshLambertMaterial({
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
+    });
 
     switch (type) {
       case 'wood':

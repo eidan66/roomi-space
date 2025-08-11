@@ -242,7 +242,8 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
     if (onWallsChange) {
       onWallsChange();
     }
-  }, [walls, onWallsChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walls]);
 
   // --- State & Mode Management ---
   const finishCurrentMode = useCallback(() => {
@@ -351,9 +352,8 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
       }
       if (wallToDelete) {
         setWalls((prev) => prev.filter((w) => w.id !== wallToDelete!.id));
-        if (onWallsChange) {
-          onWallsChange();
-        }
+        // stay in delete mode for consecutive deletions
+        setMode('delete');
       }
       return;
     }
@@ -383,6 +383,12 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
   };
 
   const handleWheel = (e: React.WheelEvent) => {
+    // Disable zooming when in drawing mode to prevent interference
+    if (mode === 'draw') {
+      e.preventDefault();
+      return;
+    }
+
     e.preventDefault();
     const zoomFactor = 1.1;
     const scale = e.deltaY > 0 ? zoomFactor : 1 / zoomFactor;
@@ -487,7 +493,7 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
 
   // --- Auto-center on first render ---
   useEffect(() => {
-    if (walls.length > 0 && svgRef.current) {
+    if (walls.length > 0 && svgRef.current && mode !== 'draw') {
       // Calculate bounding box
       let minX = Infinity,
         maxX = -Infinity,
@@ -522,14 +528,9 @@ const Floorplan2DCanvas: React.FC<Floorplan2DCanvasProps> = ({
         });
       }
     }
-  }, [walls]); // Run when walls change
+  }, [walls, mode]); // Run when walls change or mode changes
 
-  // Update walls when they change
-  useEffect(() => {
-    if (onWallsChange) {
-      onWallsChange();
-    }
-  }, [walls, onWallsChange]);
+  // Removed duplicate walls change effect to prevent double-calls
 
   return (
     <div className="relative w-full h-full bg-gray-50">

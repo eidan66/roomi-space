@@ -8,6 +8,7 @@ import {
   AdaptiveRenderingOptions,
 } from '../lib/adaptive-3d-renderer';
 
+import { RoomGeometry } from './AdvancedRoomBuilder';
 import { Wall } from './Floorplan2DCanvas';
 
 interface FlexibleThreeCanvasProps {
@@ -47,7 +48,7 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
 
     // Initialize Three.js scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf5f5f5);
+    scene.background = new THREE.Color(0xffffff);
     sceneRef.current = scene;
 
     // Camera setup
@@ -124,48 +125,107 @@ export const FlexibleThreeCanvas: React.FC<FlexibleThreeCanvasProps> = ({
         return null;
       }
 
-      // Extract vertices from walls
-      const vertexMap = new Map<string, { x: number; z: number }>();
+      const verts = RoomGeometry.ensureCounterClockwise(
+        RoomGeometry.getOrderedVertices(walls),
+      );
 
-      walls.forEach((wall) => {
-        const startKey = `${wall.start.x.toFixed(3)},${wall.start.z.toFixed(3)}`;
-        const endKey = `${wall.end.x.toFixed(3)},${wall.end.z.toFixed(3)}`;
-
-        if (!vertexMap.has(startKey)) {
-          vertexMap.set(startKey, wall.start);
-        }
-        if (!vertexMap.has(endKey)) {
-          vertexMap.set(endKey, wall.end);
-        }
-      });
-
-      // Order vertices to form a polygon (simplified approach)
-      const orderedVertices = Array.from(vertexMap.values());
-
-      if (orderedVertices.length < 3) {
+      if (verts.length < 3) {
         return null;
       }
 
-      // Create geometry using triangulation
-      const geometry = new THREE.BufferGeometry();
-      const positions: number[] = [];
-      const indices: number[] = [];
-      const uvs: number[] = [];
+      // Ear clipping triangulation for arbitrary simple polygons
+      const remaining = verts.map((_, i) => i);
+      const triangles: number[] = [];
 
-      // Simple fan triangulation from first vertex
-      orderedVertices.forEach((vertex, _index) => {
-        positions.push(vertex.x, 0, vertex.z);
-        uvs.push(vertex.x / 10, vertex.z / 10); // Simple UV mapping
-      });
+      const cross = (a: THREE.Vector2, b: THREE.Vector2, c: THREE.Vector2) =>
+        (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
 
-      // Create triangles
-      for (let i = 1; i < orderedVertices.length - 1; i++) {
-        indices.push(0, i, i + 1);
+      const pointInTri = (
+        p: THREE.Vector2,
+        a: THREE.Vector2,
+        b: THREE.Vector2,
+        c: THREE.Vector2,
+      ) => {
+        const c1 = cross(a, b, p);
+        const c2 = cross(b, c, p);
+        const c3 = cross(c, a, p);
+        const hasNeg = c1 < 0 || c2 < 0 || c3 < 0;
+        const hasPos = c1 > 0 || c2 > 0 || c3 > 0;
+        return !(hasNeg && hasPos);
+      };
+
+      const toV2 = (i: number) => new THREE.Vector2(verts[i].x, verts[i].z);
+
+      while (remaining.length > 3) {
+        let earFound = false;
+        for (let i = 0; i < remaining.length; i++) {
+          const i0 = remaining[(i - 1 + remaining.length) % remaining.length];
+          const i1 = remaining[i];
+          const i2 = remaining[(i + 1) % remaining.length];
+
+          const a = toV2(i0);
+          const b = toV2(i1);
+          const c = toV2(i2);
+          if (cross(a, b, c) <= 0) {
+            continue; // not convex
+          }
+
+          let contains = false;
+          for (let k = 0; k < remaining.length; k++) {
+            const ik = remaining[k];
+            if (ik === i0 || ik === i1 || ik === i2) {
+              continue;
+            }
+            const p = toV2(ik);
+            if (pointInTri(p, a, b, c)) {
+              contains = true;
+              break;
+            }
+          }
+          if (contains) {
+            continue;
+          }
+
+          triangles.push(i0, i1, i2);
+          remaining.splice(i, 1);
+          earFound = true;
+          break;
+        }
+        if (!earFound) {
+          // fallback fan
+          for (let i = 1; i < remaining.length - 1; i++) {
+            triangles.push(remaining[0], remaining[i], remaining[i + 1]);
+          }
+          break;
+        }
+      }
+      if (remaining.length === 3) {
+        triangles.push(remaining[0], remaining[1], remaining[2]);
       }
 
-      geometry.setIndex(indices);
+      const positions: number[] = [];
+      const uvs: number[] = [];
+      let minX = Infinity,
+        maxX = -Infinity,
+        minZ = Infinity,
+        maxZ = -Infinity;
+      verts.forEach((v) => {
+        minX = Math.min(minX, v.x);
+        maxX = Math.max(maxX, v.x);
+        minZ = Math.min(minZ, v.z);
+        maxZ = Math.max(maxZ, v.z);
+      });
+      const width = Math.max(0.001, maxX - minX);
+      const depth = Math.max(0.001, maxZ - minZ);
+      verts.forEach((v) => {
+        positions.push(v.x, 0, v.z);
+        uvs.push((v.x - minX) / width, (v.z - minZ) / depth);
+      });
+
+      const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
       geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geometry.setIndex(triangles);
       geometry.computeVertexNormals();
 
       return geometry;
