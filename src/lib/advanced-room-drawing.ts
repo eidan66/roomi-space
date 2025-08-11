@@ -315,18 +315,106 @@ export class AdvancedRoomDrawing {
    * Recalculate wall thicknesses based on inside/outside position
    */
   static recalculateWallThicknesses(rooms: DrawingRoom[]): DrawingRoom[] {
+    // 1) Detect shared/adjacent walls between different rooms (interior partitions)
+    const interiorWallIds = new Set<string>();
+
+    const arePointsClose = (a: Point, b: Point, eps = 1e-3): boolean =>
+      Math.abs(a.x - b.x) < eps && Math.abs(a.z - b.z) < eps;
+
+    const cross = (a: Point, b: Point, c: Point): number =>
+      (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
+
+    const isCollinear = (a: Point, b: Point, c: Point, eps = 1e-3): boolean =>
+      Math.abs(cross(a, b, c)) < eps;
+
+    const projectionsOverlap = (
+      a1: number,
+      a2: number,
+      b1: number,
+      b2: number,
+      eps = 1e-3,
+    ): boolean => {
+      const minA = Math.min(a1, a2);
+      const maxA = Math.max(a1, a2);
+      const minB = Math.min(b1, b2);
+      const maxB = Math.max(b1, b2);
+      return !(maxA < minB + eps || maxB < minA + eps);
+    };
+
+    const segmentsOverlapSignificantly = (w1: Wall, w2: Wall): boolean => {
+      // Collinearity check using both endpoints
+      if (
+        !(
+          isCollinear(w1.start, w1.end, w2.start) && isCollinear(w1.start, w1.end, w2.end)
+        )
+      ) {
+        return false;
+      }
+
+      // Overlap on both axes projections
+      const overlapX = projectionsOverlap(w1.start.x, w1.end.x, w2.start.x, w2.end.x);
+      const overlapZ = projectionsOverlap(w1.start.z, w1.end.z, w2.start.z, w2.end.z);
+      if (!(overlapX && overlapZ)) {
+        return false;
+      }
+
+      // Ensure there is a non-trivial overlap length
+      const midpoint = (p: Point, q: Point) => ({
+        x: (p.x + q.x) / 2,
+        z: (p.z + q.z) / 2,
+      });
+      const m1 = midpoint(w1.start, w1.end);
+      const m2 = midpoint(w2.start, w2.end);
+      const dx = m1.x - m2.x;
+      const dz = m1.z - m2.z;
+      const approxGap = Math.sqrt(dx * dx + dz * dz);
+      // If midpoints are far, they might only touch at a tiny tip; require closeness
+      return approxGap < 0.25; // 25cm tolerance for considering shared partition
+    };
+
+    for (let i = 0; i < rooms.length; i++) {
+      const roomA = rooms[i];
+      if (!roomA.isCompleted) {
+        continue;
+      }
+      for (let j = i + 1; j < rooms.length; j++) {
+        const roomB = rooms[j];
+        if (!roomB.isCompleted) {
+          continue;
+        }
+
+        for (const w1 of roomA.walls) {
+          for (const w2 of roomB.walls) {
+            // Quick endpoint snap check for identical reversed segments
+            const identicalReversed =
+              (arePointsClose(w1.start, w2.end) && arePointsClose(w1.end, w2.start)) ||
+              (arePointsClose(w1.start, w2.start) && arePointsClose(w1.end, w2.end));
+
+            if (identicalReversed || segmentsOverlapSignificantly(w1, w2)) {
+              interiorWallIds.add(w1.id);
+              interiorWallIds.add(w2.id);
+            }
+          }
+        }
+      }
+    }
+
+    // 2) Apply thickness based on shared walls first, then inside/outside heuristic
     return rooms.map((room) => {
       if (!room.isCompleted) {
         return room;
       }
 
       const updatedWalls = room.walls.map((wall) => {
+        if (interiorWallIds.has(wall.id)) {
+          return { ...wall, thickness: this.INSIDE_WALL_THICKNESS };
+        }
+
         const wallMidpoint = {
           x: (wall.start.x + wall.end.x) / 2,
           z: (wall.start.z + wall.end.z) / 2,
         };
 
-        // Check if this wall midpoint is inside any other completed room
         const isInsideAnotherRoom = rooms.some(
           (otherRoom) =>
             otherRoom.id !== room.id &&

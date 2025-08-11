@@ -207,6 +207,110 @@ export class AdvancedRoomCalculator {
   }
 
   /**
+   * Calculate aggregated metrics for multiple rooms (house-level)
+   * Treats each set of walls as an independent polygon and aggregates results.
+   */
+  static calculateAggregateMetrics(listOfRooms: Wall[][]): RoomMetrics {
+    if (!listOfRooms || listOfRooms.length === 0) {
+      return this.createEmptyMetrics(['No rooms']);
+    }
+
+    const perRoom = listOfRooms.map((walls) => this.calculateRoomMetrics(walls));
+
+    // Aggregate area and perimeter
+    const totalArea = perRoom.reduce((sum, m) => sum + m.area, 0);
+    const totalPerimeter = perRoom.reduce((sum, m) => sum + m.perimeter, 0);
+    const totalWallCount = perRoom.reduce((sum, m) => sum + m.wallCount, 0);
+
+    // Aggregate wall stats
+    const allWallLengths = perRoom.flatMap((m) => m.wallLengths);
+    const averageWallLength =
+      allWallLengths.length > 0
+        ? allWallLengths.reduce((s, v) => s + v, 0) / allWallLengths.length
+        : 0;
+    const shortestWall = allWallLengths.length > 0 ? Math.min(...allWallLengths) : 0;
+    const longestWall = allWallLengths.length > 0 ? Math.max(...allWallLengths) : 0;
+
+    // Validation
+    const validationErrors = perRoom.flatMap((m, idx) =>
+      m.validationErrors.map((e) => `Room ${idx + 1}: ${e}`),
+    );
+    const isValid = perRoom.every((m) => m.isValid) && totalArea > 0;
+
+    // Interior angles aggregation (best-effort)
+    const interiorAngles = perRoom.flatMap((m) => m.interiorAngles);
+    const averageAngle =
+      interiorAngles.length > 0
+        ? interiorAngles.reduce((s, a) => s + a, 0) / interiorAngles.length
+        : 0;
+
+    // Bounding box across all rooms using room centroids + bounding boxes
+    // Use all vertices approximated by each room's bounding box corners
+    const allBBoxCorners: Point[] = [];
+    perRoom.forEach((m) => {
+      const { min, max } = m.boundingBox;
+      allBBoxCorners.push(
+        { x: min.x, z: min.z },
+        { x: max.x, z: min.z },
+        { x: max.x, z: max.z },
+        { x: min.x, z: max.z },
+      );
+    });
+    const bbox = this.calculateBoundingBox(allBBoxCorners);
+
+    // Centroid: area-weighted centroid of rooms
+    let cxAcc = 0;
+    let czAcc = 0;
+    perRoom.forEach((m) => {
+      cxAcc += m.centroid.x * m.area;
+      czAcc += m.centroid.z * m.area;
+    });
+    const centroid: Point = {
+      x: totalArea > 0 ? cxAcc / totalArea : 0,
+      z: totalArea > 0 ? czAcc / totalArea : 0,
+    };
+
+    // Efficiency metrics
+    const totalThicknessSum = listOfRooms.flat().reduce((sum, w) => sum + w.thickness, 0);
+    const totalWalls = listOfRooms.flat().length;
+    const avgThickness = totalWalls > 0 ? totalThicknessSum / totalWalls : 0;
+    const usableArea = Math.max(0, totalArea - totalPerimeter * avgThickness);
+    const wallToFloorRatio =
+      totalArea > 0 ? (totalPerimeter * avgThickness) / totalArea : 0;
+
+    // Derived multi-room shape scores (approximate)
+    const compactness =
+      totalPerimeter > 0
+        ? (4 * Math.PI * totalArea) / (totalPerimeter * totalPerimeter)
+        : 0;
+    const rectangularity = 0; // not meaningful across multiple polygons
+    const convexity = 0; // not meaningful across multiple polygons
+    const aspectRatio = bbox.height === 0 ? Infinity : bbox.width / bbox.height;
+
+    return {
+      area: totalArea,
+      perimeter: totalPerimeter,
+      wallCount: totalWallCount,
+      compactness,
+      rectangularity,
+      convexity,
+      aspectRatio,
+      centroid,
+      boundingBox: bbox,
+      isValid,
+      validationErrors,
+      wallLengths: allWallLengths,
+      averageWallLength,
+      shortestWall,
+      longestWall,
+      interiorAngles,
+      averageAngle,
+      usableArea,
+      wallToFloorRatio,
+    };
+  }
+
+  /**
    * Get ordered vertices from walls, handling complex polygons
    */
   private static getOrderedVertices(walls: Wall[]): Point[] {

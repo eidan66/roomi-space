@@ -778,7 +778,9 @@ export class AdvancedGeometryEngine {
     return area / 2; // Note: Not using Math.abs() to preserve sign for orientation
   }
 
-  private static ensureCounterClockwise(vertices: { x: number; z: number }[]): { x: number; z: number }[] {
+  private static ensureCounterClockwise(
+    vertices: { x: number; z: number }[],
+  ): { x: number; z: number }[] {
     const area = this.calculatePolygonArea(vertices);
     if (area < 0) {
       // If area is negative, the vertices are clockwise, so reverse them

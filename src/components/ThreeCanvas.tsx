@@ -24,15 +24,112 @@ const ensureCounterClockwise = (
     return vertices;
   }
 
-  // Calculate signed area to determine winding order
-  let signedArea = 0;
+  // Robust orientation via shoelace formula in XZ-plane
+  // Positive area => CCW
+  let twiceArea = 0;
   for (let i = 0; i < vertices.length; i++) {
     const j = (i + 1) % vertices.length;
-    signedArea += (vertices[j].x - vertices[i].x) * (vertices[j].z + vertices[i].z);
+    twiceArea += vertices[i].x * vertices[j].z - vertices[j].x * vertices[i].z;
   }
 
-  // If signed area is positive, vertices are clockwise, so reverse them
-  return signedArea > 0 ? [...vertices].reverse() : vertices;
+  return twiceArea > 0 ? vertices : [...vertices].reverse();
+};
+
+// Remove nearly-duplicate consecutive vertices and drop collinear points
+const simplifyPolygon = (
+  vertices: { x: number; z: number }[],
+  epsilon = 1e-3,
+): { x: number; z: number }[] => {
+  if (vertices.length < 3) {
+    return vertices;
+  }
+
+  // Deduplicate consecutive near-equal points
+  const dedup: { x: number; z: number }[] = [];
+  for (let i = 0; i < vertices.length; i++) {
+    const a = vertices[i];
+    const b = vertices[(i + 1) % vertices.length];
+    const dx = a.x - b.x;
+    const dz = a.z - b.z;
+    if (Math.hypot(dx, dz) > epsilon) {
+      dedup.push(a);
+    }
+  }
+  if (dedup.length < 3) {
+    return vertices;
+  }
+
+  // Remove nearly collinear points
+  const result: { x: number; z: number }[] = [];
+  for (let i = 0; i < dedup.length; i++) {
+    const p0 = dedup[(i - 1 + dedup.length) % dedup.length];
+    const p1 = dedup[i];
+    const p2 = dedup[(i + 1) % dedup.length];
+    const v1x = p1.x - p0.x;
+    const v1z = p1.z - p0.z;
+    const v2x = p2.x - p1.x;
+    const v2z = p2.z - p1.z;
+    const cross = v1x * v2z - v1z * v2x;
+    const dot = v1x * v2x + v1z * v2z;
+    if (Math.abs(cross) < epsilon && dot > 0) {
+      continue;
+    }
+    result.push(p1);
+  }
+  return result.length >= 3 ? result : dedup;
+};
+
+// Compute intersection point of two lines (not segments); return null if parallel
+const intersectLines = (
+  p1: { x: number; z: number },
+  p2: { x: number; z: number },
+  q1: { x: number; z: number },
+  q2: { x: number; z: number },
+): { x: number; z: number } | null => {
+  const r = { x: p2.x - p1.x, z: p2.z - p1.z };
+  const s = { x: q2.x - q1.x, z: q2.z - q1.z };
+  const denom = r.x * s.z - r.z * s.x;
+  if (Math.abs(denom) < 1e-8) {
+    return null;
+  }
+  const t = ((q1.x - p1.x) * s.z - (q1.z - p1.z) * s.x) / denom;
+  return { x: p1.x + t * r.x, z: p1.z + t * r.z };
+};
+
+// Inset a CCW polygon inward by distance using offset-line intersections
+const insetPolygon = (
+  verticesCCW: { x: number; z: number }[],
+  inset: number,
+): { x: number; z: number }[] => {
+  if (verticesCCW.length < 3 || inset <= 0) {
+    return verticesCCW;
+  }
+  const n = verticesCCW.length;
+  const offsetLines: Array<{
+    a: { x: number; z: number };
+    b: { x: number; z: number };
+  }> = [];
+  for (let i = 0; i < n; i++) {
+    const v0 = verticesCCW[i];
+    const v1 = verticesCCW[(i + 1) % n];
+    const dx = v1.x - v0.x;
+    const dz = v1.z - v0.z;
+    const len = Math.hypot(dx, dz) || 1;
+    // Left-hand normal points inside for CCW polygons
+    const nx = -dz / len;
+    const nz = dx / len;
+    const a = { x: v0.x + nx * inset, z: v0.z + nz * inset };
+    const b = { x: v1.x + nx * inset, z: v1.z + nz * inset };
+    offsetLines.push({ a, b });
+  }
+  const insetVerts: { x: number; z: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    const prev = offsetLines[(i - 1 + n) % n];
+    const curr = offsetLines[i];
+    const ip = intersectLines(prev.a, prev.b, curr.a, curr.b);
+    insetVerts.push(ip ?? curr.a);
+  }
+  return ensureCounterClockwise(simplifyPolygon(insetVerts));
 };
 
 // Create floor geometry using manual triangulation
@@ -4632,75 +4729,109 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         // 1️⃣ Attempt accurate polygon-shaped floor that matches wall outline
         // If multiple interior loops exist, fill them all similar to Blueprint3D
         const loops = AdvancedGeometryEngine.findFloorLoops(currentProcessedWalls);
-        if (loops.length > 0) {
-          loops.forEach((loop) => {
-            const orderedVertices = ensureCounterClockwise(loop.vertices);
-            const shape = new THREE.Shape();
-            shape.moveTo(orderedVertices[0].x, orderedVertices[0].z);
-            for (let i = 1; i < orderedVertices.length; i++) {
-              shape.lineTo(orderedVertices[i].x, orderedVertices[i].z);
-            }
-            shape.lineTo(orderedVertices[0].x, orderedVertices[0].z);
+        // Prefer loop-based flooring but aggressively filter tiny/degenerate loops
+        if (loops.length >= 2) {
+          // Compute overall bounds to derive a dynamic area threshold
+          const xsAll = allVertices.map((v) => v.x);
+          const zsAll = allVertices.map((v) => v.z);
+          const bboxArea =
+            (Math.max(...xsAll) - Math.min(...xsAll)) *
+            (Math.max(...zsAll) - Math.min(...zsAll));
+          const minAcceptableArea = Math.max(1.0, bboxArea * 0.05); // >= 1m² and >= 5% of bbox
 
-            let floorGeometry: THREE.BufferGeometry | null = null;
-            try {
-              floorGeometry = new THREE.ShapeGeometry(shape);
-              floorGeometry.rotateX(Math.PI / 2);
-              floorGeometry.computeBoundingBox();
-            } catch {
-              floorGeometry = createOptimizedEarClippingGeometry(orderedVertices);
-              floorGeometry.rotateX(Math.PI / 2);
-            }
+          const scored = loops
+            .map((loop) => ({
+              loop,
+              area: Math.abs(calculateRoomArea(loop.vertices)),
+            }))
+            .filter((x) => x.area >= minAcceptableArea)
+            .sort((a, b) => b.area - a.area);
 
-            const floorMaterial = new THREE.MeshStandardMaterial({
-              color: (() => {
-                switch (floorType) {
-                  case 'wood':
-                    return 0xdeb887;
-                  case 'tile':
-                    return 0xf5f5f5;
-                  case 'marble':
-                    return 0xffffff;
-                  case 'concrete':
-                    return 0xd3d3d3;
-                  case 'carpet':
-                    return 0xcd853f;
-                  default:
-                    return 0xf0f0f0;
-                }
-              })(),
-              roughness: 0.6,
-              metalness: 0.0,
-              side: THREE.DoubleSide,
+          if (scored.length > 0) {
+            // Derive a conservative inset from wall thickness to avoid floor spilling under walls
+            const minWallThickness = Math.min(
+              ...currentProcessedWalls.map((w) => w.thickness || 0.05),
+            );
+            const inset = Math.max(0.005, Math.min(0.25, (minWallThickness || 0.05) / 2));
+
+            scored.forEach(({ loop }) => {
+              const orderedVertices = ensureCounterClockwise(
+                simplifyPolygon(loop.vertices),
+              );
+              const insetVerts = insetPolygon(orderedVertices, inset);
+              const shape = new THREE.Shape();
+              shape.moveTo(insetVerts[0].x, insetVerts[0].z);
+              for (let i = 1; i < insetVerts.length; i++) {
+                shape.lineTo(insetVerts[i].x, insetVerts[i].z);
+              }
+              shape.lineTo(insetVerts[0].x, insetVerts[0].z);
+
+              let floorGeometry: THREE.BufferGeometry | null = null;
+              try {
+                floorGeometry = new THREE.ShapeGeometry(shape);
+                floorGeometry.rotateX(Math.PI / 2);
+                floorGeometry.computeBoundingBox();
+              } catch {
+                floorGeometry = createOptimizedEarClippingGeometry(insetVerts);
+                floorGeometry.rotateX(Math.PI / 2);
+              }
+
+              const floorMaterial = new THREE.MeshStandardMaterial({
+                color: (() => {
+                  switch (floorType) {
+                    case 'wood':
+                      return 0xdeb887;
+                    case 'tile':
+                      return 0xf5f5f5;
+                    case 'marble':
+                      return 0xffffff;
+                    case 'concrete':
+                      return 0xd3d3d3;
+                    case 'carpet':
+                      return 0xcd853f;
+                    default:
+                      return 0xf0f0f0;
+                  }
+                })(),
+                roughness: 0.6,
+                metalness: 0.0,
+                side: THREE.DoubleSide,
+                polygonOffset: true,
+                polygonOffsetFactor: 1,
+                polygonOffsetUnits: 1,
+              });
+
+              const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
+              floorMesh.name = 'floor-shape';
+              floorMesh.position.y = -0.01;
+              floorMesh.receiveShadow = true;
+              floorGroup.add(floorMesh);
             });
 
-            const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
-            floorMesh.name = 'floor-shape';
-            floorMesh.position.y = -0.01;
-            floorMesh.receiveShadow = true;
-            floorGroup.add(floorMesh);
-          });
-
-          // validity based on at least one loop
-          setIsFloorplanValid(true);
-          console.log('✅ Polygon floors created for loops:', loops.length);
-          return;
+            setIsFloorplanValid(true);
+            console.log('✅ Polygon floors created for filtered loops:', scored.length);
+            return;
+          }
         }
 
-        const orderedVertices = ensureCounterClockwise(
-          getOrderedVertices(currentProcessedWalls),
-        );
+        const rawVertices = getOrderedVertices(currentProcessedWalls);
+        const orderedVertices = ensureCounterClockwise(simplifyPolygon(rawVertices));
         // Update validity flag used by UI banner (based on walls only)
         const validNow =
           orderedVertices.length >= 3 && isValidFloorplan(currentProcessedWalls);
         setIsFloorplanValid(validNow);
         if (orderedVertices.length >= 3) {
+          const minWallThickness = Math.min(
+            ...currentProcessedWalls.map((w) => w.thickness || 0.05),
+          );
+          const inset = Math.max(0.005, Math.min(0.25, (minWallThickness || 0.05) / 2));
+          const insetVerts = insetPolygon(orderedVertices, inset);
           const shape = new THREE.Shape();
-          shape.moveTo(orderedVertices[0].x, orderedVertices[0].z);
-          for (let i = 1; i < orderedVertices.length; i++) {
-            shape.lineTo(orderedVertices[i].x, orderedVertices[i].z);
+          shape.moveTo(insetVerts[0].x, insetVerts[0].z);
+          for (let i = 1; i < insetVerts.length; i++) {
+            shape.lineTo(insetVerts[i].x, insetVerts[i].z);
           }
-          shape.lineTo(orderedVertices[0].x, orderedVertices[0].z);
+          shape.lineTo(insetVerts[0].x, insetVerts[0].z);
 
           let floorGeometry: THREE.BufferGeometry | null = null;
           try {
@@ -4713,7 +4844,7 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
             }
           } catch (err) {
             console.warn('⚠️ ShapeGeometry failed, falling back to ear-clipping:', err);
-            floorGeometry = createOptimizedEarClippingGeometry(orderedVertices);
+            floorGeometry = createOptimizedEarClippingGeometry(insetVerts);
             floorGeometry.rotateX(Math.PI / 2);
           }
 
@@ -4737,6 +4868,9 @@ const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
             roughness: 0.6,
             metalness: 0.0,
             side: THREE.DoubleSide,
+            polygonOffset: true,
+            polygonOffsetFactor: 1,
+            polygonOffsetUnits: 1,
           });
 
           const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
